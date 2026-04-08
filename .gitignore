@@ -210,6 +210,3 @@ __marimo__/
 /data/raw-stock-dataset/
 /data/preprocessed-stock-dataset/
 /data/model-input-stock-dataset/
-
-# Keep small metadata tracked
-!data/stock-metadata.csv
