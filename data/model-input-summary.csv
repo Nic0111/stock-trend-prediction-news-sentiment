@@ -1,0 +1,11 @@
+file_name,original_rows,rows_dropped_due_to_feature_nan_or_inf,final_rows
+celcomdigi-berhad-preprocessed.csv,1223,65,1158
+cimb-group-holdings-berhad-preprocessed.csv,1223,59,1164
+ihh-healthcare-berhad-preprocessed.csv,1223,59,1164
+malayan-banking-berhad-preprocessed.csv,1223,61,1162
+misc-berhad-preprocessed.csv,1223,59,1164
+petronas-chemicals-group-berhad-preprocessed.csv,1223,59,1164
+press-metal-aluminium-holdings-berhad-preprocessed.csv,1223,59,1164
+public-bank-berhad-preprocessed.csv,1223,62,1161
+tenaga-nasional-berhad-preprocessed.csv,1223,59,1164
+ytl-corporation-berhad-preprocessed.csv,1223,61,1162
