@@ -210,3 +210,10 @@ __marimo__/
 /data/raw-stock-dataset/
 /data/preprocessed-stock-dataset/
 /data/model-input-stock-dataset/
+
+# Trained model artifacts
+models/*.joblib
+
+# Generated evaluation artifacts
+results/classification-reports/*.txt
+results/confusion-matrices/*.csv
