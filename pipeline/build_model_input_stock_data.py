@@ -19,6 +19,9 @@ RAW_DATA_DIR = DATA_DIR / "raw-stock-dataset"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed-stock-dataset"
 MODEL_INPUT_DATA_DIR = DATA_DIR / "model-input-stock-dataset"
 
+SUMMARY_DIR = PROJECT_ROOT / "summary"
+DATA_PREPROCESSING_SUMMARY_DIR = SUMMARY_DIR / "data-preprocessing"
+
 SUMMARY_FILE = DATA_DIR / "model-input-summary.csv"
 
 REQUIRED_COLUMNS = [
@@ -37,6 +40,43 @@ REQUIRED_COLUMNS = [
 # Locked target horizons
 TARGET_HORIZONS = [1, 5, 10]
 
+FEATURE_COLUMNS = [
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Adj Close",
+    "Volume",
+    "Return_1D",
+    "Return_5D",
+    "Lag_1",
+    "Lag_2",
+    "Lag_3",
+    "Lag_5",
+    "MA_5",
+    "MA_20",
+    "MA_60",
+    "Volatility_5D",
+    "Volatility_20D",
+    "High_Low_Spread",
+    "Open_Close_Change",
+    "Volume_Change_1D",
+    "Volume_MA_5",
+]
+
+TARGET_COLUMNS = [
+    "Target_1D",
+    "Target_5D",
+    "Target_10D",
+]
+
+MODEL_INPUT_COLUMNS = [
+    "Date",
+    "Ticker",
+    *FEATURE_COLUMNS,
+    *TARGET_COLUMNS,
+]
+
 
 # ============================================================
 # Helper functions
@@ -46,6 +86,30 @@ def ensure_data_structure() -> None:
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
     PREPROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
     MODEL_INPUT_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    DATA_PREPROCESSING_SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def format_number(value: object) -> str:
+    if pd.isna(value):
+        return "N/A"
+    if isinstance(value, float):
+        return f"{value:,.6f}".rstrip("0").rstrip(".")
+    if isinstance(value, int):
+        return f"{value:,}"
+    return str(value)
+
+
+def markdown_table(headers: List[str], rows: List[List[object]]) -> str:
+    if not rows:
+        return "_No rows to report._"
+
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join(["---"] * len(headers)) + " |",
+    ]
+    for row in rows:
+        lines.append("| " + " | ".join(format_number(value) for value in row) + " |")
+    return "\n".join(lines)
 
 
 def get_preprocessed_csv_files() -> List[Path]:
@@ -140,7 +204,9 @@ def add_targets(df: pd.DataFrame) -> pd.DataFrame:
 
     for horizon in TARGET_HORIZONS:
         future_price = df["Adj Close"].shift(-horizon)
-        df[f"Target_{horizon}D"] = (future_price > df["Adj Close"]).astype("float")
+        target = (future_price > df["Adj Close"]).astype("float")
+        target[future_price.isna()] = np.nan
+        df[f"Target_{horizon}D"] = target
 
     return df
 
@@ -156,44 +222,14 @@ def finalize_model_input(df: pd.DataFrame) -> tuple[pd.DataFrame, Dict[str, int]
     # Replace inf with NaN before final dropping
     df = df.replace([np.inf, -np.inf], np.nan)
 
-    model_input_columns = [
-        "Date",
-        "Ticker",
-        "Open",
-        "High",
-        "Low",
-        "Close",
-        "Adj Close",
-        "Volume",
-        "Return_1D",
-        "Return_5D",
-        "Lag_1",
-        "Lag_2",
-        "Lag_3",
-        "Lag_5",
-        "MA_5",
-        "MA_20",
-        "MA_60",
-        "Volatility_5D",
-        "Volatility_20D",
-        "High_Low_Spread",
-        "Open_Close_Change",
-        "Volume_Change_1D",
-        "Volume_MA_5",
-        "Target_1D",
-        "Target_5D",
-        "Target_10D",
-    ]
-
-    df = df[model_input_columns].copy()
+    df = df[MODEL_INPUT_COLUMNS].copy()
 
     rows_with_nan_or_inf = int(df.isna().any(axis=1).sum())
     df = df.dropna().reset_index(drop=True)
 
     # Convert targets from float to int after dropping NaN rows
-    df["Target_1D"] = df["Target_1D"].astype(int)
-    df["Target_5D"] = df["Target_5D"].astype(int)
-    df["Target_10D"] = df["Target_10D"].astype(int)
+    for target_column in TARGET_COLUMNS:
+        df[target_column] = df[target_column].astype(int)
 
     # Standardize date string format for saved CSV
     df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
@@ -224,13 +260,87 @@ def process_single_file(file_path: Path) -> tuple[pd.DataFrame, Dict[str, int | 
 def save_model_input_csv(df: pd.DataFrame, preprocessed_file: Path) -> Path:
     output_name = build_output_filename(preprocessed_file)
     output_path = MODEL_INPUT_DATA_DIR / output_name
-    df.to_csv(output_path, index=False)
+    temp_path = output_path.with_suffix(".tmp")
+    try:
+        df.to_csv(temp_path, index=False)
+        temp_path.replace(output_path)
+    except PermissionError as exc:
+        if temp_path.exists():
+            temp_path.unlink()
+        raise PermissionError(
+            f"Could not replace {output_path}. Close the file if it is open "
+            "in Excel or another application, then rerun build_model_input."
+        ) from exc
     return output_path
 
 
 def save_summary(summary_rows: List[Dict[str, int | str]]) -> None:
     summary_df = pd.DataFrame(summary_rows)
     summary_df.to_csv(SUMMARY_FILE, index=False)
+
+
+def write_model_input_ready_summary(summary_rows: List[Dict[str, int | str]]) -> None:
+    total_original = int(sum(int(row["original_rows"]) for row in summary_rows))
+    total_dropped = int(
+        sum(int(row["rows_dropped_due_to_feature_nan_or_inf"]) for row in summary_rows)
+    )
+    total_final = int(sum(int(row["final_rows"]) for row in summary_rows))
+
+    table_rows = [
+        [
+            row["file_name"],
+            row["original_rows"],
+            row["rows_dropped_due_to_feature_nan_or_inf"],
+            row["final_rows"],
+        ]
+        for row in summary_rows
+    ]
+
+    feature_list = "\n".join(f"- `{column}`" for column in FEATURE_COLUMNS)
+    target_list = "\n".join(f"- `{column}`" for column in TARGET_COLUMNS)
+
+    content = f"""# 3.4.1.6 Model Input-Ready Dataset Summary
+
+## Purpose
+This section documents the dataset construction step that converts the preprocessed stock dataset into model input-ready rows. This is feature engineering and target construction, not standardization or normalization.
+
+## Dataset Location
+`data/model-input-stock-dataset/`
+
+## Method Applied
+- Daily and multi-day return features are created from `Adj Close`.
+- Lag, moving-average, volatility, price movement, and volume features are created.
+- Classification targets are created for 1-day, 5-day, and 10-day future price direction.
+- Rows with missing or infinite values from lag, rolling-window, volume-change, or future-target construction are removed.
+
+## Overall Result
+- Files processed: {len(summary_rows)}
+- Preprocessed input rows: {total_original:,}
+- Rows dropped during model input preparation: {total_dropped:,}
+- Model input-ready rows: {total_final:,}
+
+## File-Level Statistics
+{markdown_table(
+        [
+            "Preprocessed File",
+            "Input Rows",
+            "Rows Dropped",
+            "Final Rows",
+        ],
+        table_rows,
+    )}
+
+## Feature Columns
+{feature_list}
+
+## Target Columns
+{target_list}
+
+## Relationship To Standardization/Normalization
+This stage prepares the columns required by the prediction models. Scaling remains model-dependent and is handled during training when needed, such as the `StandardScaler` used inside the Logistic Regression training pipeline.
+"""
+    output_path = DATA_PREPROCESSING_SUMMARY_DIR / "model-input-ready-dataset-summary.md"
+    output_path.write_text(content, encoding="utf-8")
 
 
 # ============================================================
@@ -269,7 +379,12 @@ def run_model_input_pipeline() -> None:
             print(f"Failed to build model input for {preprocessed_file.name}: {exc}\n")
 
     save_summary(summary_rows)
+    write_model_input_ready_summary(summary_rows)
     print(f"Model-input summary saved to: {SUMMARY_FILE}")
+    print(
+        "Model input-ready Markdown summary saved to: "
+        f"{DATA_PREPROCESSING_SUMMARY_DIR / 'model-input-ready-dataset-summary.md'}"
+    )
     print("\n[Model-input dataset pipeline finished]")
 
 

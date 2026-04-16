@@ -37,6 +37,20 @@ def run_build_model_input() -> None:
     run_model_input_pipeline()
 
 
+def run_data_understanding() -> None:
+    try:
+        from pipeline.data_understanding import run_data_understanding_pipeline
+    except ImportError:
+        print(
+            "data_understanding.py is not ready yet.\n"
+            "Create pipeline/data_understanding.py with a function named "
+            "`run_data_understanding_pipeline()` first."
+        )
+        return
+
+    run_data_understanding_pipeline()
+
+
 def run_train_models() -> None:
     try:
         from pipeline.train_stock_models import run_training_pipeline
@@ -52,16 +66,19 @@ def run_train_models() -> None:
 
 
 def run_all() -> None:
-    print("Step 1/4: Downloading raw stock data...")
+    print("Step 1/5: Downloading raw stock data...")
     run_download_raw()
 
-    print("\nStep 2/4: Preprocessing stock data...")
+    print("\nStep 2/5: Preprocessing stock data...")
     run_preprocess_raw()
 
-    print("\nStep 3/4: Building model-input stock data...")
+    print("\nStep 3/5: Building model-input stock data...")
     run_build_model_input()
 
-    print("\nStep 4/4: Training stock models...")
+    print("\nStep 4/5: Generating data understanding summaries...")
+    run_data_understanding()
+
+    print("\nStep 5/5: Training stock models...")
     run_train_models()
 
     print("\nPipeline finished.")
@@ -78,12 +95,14 @@ def build_parser() -> argparse.ArgumentParser:
             "download_raw",
             "preprocess_raw",
             "build_model_input",
+            "data_understanding",
             "train_models",
             "all",
         ],
         help=(
             "Pipeline command to run: "
-            "download_raw, preprocess_raw, build_model_input, train_models, or all"
+            "download_raw, preprocess_raw, build_model_input, "
+            "data_understanding, train_models, or all"
         ),
     )
 
@@ -100,6 +119,8 @@ def main() -> None:
         run_preprocess_raw()
     elif args.command == "build_model_input":
         run_build_model_input()
+    elif args.command == "data_understanding":
+        run_data_understanding()
     elif args.command == "train_models":
         run_train_models()
     elif args.command == "all":
