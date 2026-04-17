@@ -211,10 +211,16 @@ __marimo__/
 /data/preprocessed-stock-dataset/
 /data/model-input-stock-dataset/
 /data/sample-only/
+/data/preprocessing-summary.csv
+/data/model-input-summary.csv
+
+# Generated analysis/report artifacts
+/summary/
 
 # Trained model artifacts
 models/*.joblib
 
 # Generated evaluation artifacts
+/results/model-comparison-summary.csv
 results/classification-reports/*.txt
 results/confusion-matrices/*.csv
