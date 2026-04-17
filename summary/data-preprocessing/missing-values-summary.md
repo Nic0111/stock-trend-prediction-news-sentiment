@@ -17,15 +17,15 @@ This step validates the raw stock dataset columns, fills optional corporate acti
 - Rows after missing-value handling: 12,230
 
 ## File-Level Statistics
-| File | Original Rows | Rows Dropped | Dividends Filled | Stock Splits Filled | Final Rows |
-| --- | --- | --- | --- | --- | --- |
-| celcomdigi-berhad-raw.csv | 1,223 | 0 | 0 | 0 | 1,223 |
-| cimb-group-holdings-berhad-raw.csv | 1,223 | 0 | 0 | 0 | 1,223 |
-| ihh-healthcare-berhad-raw.csv | 1,223 | 0 | 0 | 0 | 1,223 |
-| malayan-banking-berhad-raw.csv | 1,223 | 0 | 0 | 0 | 1,223 |
-| misc-berhad-raw.csv | 1,223 | 0 | 0 | 0 | 1,223 |
-| petronas-chemicals-group-berhad-raw.csv | 1,223 | 0 | 0 | 0 | 1,223 |
-| press-metal-aluminium-holdings-berhad-raw.csv | 1,223 | 0 | 0 | 0 | 1,223 |
-| public-bank-berhad-raw.csv | 1,223 | 0 | 0 | 0 | 1,223 |
-| tenaga-nasional-berhad-raw.csv | 1,223 | 0 | 0 | 0 | 1,223 |
-| ytl-corporation-berhad-raw.csv | 1,223 | 0 | 0 | 0 | 1,223 |
+| File                                          | Original Rows | Rows Dropped | Dividends Filled | Stock Splits Filled | Final Rows |
+| --------------------------------------------- | ------------- | ------------ | ---------------- | ------------------- | ---------- |
+| celcomdigi-berhad-raw.csv                     | 1,223         | 0            | 0                | 0                   | 1,223      |
+| cimb-group-holdings-berhad-raw.csv            | 1,223         | 0            | 0                | 0                   | 1,223      |
+| ihh-healthcare-berhad-raw.csv                 | 1,223         | 0            | 0                | 0                   | 1,223      |
+| malayan-banking-berhad-raw.csv                | 1,223         | 0            | 0                | 0                   | 1,223      |
+| misc-berhad-raw.csv                           | 1,223         | 0            | 0                | 0                   | 1,223      |
+| petronas-chemicals-group-berhad-raw.csv       | 1,223         | 0            | 0                | 0                   | 1,223      |
+| press-metal-aluminium-holdings-berhad-raw.csv | 1,223         | 0            | 0                | 0                   | 1,223      |
+| public-bank-berhad-raw.csv                    | 1,223         | 0            | 0                | 0                   | 1,223      |
+| tenaga-nasional-berhad-raw.csv                | 1,223         | 0            | 0                | 0                   | 1,223      |
+| ytl-corporation-berhad-raw.csv                | 1,223         | 0            | 0                | 0                   | 1,223      |

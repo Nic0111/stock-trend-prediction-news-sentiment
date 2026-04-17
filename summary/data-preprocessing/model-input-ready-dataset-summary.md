@@ -19,18 +19,18 @@ This section documents the dataset construction step that converts the preproces
 - Model input-ready rows: 11,527
 
 ## File-Level Statistics
-| Preprocessed File | Input Rows | Rows Dropped | Final Rows |
-| --- | --- | --- | --- |
-| celcomdigi-berhad-preprocessed.csv | 1,223 | 75 | 1,148 |
-| cimb-group-holdings-berhad-preprocessed.csv | 1,223 | 69 | 1,154 |
-| ihh-healthcare-berhad-preprocessed.csv | 1,223 | 69 | 1,154 |
-| malayan-banking-berhad-preprocessed.csv | 1,223 | 71 | 1,152 |
-| misc-berhad-preprocessed.csv | 1,223 | 69 | 1,154 |
-| petronas-chemicals-group-berhad-preprocessed.csv | 1,223 | 69 | 1,154 |
-| press-metal-aluminium-holdings-berhad-preprocessed.csv | 1,223 | 69 | 1,154 |
-| public-bank-berhad-preprocessed.csv | 1,223 | 72 | 1,151 |
-| tenaga-nasional-berhad-preprocessed.csv | 1,223 | 69 | 1,154 |
-| ytl-corporation-berhad-preprocessed.csv | 1,223 | 71 | 1,152 |
+| Preprocessed File                                      | Input Rows | Rows Dropped | Final Rows |
+| ------------------------------------------------------ | ---------- | ------------ | ---------- |
+| celcomdigi-berhad-preprocessed.csv                     | 1,223      | 75           | 1,148      |
+| cimb-group-holdings-berhad-preprocessed.csv            | 1,223      | 69           | 1,154      |
+| ihh-healthcare-berhad-preprocessed.csv                 | 1,223      | 69           | 1,154      |
+| malayan-banking-berhad-preprocessed.csv                | 1,223      | 71           | 1,152      |
+| misc-berhad-preprocessed.csv                           | 1,223      | 69           | 1,154      |
+| petronas-chemicals-group-berhad-preprocessed.csv       | 1,223      | 69           | 1,154      |
+| press-metal-aluminium-holdings-berhad-preprocessed.csv | 1,223      | 69           | 1,154      |
+| public-bank-berhad-preprocessed.csv                    | 1,223      | 72           | 1,151      |
+| tenaga-nasional-berhad-preprocessed.csv                | 1,223      | 69           | 1,154      |
+| ytl-corporation-berhad-preprocessed.csv                | 1,223      | 71           | 1,152      |
 
 ## Feature Columns
 - `Open`

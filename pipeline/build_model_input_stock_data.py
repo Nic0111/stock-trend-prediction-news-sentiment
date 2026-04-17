@@ -103,12 +103,25 @@ def markdown_table(headers: List[str], rows: List[List[object]]) -> str:
     if not rows:
         return "_No rows to report._"
 
-    lines = [
-        "| " + " | ".join(headers) + " |",
-        "| " + " | ".join(["---"] * len(headers)) + " |",
+    string_rows = [[format_number(value) for value in row] for row in rows]
+    column_widths = [
+        max(3, len(str(header)), *(len(row[index]) for row in string_rows))
+        for index, header in enumerate(headers)
     ]
-    for row in rows:
-        lines.append("| " + " | ".join(format_number(value) for value in row) + " |")
+
+    def format_row(values: List[str]) -> str:
+        padded_values = [
+            value.ljust(column_widths[index])
+            for index, value in enumerate(values)
+        ]
+        return "| " + " | ".join(padded_values) + " |"
+
+    lines = [
+        format_row(headers),
+        "| " + " | ".join("-" * width for width in column_widths) + " |",
+    ]
+    for row in string_rows:
+        lines.append(format_row(row))
     return "\n".join(lines)
 
 
