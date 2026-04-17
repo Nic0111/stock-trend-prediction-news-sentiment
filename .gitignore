@@ -137,6 +137,8 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+.env.*
+config/newsapi_key.txt
 .venv
 env/
 venv/
@@ -211,6 +213,7 @@ __marimo__/
 /data/preprocessed-stock-dataset/
 /data/model-input-stock-dataset/
 /data/sample-only/
+/data/financial-news-dataset/
 /data/preprocessing-summary.csv
 /data/model-input-summary.csv
 

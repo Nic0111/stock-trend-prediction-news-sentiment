@@ -9,6 +9,11 @@ def run_download_raw() -> None:
     run_download_pipeline()
 
 
+def run_download_financial_news() -> None:
+    from pipeline.download_financial_news_data import run_financial_news_download_pipeline
+    run_financial_news_download_pipeline()
+
+
 def run_preprocess_raw() -> None:
     try:
         from pipeline.preprocess_raw_stock_data import run_preprocess_pipeline
@@ -93,6 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
         "command",
         choices=[
             "download_raw",
+            "download_financial_news",
             "preprocess_raw",
             "build_model_input",
             "data_understanding",
@@ -101,8 +107,8 @@ def build_parser() -> argparse.ArgumentParser:
         ],
         help=(
             "Pipeline command to run: "
-            "download_raw, preprocess_raw, build_model_input, "
-            "data_understanding, train_models, or all"
+            "download_raw, download_financial_news, preprocess_raw, "
+            "build_model_input, data_understanding, train_models, or all"
         ),
     )
 
@@ -115,6 +121,8 @@ def main() -> None:
 
     if args.command == "download_raw":
         run_download_raw()
+    elif args.command == "download_financial_news":
+        run_download_financial_news()
     elif args.command == "preprocess_raw":
         run_preprocess_raw()
     elif args.command == "build_model_input":
