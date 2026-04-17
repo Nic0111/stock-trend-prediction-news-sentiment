@@ -41,13 +41,13 @@ This step removes records that are logically impossible for OHLCV stock data and
 | cimb-group-holdings-berhad-raw.csv            | High      | 2.470001        | 9.669999        | 0             |
 | cimb-group-holdings-berhad-raw.csv            | Low       | 2.41            | 9.53            | 0             |
 | cimb-group-holdings-berhad-raw.csv            | Close     | 2.4475          | 9.5875          | 0             |
-| cimb-group-holdings-berhad-raw.csv            | Adj Close | 0.511234        | 9.919589        | 0             |
+| cimb-group-holdings-berhad-raw.csv            | Adj Close | 0.511235        | 9.919589        | 0             |
 | cimb-group-holdings-berhad-raw.csv            | Volume    | -7,799,475      | 35,709,525      | 57            |
 | ihh-healthcare-berhad-raw.csv                 | Open      | 4.68            | 7.96            | 61            |
 | ihh-healthcare-berhad-raw.csv                 | High      | 4.71            | 8.07            | 62            |
 | ihh-healthcare-berhad-raw.csv                 | Low       | 4.630001        | 7.909999        | 62            |
 | ihh-healthcare-berhad-raw.csv                 | Close     | 4.6875          | 7.9475          | 63            |
-| ihh-healthcare-berhad-raw.csv                 | Adj Close | 4.089394        | 8.061899        | 53            |
+| ihh-healthcare-berhad-raw.csv                 | Adj Close | 4.089395        | 8.061899        | 53            |
 | ihh-healthcare-berhad-raw.csv                 | Volume    | -2,565,350      | 11,821,850      | 70            |
 | malayan-banking-berhad-raw.csv                | Open      | 6.575           | 11.895          | 0             |
 | malayan-banking-berhad-raw.csv                | High      | 6.590002        | 11.949998       | 0             |
@@ -59,25 +59,25 @@ This step removes records that are logically impossible for OHLCV stock data and
 | misc-berhad-raw.csv                           | High      | 6.32            | 8.4             | 77            |
 | misc-berhad-raw.csv                           | Low       | 6.204999        | 8.245           | 79            |
 | misc-berhad-raw.csv                           | Close     | 6.25            | 8.33            | 78            |
-| misc-berhad-raw.csv                           | Adj Close | 4.019785        | 8.888901        | 0             |
+| misc-berhad-raw.csv                           | Adj Close | 4.019784        | 8.888901        | 0             |
 | misc-berhad-raw.csv                           | Volume    | -1,656,500      | 5,571,900       | 72            |
 | petronas-chemicals-group-berhad-raw.csv       | Open      | 1.274999        | 12.595001       | 0             |
 | petronas-chemicals-group-berhad-raw.csv       | High      | 1.35            | 12.67           | 0             |
 | petronas-chemicals-group-berhad-raw.csv       | Low       | 1.239999        | 12.480001       | 0             |
 | petronas-chemicals-group-berhad-raw.csv       | Close     | 1.2975          | 12.517501       | 0             |
-| petronas-chemicals-group-berhad-raw.csv       | Adj Close | 2.205833        | 10.580665       | 0             |
+| petronas-chemicals-group-berhad-raw.csv       | Adj Close | 2.205834        | 10.580665       | 0             |
 | petronas-chemicals-group-berhad-raw.csv       | Volume    | -3,848,425      | 13,359,775      | 65            |
 | press-metal-aluminium-holdings-berhad-raw.csv | Open      | 3.9             | 6.3             | 79            |
 | press-metal-aluminium-holdings-berhad-raw.csv | High      | 3.975001        | 6.334999        | 84            |
 | press-metal-aluminium-holdings-berhad-raw.csv | Low       | 3.91            | 6.15            | 92            |
 | press-metal-aluminium-holdings-berhad-raw.csv | Close     | 3.9225          | 6.2625          | 85            |
-| press-metal-aluminium-holdings-berhad-raw.csv | Adj Close | 3.718513        | 6.101487        | 85            |
+| press-metal-aluminium-holdings-berhad-raw.csv | Adj Close | 3.718514        | 6.101486        | 85            |
 | press-metal-aluminium-holdings-berhad-raw.csv | Volume    | -4,043,600      | 16,620,800      | 62            |
 | public-bank-berhad-raw.csv                    | Open      | 3.7375          | 4.8375          | 0             |
 | public-bank-berhad-raw.csv                    | High      | 3.735           | 4.895           | 1             |
 | public-bank-berhad-raw.csv                    | Low       | 3.715           | 4.795           | 0             |
 | public-bank-berhad-raw.csv                    | Close     | 3.7125          | 4.8525          | 0             |
-| public-bank-berhad-raw.csv                    | Adj Close | 2.545966        | 4.963692        | 0             |
+| public-bank-berhad-raw.csv                    | Adj Close | 2.545966        | 4.963691        | 0             |
 | public-bank-berhad-raw.csv                    | Volume    | -4,440,550      | 37,614,250      | 65            |
 | tenaga-nasional-berhad-raw.csv                | Open      | 3.215           | 19.415          | 0             |
 | tenaga-nasional-berhad-raw.csv                | High      | 3.1975          | 19.6175         | 0             |
@@ -89,5 +89,5 @@ This step removes records that are logically impossible for OHLCV stock data and
 | ytl-corporation-berhad-raw.csv                | High      | -1.935          | 4.865           | 0             |
 | ytl-corporation-berhad-raw.csv                | Low       | -1.8075         | 4.6125          | 0             |
 | ytl-corporation-berhad-raw.csv                | Close     | -1.8475         | 4.6925          | 0             |
-| ytl-corporation-berhad-raw.csv                | Adj Close | -1.910868       | 4.61923         | 0             |
+| ytl-corporation-berhad-raw.csv                | Adj Close | -1.910868       | 4.619231        | 0             |
 | ytl-corporation-berhad-raw.csv                | Volume    | -19,750,400     | 45,416,800      | 75            |

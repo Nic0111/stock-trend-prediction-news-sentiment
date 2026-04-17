@@ -53,25 +53,25 @@ For this project stage, scaling is documented as model-dependent preprocessing k
 | celcomdigi-berhad-raw.csv                     | High      | 1,223 | 3.96776           | 0.335381          | -0                | 1                | standardized |
 | celcomdigi-berhad-raw.csv                     | Low       | 1,223 | 3.883271          | 0.331366          | 0                 | 1                | standardized |
 | celcomdigi-berhad-raw.csv                     | Close     | 1,223 | 3.928324          | 0.337077          | -0                | 1                | standardized |
-| celcomdigi-berhad-raw.csv                     | Adj Close | 1,223 | 3.535425          | 0.284831          | 0                 | 1                | standardized |
+| celcomdigi-berhad-raw.csv                     | Adj Close | 1,223 | 3.535425          | 0.284832          | 0                 | 1                | standardized |
 | celcomdigi-berhad-raw.csv                     | Volume    | 1,223 | 3,244,357.31807   | 3,730,957.1972    | -0                | 1                | standardized |
 | cimb-group-holdings-berhad-raw.csv            | Open      | 1,223 | 5.994432          | 1.205478          | -0                | 1                | standardized |
 | cimb-group-holdings-berhad-raw.csv            | High      | 1,223 | 6.045822          | 1.212892          | -0                | 1                | standardized |
 | cimb-group-holdings-berhad-raw.csv            | Low       | 1,223 | 5.94583           | 1.197513          | 0                 | 1                | standardized |
 | cimb-group-holdings-berhad-raw.csv            | Close     | 1,223 | 5.998561          | 1.204624          | 0                 | 1                | standardized |
-| cimb-group-holdings-berhad-raw.csv            | Adj Close | 1,223 | 5.113727          | 1.42596           | -0                | 1                | standardized |
+| cimb-group-holdings-berhad-raw.csv            | Adj Close | 1,223 | 5.113727          | 1.42596           | 0                 | 1                | standardized |
 | cimb-group-holdings-berhad-raw.csv            | Volume    | 1,223 | 15,635,143.499591 | 10,861,169.525103 | -0                | 1                | standardized |
 | ihh-healthcare-berhad-raw.csv                 | Open      | 1,223 | 6.37798           | 0.708775          | 0                 | 1                | standardized |
 | ihh-healthcare-berhad-raw.csv                 | High      | 1,223 | 6.433679          | 0.714598          | 0                 | 1                | standardized |
 | ihh-healthcare-berhad-raw.csv                 | Low       | 1,223 | 6.319141          | 0.697133          | -0                | 1                | standardized |
 | ihh-healthcare-berhad-raw.csv                 | Close     | 1,223 | 6.376533          | 0.702726          | 0                 | 1                | standardized |
-| ihh-healthcare-berhad-raw.csv                 | Adj Close | 1,223 | 6.084098          | 0.797603          | 0                 | 1                | standardized |
+| ihh-healthcare-berhad-raw.csv                 | Adj Close | 1,223 | 6.084098          | 0.797603          | -0                | 1                | standardized |
 | ihh-healthcare-berhad-raw.csv                 | Volume    | 1,223 | 5,352,502.044154  | 4,231,211.031271  | 0                 | 1                | standardized |
 | malayan-banking-berhad-raw.csv                | Open      | 1,223 | 9.145936          | 0.788511          | -0                | 1                | standardized |
 | malayan-banking-berhad-raw.csv                | High      | 1,223 | 9.190294          | 0.792721          | -0                | 1                | standardized |
 | malayan-banking-berhad-raw.csv                | Low       | 1,223 | 9.103352          | 0.783452          | 0                 | 1                | standardized |
 | malayan-banking-berhad-raw.csv                | Close     | 1,223 | 9.145707          | 0.790752          | 0                 | 1                | standardized |
-| malayan-banking-berhad-raw.csv                | Adj Close | 1,223 | 7.705212          | 1.36588           | 0                 | 1                | standardized |
+| malayan-banking-berhad-raw.csv                | Adj Close | 1,223 | 7.705212          | 1.36588           | -0                | 1                | standardized |
 | malayan-banking-berhad-raw.csv                | Volume    | 1,223 | 9,370,074.897792  | 6,068,160.935186  | 0                 | 1                | standardized |
 | misc-berhad-raw.csv                           | Open      | 1,223 | 7.324742          | 0.469746          | 0                 | 1                | standardized |
 | misc-berhad-raw.csv                           | High      | 1,223 | 7.386312          | 0.467815          | 0                 | 1                | standardized |
@@ -89,7 +89,7 @@ For this project stage, scaling is documented as model-dependent preprocessing k
 | press-metal-aluminium-holdings-berhad-raw.csv | High      | 1,223 | 5.221611          | 0.611985          | 0                 | 1                | standardized |
 | press-metal-aluminium-holdings-berhad-raw.csv | Low       | 1,223 | 5.092719          | 0.597742          | 0                 | 1                | standardized |
 | press-metal-aluminium-holdings-berhad-raw.csv | Close     | 1,223 | 5.161124          | 0.609247          | 0                 | 1                | standardized |
-| press-metal-aluminium-holdings-berhad-raw.csv | Adj Close | 1,223 | 4.974952          | 0.608877          | -0                | 1                | standardized |
+| press-metal-aluminium-holdings-berhad-raw.csv | Adj Close | 1,223 | 4.974952          | 0.608877          | 0                 | 1                | standardized |
 | press-metal-aluminium-holdings-berhad-raw.csv | Volume    | 1,223 | 7,089,375.306623  | 5,369,006.54274   | -0                | 1                | standardized |
 | public-bank-berhad-raw.csv                    | Open      | 1,223 | 4.280746          | 0.203518          | 0                 | 1                | standardized |
 | public-bank-berhad-raw.csv                    | High      | 1,223 | 4.309859          | 0.20789           | -0                | 1                | standardized |
@@ -101,7 +101,7 @@ For this project stage, scaling is documented as model-dependent preprocessing k
 | tenaga-nasional-berhad-raw.csv                | High      | 1,223 | 11.065372         | 2.119841          | 0                 | 1                | standardized |
 | tenaga-nasional-berhad-raw.csv                | Low       | 1,223 | 10.908512         | 2.074096          | -0                | 1                | standardized |
 | tenaga-nasional-berhad-raw.csv                | Close     | 1,223 | 10.990818         | 2.096307          | -0                | 1                | standardized |
-| tenaga-nasional-berhad-raw.csv                | Adj Close | 1,223 | 9.826688          | 2.436782          | -0                | 1                | standardized |
+| tenaga-nasional-berhad-raw.csv                | Adj Close | 1,223 | 9.826688          | 2.436782          | 0                 | 1                | standardized |
 | tenaga-nasional-berhad-raw.csv                | Volume    | 1,223 | 5,607,093.376942  | 4,570,007.264386  | -0                | 1                | standardized |
 | ytl-corporation-berhad-raw.csv                | Open      | 1,223 | 1.465376          | 0.953373          | -0                | 1                | standardized |
 | ytl-corporation-berhad-raw.csv                | High      | 1,223 | 1.4911            | 0.971496          | 0                 | 1                | standardized |

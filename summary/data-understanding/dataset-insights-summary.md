@@ -19,4 +19,4 @@ This section interprets the preprocessed dataset quality and explains the modeli
 - `Adj Close` is important because it accounts for corporate actions and is used for return, lag, moving-average, volatility, and target construction.
 - Time order should be preserved during modeling to avoid future-data leakage.
 - Scaling should be fitted only on the training or development period, then applied to later validation or test periods.
-- The model input-ready dataset currently contains 11,527 rows across 10 files according to `data/model-input-summary.csv`.
+- The model input-ready dataset has not been generated yet. Run `python main.py build_model_input` after preprocessing to create it.
