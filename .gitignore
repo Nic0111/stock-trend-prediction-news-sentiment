@@ -212,6 +212,7 @@ __marimo__/
 /data/raw-stock-dataset/
 /data/preprocessed-stock-dataset/
 /data/model-input-stock-dataset/
+/data/preprocessed-financial-news-sentiment-dataset/
 /data/sample-only/
 /data/financial-news-dataset/
 /data/preprocessing-summary.csv

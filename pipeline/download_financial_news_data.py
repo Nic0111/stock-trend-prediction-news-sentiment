@@ -36,6 +36,11 @@ SENTIMENT_DATASET_FILE = (
     / "financial-news-sentiment-dataset"
     / "financial-news-sentiment-dataset.csv"
 )
+PREPROCESSED_SENTIMENT_DATASET_FILE = (
+    DATA_DIR
+    / "preprocessed-financial-news-sentiment-dataset"
+    / "financial-news-sentiment-preprocessed.csv"
+)
 SENTIMENT_MODEL_FILE = MODELS_DIR / "financial-news-sentiment-model.joblib"
 NEWSAPI_KEY_FILE = CONFIG_DIR / "newsapi_key.txt"
 
@@ -442,9 +447,11 @@ def load_or_train_sentiment_model() -> Pipeline:
     if SENTIMENT_MODEL_FILE.exists():
         return joblib.load(SENTIMENT_MODEL_FILE)
 
-    if not SENTIMENT_DATASET_FILE.exists():
+    if not PREPROCESSED_SENTIMENT_DATASET_FILE.exists() and not SENTIMENT_DATASET_FILE.exists():
         raise FileNotFoundError(
-            f"Sentiment dataset not found: {SENTIMENT_DATASET_FILE}"
+            "Sentiment dataset not found. Run "
+            "`python main.py preprocess_financial_news_sentiment` or add "
+            f"the raw dataset at {SENTIMENT_DATASET_FILE}."
         )
 
     sentiment_df = read_sentiment_dataset()
@@ -486,6 +493,10 @@ def load_or_train_sentiment_model() -> Pipeline:
 
 
 def read_sentiment_dataset() -> pd.DataFrame:
+    if PREPROCESSED_SENTIMENT_DATASET_FILE.exists():
+        df = pd.read_csv(PREPROCESSED_SENTIMENT_DATASET_FILE, encoding="utf-8")
+        return df.rename(columns={"Sentiment": "sentiment", "Sentence": "sentence"})
+
     encodings = ["utf-8", "latin1", "cp1252"]
     last_error: UnicodeDecodeError | None = None
 
