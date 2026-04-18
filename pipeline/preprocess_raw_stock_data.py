@@ -128,6 +128,20 @@ def format_number(value: Any) -> str:
     return str(value)
 
 
+def format_precise_number(value: Any) -> str:
+    if pd.isna(value):
+        return "N/A"
+    if isinstance(value, float):
+        if value == 0:
+            return "0.0000000000000000"
+        if abs(value) < 1e-6:
+            return f"{value:.16e}"
+        return f"{value:,.16f}"
+    if isinstance(value, int):
+        return f"{value:,}"
+    return str(value)
+
+
 def markdown_table(headers: List[str], rows: List[List[Any]]) -> str:
     if not rows:
         return "_No rows to report._"
@@ -680,10 +694,10 @@ def write_standardization_normalization_summary(
             row["file_name"],
             row["column"],
             row["row_count"],
-            row["original_mean"],
-            row["original_std"],
-            row["standardized_mean"],
-            row["standardized_std"],
+            format_precise_number(row["original_mean"]),
+            format_precise_number(row["original_std"]),
+            format_precise_number(row["standardized_mean"]),
+            format_precise_number(row["standardized_std"]),
             row["status"],
         ]
         for row in summary_rows
