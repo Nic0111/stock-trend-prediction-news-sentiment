@@ -210,6 +210,7 @@ __marimo__/
 
 # Raw and generated datasets
 /data/raw-stock-dataset/
+/data/raw-market-context-dataset/
 /data/preprocessed-stock-dataset/
 /data/model-input-stock-dataset/
 /data/preprocessed-financial-news-sentiment-dataset/
@@ -226,5 +227,9 @@ models/*.joblib
 
 # Generated evaluation artifacts
 /results/model-comparison-summary.csv
+/results/stock-model-candidates.csv
+/results/stock-model-baselines.csv
+/results/stock-model-per-ticker-metrics.csv
+/results/financial-news-sentiment-evaluation.csv
 results/classification-reports/*.txt
 results/confusion-matrices/*.csv

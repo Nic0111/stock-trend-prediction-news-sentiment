@@ -1,57 +1,35 @@
 from __future__ import annotations
 
 import argparse
-import sys
+import json
 
 
 def run_download_raw() -> None:
     from pipeline.download_raw_stock_data import run_download_pipeline
+
     run_download_pipeline()
 
 
-def run_download_financial_news() -> None:
+def run_download_financial_news(ticker: str | None = None, as_of: str | None = None) -> None:
     from pipeline.download_financial_news_data import run_financial_news_download_pipeline
-    run_financial_news_download_pipeline()
+
+    run_financial_news_download_pipeline(ticker=ticker, as_of_date=as_of)
 
 
 def run_preprocess_raw() -> None:
-    try:
-        from pipeline.preprocess_raw_stock_data import run_preprocess_pipeline
-    except ImportError:
-        print(
-            "preprocess_raw_stock_data.py is not ready yet.\n"
-            "Create pipeline/preprocess_raw_stock_data.py with a function named "
-            "`run_preprocess_pipeline()` first."
-        )
-        return
+    from pipeline.preprocess_raw_stock_data import run_preprocess_pipeline
 
     run_preprocess_pipeline()
 
 
 def run_build_model_input() -> None:
-    try:
-        from pipeline.build_model_input_stock_data import run_model_input_pipeline
-    except ImportError:
-        print(
-            "build_model_input_stock_data.py is not ready yet.\n"
-            "Create pipeline/build_model_input_stock_data.py with a function named "
-            "`run_model_input_pipeline()` first."
-        )
-        return
+    from pipeline.build_model_input_stock_data import run_model_input_pipeline
 
     run_model_input_pipeline()
 
 
 def run_data_understanding() -> None:
-    try:
-        from pipeline.data_understanding import run_data_understanding_pipeline
-    except ImportError:
-        print(
-            "data_understanding.py is not ready yet.\n"
-            "Create pipeline/data_understanding.py with a function named "
-            "`run_data_understanding_pipeline()` first."
-        )
-        return
+    from pipeline.data_understanding import run_data_understanding_pipeline
 
     run_data_understanding_pipeline()
 
@@ -60,6 +38,7 @@ def run_preprocess_financial_news_sentiment() -> None:
     from pipeline.preprocess_financial_news_sentiment_data import (
         run_financial_news_sentiment_preprocess_pipeline,
     )
+
     run_financial_news_sentiment_preprocess_pipeline()
 
 
@@ -67,103 +46,107 @@ def run_financial_news_sentiment_understanding() -> None:
     from pipeline.financial_news_sentiment_understanding import (
         run_financial_news_sentiment_understanding_pipeline,
     )
+
     run_financial_news_sentiment_understanding_pipeline()
 
 
-def run_train_models() -> None:
-    try:
-        from pipeline.train_stock_models import run_training_pipeline
-    except ImportError:
-        print(
-            "train_stock_models.py is not ready yet.\n"
-            "Create pipeline/train_stock_models.py with a function named "
-            "`run_training_pipeline()` first."
-        )
-        return
+def run_train_sentiment_model(search_profile: str = "full") -> None:
+    from pipeline.train_financial_news_sentiment_model import run_sentiment_training_pipeline
 
-    run_training_pipeline()
+    run_sentiment_training_pipeline(search_profile=search_profile)
 
 
-def run_all() -> None:
-    print("Step 1/7: Downloading raw stock data...")
+def run_train_models(search_profile: str | None = None) -> None:
+    from pipeline.train_stock_models import run_training_pipeline
+
+    run_training_pipeline(search_profile=search_profile)
+
+
+def run_predict_stock(ticker: str, horizon: int, as_of: str | None = None) -> None:
+    from pipeline.predict_stock_trend import predict_stock_trend
+
+    result = predict_stock_trend(ticker, horizon, as_of)
+    print(json.dumps(result.to_dict(), indent=2))
+
+
+def run_all(search_profile: str = "full") -> None:
+    print("Step 1/8: Downloading frozen stock and market-context data...")
     run_download_raw()
-
-    print("\nStep 2/7: Preprocessing stock data...")
+    print("\nStep 2/8: Preprocessing stock data...")
     run_preprocess_raw()
-
-    print("\nStep 3/7: Building model-input stock data...")
+    print("\nStep 3/8: Building corrected model-input data...")
     run_build_model_input()
-
-    print("\nStep 4/7: Generating stock data understanding summaries...")
+    print("\nStep 4/8: Generating stock data summaries...")
     run_data_understanding()
-
-    print("\nStep 5/7: Preprocessing financial news sentiment data...")
+    print("\nStep 5/8: Preprocessing the financial sentiment dataset...")
     run_preprocess_financial_news_sentiment()
-
-    print("\nStep 6/7: Generating financial news sentiment understanding summaries...")
+    print("\nStep 6/8: Generating sentiment data summaries...")
     run_financial_news_sentiment_understanding()
-
-    print("\nStep 7/7: Training stock models...")
-    run_train_models()
-
-    print("\nPipeline finished.")
+    print("\nStep 7/8: Training and evaluating the sentiment model...")
+    run_train_sentiment_model(search_profile=search_profile)
+    print("\nStep 8/8: Selecting and evaluating stock models...")
+    run_train_models(search_profile=search_profile)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="FYP data pipeline controller"
-    )
+    parser = argparse.ArgumentParser(description="FYP analytics pipeline controller")
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    parser.add_argument(
-        "command",
-        choices=[
-            "download_raw",
-            "download_financial_news",
-            "preprocess_raw",
-            "build_model_input",
-            "data_understanding",
-            "preprocess_financial_news_sentiment",
-            "financial_news_sentiment_understanding",
-            "train_models",
-            "all",
-        ],
-        help=(
-            "Pipeline command to run: "
-            "download_raw, download_financial_news, preprocess_raw, "
-            "build_model_input, data_understanding, "
-            "preprocess_financial_news_sentiment, "
-            "financial_news_sentiment_understanding, train_models, or all"
-        ),
-    )
+    for command in (
+        "download_raw",
+        "preprocess_raw",
+        "build_model_input",
+        "data_understanding",
+        "preprocess_financial_news_sentiment",
+        "financial_news_sentiment_understanding",
+    ):
+        subparsers.add_parser(command)
 
+    news_parser = subparsers.add_parser("download_financial_news")
+    news_parser.add_argument("--ticker")
+    news_parser.add_argument("--as-of")
+
+    sentiment_parser = subparsers.add_parser("train_sentiment_model")
+    sentiment_parser.add_argument("--search-profile", choices=["full", "quick"], default="full")
+
+    stock_model_parser = subparsers.add_parser("train_models")
+    stock_model_parser.add_argument("--search-profile", choices=["full", "quick"], default="full")
+
+    prediction_parser = subparsers.add_parser("predict_stock")
+    prediction_parser.add_argument("--ticker", required=True)
+    prediction_parser.add_argument("--horizon", type=int, choices=[1, 5, 10], required=True)
+    prediction_parser.add_argument("--as-of")
+
+    all_parser = subparsers.add_parser("all")
+    all_parser.add_argument("--search-profile", choices=["full", "quick"], default="full")
     return parser
 
 
 def main() -> None:
-    parser = build_parser()
-    args = parser.parse_args()
-
-    if args.command == "download_raw":
+    args = build_parser().parse_args()
+    command = args.command
+    if command == "download_raw":
         run_download_raw()
-    elif args.command == "download_financial_news":
-        run_download_financial_news()
-    elif args.command == "preprocess_raw":
+    elif command == "download_financial_news":
+        run_download_financial_news(args.ticker, args.as_of)
+    elif command == "preprocess_raw":
         run_preprocess_raw()
-    elif args.command == "build_model_input":
+    elif command == "build_model_input":
         run_build_model_input()
-    elif args.command == "data_understanding":
+    elif command == "data_understanding":
         run_data_understanding()
-    elif args.command == "preprocess_financial_news_sentiment":
+    elif command == "preprocess_financial_news_sentiment":
         run_preprocess_financial_news_sentiment()
-    elif args.command == "financial_news_sentiment_understanding":
+    elif command == "financial_news_sentiment_understanding":
         run_financial_news_sentiment_understanding()
-    elif args.command == "train_models":
-        run_train_models()
-    elif args.command == "all":
-        run_all()
-    else:
-        parser.print_help()
-        sys.exit(1)
+    elif command == "train_sentiment_model":
+        run_train_sentiment_model(args.search_profile)
+    elif command == "train_models":
+        run_train_models(args.search_profile)
+    elif command == "predict_stock":
+        run_predict_stock(args.ticker, args.horizon, args.as_of)
+    elif command == "all":
+        run_all(args.search_profile)
 
 
 if __name__ == "__main__":

@@ -18,12 +18,15 @@ DATA_DIR = PROJECT_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw-stock-dataset"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed-stock-dataset"
 MODEL_INPUT_DATA_DIR = DATA_DIR / "model-input-stock-dataset"
+RAW_MARKET_CONTEXT_DIR = DATA_DIR / "raw-market-context-dataset"
+MARKET_CONTEXT_FILE = RAW_MARKET_CONTEXT_DIR / "ftse-bursa-malaysia-klci-raw.csv"
 
 METADATA_FILE = DATA_DIR / "stock-metadata.csv"
 
 # Locked project date range
 START_DATE = "2021-01-01"
 END_DATE_EXCLUSIVE = "2026-01-01"
+MARKET_CONTEXT_TICKER = "^KLSE"
 
 # Top 10 Malaysian stocks chosen earlier for the project
 STOCKS: Dict[str, str] = {
@@ -75,6 +78,7 @@ def ensure_data_structure() -> None:
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
     PREPROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
     MODEL_INPUT_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    RAW_MARKET_CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
 
     if not METADATA_FILE.exists():
         empty_metadata = pd.DataFrame(columns=["Ticker", "Company_Name", "Sector"])
@@ -159,6 +163,13 @@ def create_stock_metadata(metadata_rows: List[dict]) -> None:
     metadata_df.to_csv(METADATA_FILE, index=False)
 
 
+def download_market_context() -> Path:
+    """Download the fixed-period FTSE Bursa Malaysia KLCI context series."""
+    market_df = download_stock_data(MARKET_CONTEXT_TICKER)
+    market_df.to_csv(MARKET_CONTEXT_FILE, index=False)
+    return MARKET_CONTEXT_FILE
+
+
 # ============================================================
 # Main execution
 # ============================================================
@@ -194,6 +205,15 @@ def run_download_pipeline() -> None:
 
     create_stock_metadata(metadata_rows)
     print(f"Saved metadata file: {METADATA_FILE}")
+
+    try:
+        market_path = download_market_context()
+        print(f"Saved market context: {market_path}")
+    except Exception as exc:
+        print(
+            f"Failed to download {MARKET_CONTEXT_TICKER} market context: {exc}",
+            file=sys.stderr,
+        )
 
     print("\n[Done]")
 
