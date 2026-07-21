@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict
@@ -12,7 +12,7 @@ import pandas as pd
 import yfinance as yf
 
 from pipeline.model_artifacts import CalibratedStockModel
-from pipeline.stock_features import build_stock_features
+from pipeline.stock_features import FEATURE_SCHEMA_VERSION, build_stock_features
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -21,7 +21,45 @@ REGISTRY_FILE = PROJECT_ROOT / "models" / "model-registry.json"
 MARKET_TICKER = "^KLSE"
 SUPPORTED_HORIZONS = (1, 5, 10)
 MINIMUM_HISTORY_ROWS = 60
-DOWNLOAD_LOOKBACK_DAYS = 260
+# 420 calendar days provides a buffer for 60-session features, market holidays
+# and provider gaps while keeping runtime requests bounded.
+DOWNLOAD_LOOKBACK_DAYS = 420
+
+FEATURE_LABELS = {
+    "Return_1D": "1-day momentum",
+    "Return_5D": "5-day momentum",
+    "Return_10D": "10-day momentum",
+    "Lag_Return_1D_1": "previous trading day's return",
+    "Lag_Return_1D_2": "return two trading days ago",
+    "Lag_Return_1D_3": "return three trading days ago",
+    "Lag_Return_1D_5": "return five trading days ago",
+    "AdjClose_to_MA_5": "price versus 5-day trend",
+    "AdjClose_to_MA_20": "price versus 20-day trend",
+    "AdjClose_to_MA_60": "price versus 60-day trend",
+    "MA_5_to_MA_20": "short-term versus medium-term trend",
+    "MA_20_to_MA_60": "medium-term versus long-term trend",
+    "RSI_14": "RSI momentum",
+    "MACD": "MACD momentum",
+    "MACD_Signal": "MACD signal line",
+    "Volatility_20D": "20-day volatility",
+    "High_Low_Spread": "daily high-low price range",
+    "Open_Close_Change": "open-to-close movement",
+    "Volume_to_MA_20": "volume versus 20-day average",
+    "Market_Return_1D": "KLCI 1-day direction",
+    "Market_Return_5D": "KLCI 5-day direction",
+    "Market_Return_10D": "KLCI 10-day direction",
+    "Market_AdjClose_to_MA_20": "KLCI versus 20-day trend",
+    "Excess_Return_1D": "1-day performance versus KLCI",
+    "Excess_Return_5D": "5-day performance versus KLCI",
+    "Excess_Return_10D": "10-day performance versus KLCI",
+    "Rolling_Beta_20D": "20-day market sensitivity",
+    "Rolling_Beta_60D": "60-day market sensitivity",
+    "Rolling_Correlation_20D": "20-day market correlation",
+    "Rolling_Correlation_60D": "60-day market correlation",
+    "Volatility_Ratio_5D_20D": "short-term versus long-term volatility",
+    "KLCI_Trend_Regime": "KLCI trend regime",
+    "KLCI_Volatility_Regime": "KLCI volatility regime",
+}
 
 
 @dataclass
@@ -40,6 +78,25 @@ class PredictionResult:
     status: str
     stale_data_warning: bool
     latest_data_age_days: int
+    threshold_constraints_passed: bool = True
+    evidence_strength: str = "Unavailable"
+    supporting_factors: list[Dict[str, Any]] = field(default_factory=list)
+    opposing_factors: list[Dict[str, Any]] = field(default_factory=list)
+    market_reference_date: str | None = None
+    observation_lag_sessions: int | None = None
+    freshness_status: str = "unknown"
+    freshness_reason: str | None = None
+    feature_schema_version: str = FEATURE_SCHEMA_VERSION
+
+    @property
+    def evidence_status(self) -> str:
+        """Human-facing evidence tier used by the dashboard and tutor."""
+        return "accepted" if self.directional_signal_available else "experimental"
+
+    @property
+    def directional_signal_available(self) -> bool:
+        """Whether the frozen validation benchmark accepts this direction as evidence."""
+        return self.benchmark_passed and self.threshold_constraints_passed
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -103,6 +160,12 @@ def predict_stock_trend(
         )
 
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry_schema_version = registry.get("feature_schema_version")
+    if registry_schema_version != FEATURE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "Model registry is missing or uses an incompatible stock/KLCI feature schema. "
+            "Rebuild model-input data and retrain the stock models."
+        )
     horizon_registry = registry.get("horizons", {}).get(str(horizon_days))
     if not horizon_registry:
         raise KeyError(f"Registry has no model for {horizon_days}D horizon")
@@ -154,8 +217,55 @@ def predict_stock_trend(
 
     probability_up = float(model.predict_proba(latest[list(model.input_columns)])[:, 1][0])
     label = "Up" if probability_up >= float(model.threshold) else "Down"
+    direction_sign = 1.0 if label == "Up" else -1.0
+    contributions = model.local_feature_contributions(latest[list(model.input_columns)])
+
+    def present_factor(item: Dict[str, Any], relationship: str) -> Dict[str, Any]:
+        feature = str(item["feature"])
+        return {
+            "feature": feature,
+            "label": FEATURE_LABELS.get(feature, feature.replace("_", " ").title()),
+            "impact_probability_points": round(abs(float(item["contribution"])) * 100, 2),
+            "relationship": relationship,
+        }
+
+    supporting_factors = [
+        present_factor(item, "supports")
+        for item in contributions
+        if float(item["contribution"]) * direction_sign > 0
+    ][:3]
+    opposing_factors = [
+        present_factor(item, "opposes")
+        for item in contributions
+        if float(item["contribution"]) * direction_sign < 0
+    ][:2]
+    threshold_margin = abs(probability_up - float(model.threshold))
+    evidence_strength = (
+        "Strong" if threshold_margin >= 0.05 else "Moderate" if threshold_margin >= 0.02 else "Limited"
+    )
     latest_date = pd.Timestamp(latest["Date"].iloc[0]).date()
+    aligned_dates = (
+        pd.to_datetime(features["Date"], errors="coerce")
+        .dropna()
+        .dt.date
+        .drop_duplicates()
+        .sort_values()
+    )
+    reference_date = aligned_dates.iloc[-1] if len(aligned_dates) else latest_date
+    observation_lag_sessions = int((aligned_dates > latest_date).sum())
     age_days = max(0, (effective_date - latest_date).days)
+    if observation_lag_sessions == 0 and age_days <= 7:
+        freshness_status = "fresh"
+        freshness_reason = "Latest feature-complete row matches the latest valid aligned market session."
+    elif observation_lag_sessions <= 1 and age_days <= 7:
+        freshness_status = "delayed"
+        freshness_reason = "One valid aligned market session is newer than the observation used."
+    else:
+        freshness_status = "stale"
+        freshness_reason = (
+            f"Observation is {observation_lag_sessions} aligned session(s) and {age_days} calendar day(s) "
+            "behind the latest valid market data."
+        )
     return PredictionResult(
         ticker=normalized_ticker,
         company_name=metadata[normalized_ticker],
@@ -169,8 +279,22 @@ def predict_stock_trend(
         refinement_round=refinement_round,
         benchmark_passed=bool(horizon_registry["threshold_passed"]),
         status=str(horizon_registry["status"]),
-        stale_data_warning=age_days > 5,
+        stale_data_warning=freshness_status == "stale",
         latest_data_age_days=age_days,
+        threshold_constraints_passed=bool(
+            horizon_registry.get(
+                "threshold_constraints_passed",
+                horizon_registry.get("threshold_passed", False),
+            )
+        ),
+        evidence_strength=evidence_strength,
+        supporting_factors=supporting_factors,
+        opposing_factors=opposing_factors,
+        market_reference_date=reference_date.isoformat(),
+        observation_lag_sessions=observation_lag_sessions,
+        freshness_status=freshness_status,
+        freshness_reason=freshness_reason,
+        feature_schema_version=str(registry.get("feature_schema_version", FEATURE_SCHEMA_VERSION)),
     )
 
 

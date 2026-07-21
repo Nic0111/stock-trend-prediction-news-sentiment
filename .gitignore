@@ -139,6 +139,9 @@ celerybeat.pid
 .envrc
 .env.*
 config/newsapi_key.txt
+config/openrouter_api_key.txt
+config/marketaux_api_key.txt
+.streamlit/secrets.toml
 .venv
 env/
 venv/
@@ -224,6 +227,10 @@ __marimo__/
 
 # Trained model artifacts
 models/*.joblib
+models/experimental/
+results/finbert-benchmark/
+/results/news-provider-marketaux-benchmark/
+results/news-provider-benchmark/
 
 # Generated evaluation artifacts
 /results/model-comparison-summary.csv
@@ -231,5 +238,13 @@ models/*.joblib
 /results/stock-model-baselines.csv
 /results/stock-model-per-ticker-metrics.csv
 /results/financial-news-sentiment-evaluation.csv
+catboost_info/
 results/classification-reports/*.txt
 results/confusion-matrices/*.csv
+
+# React/Vite build outputs and local dependencies
+/frontend/node_modules/
+/frontend/dist/
+/frontend/*.tsbuildinfo
+/frontend/*.d.ts
+/frontend/*.js

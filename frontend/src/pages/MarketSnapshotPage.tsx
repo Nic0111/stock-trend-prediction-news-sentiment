@@ -1,0 +1,20 @@
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getCompanies, getMarketSnapshot } from "../api/client";
+import { LoadingState, ErrorState } from "../components/AsyncState";
+import { CompanyLogo } from "../components/CompanyLogo";
+import { CompanySelector } from "../components/CompanySelector";
+import { PageHeader } from "../components/PageHeader";
+import { PriceChart } from "../components/Chart";
+import { useAppState } from "../state/AppState";
+
+export function MarketSnapshotPage() {
+  const companies = useQuery({ queryKey: ["companies"], queryFn: ({ signal }) => getCompanies(signal), staleTime: 86400000 });
+  const { snapshotTicker, setSnapshotTicker } = useAppState();
+  useEffect(() => { if (companies.data?.length && !companies.data.some((company) => company.ticker === snapshotTicker)) setSnapshotTicker(companies.data[0].ticker); }, [companies.data, snapshotTicker, setSnapshotTicker]);
+  const snapshot = useQuery({ queryKey: ["market-snapshot", snapshotTicker], queryFn: ({ signal }) => getMarketSnapshot(snapshotTicker, signal), enabled: Boolean(snapshotTicker), staleTime: 300000, retry: 1 });
+  if (companies.isLoading) return <><PageHeader eyebrow="Analyze" title="Market Snapshot" description="Check the latest available daily price, range, volume and recent closing-price trend." /><LoadingState /></>;
+  if (companies.isError || !companies.data) return <><PageHeader eyebrow="Analyze" title="Market Snapshot" description="Check the latest available daily price, range, volume and recent closing-price trend." /><ErrorState message={companies.error?.message || "Companies could not be loaded."} /></>;
+  const company = companies.data.find((item) => item.ticker === snapshotTicker);
+  return <><PageHeader eyebrow="Analyze" title="Market Snapshot" description="Check the latest available daily price, range, volume and recent closing-price trend." /><section className="selector-panel compact"><CompanyLogo company={company} className="selector-logo" /><CompanySelector label="Company" companies={companies.data} value={snapshotTicker} onChange={setSnapshotTicker} /><p className="field-hint">The snapshot updates automatically whenever you choose a company. Cached data may be reused for up to five minutes.</p></section>{snapshot.isLoading && <LoadingState label="Loading the latest available market snapshot…" />}{snapshot.isError && <ErrorState message={snapshot.error.message} />}{snapshot.data && <section className="snapshot-content"><div className={`snapshot-hero ${snapshot.data.change_pct && snapshot.data.change_pct >= 0 ? "positive" : "negative"}`}><span className="panel-kicker">Latest available price <span className="live-dot">Daily close</span></span><strong>RM {snapshot.data.price.toFixed(2)}<small> MYR</small></strong><p>Observation date {snapshot.data.as_of_date}</p></div>{snapshot.data.stale_data_warning && <div className="notice warning">The latest available market observation is more than five days old.</div>}<div className="metric-row snapshot-metrics"><div><span>Daily change</span><strong>{snapshot.data.change === null ? "Unavailable" : `RM ${snapshot.data.change.toFixed(2)}`}</strong><small>{snapshot.data.change_pct === null ? "Unavailable" : `${snapshot.data.change_pct >= 0 ? "+" : ""}${(snapshot.data.change_pct * 100).toFixed(2)}%`}</small></div><div><span>Day range</span><strong>{snapshot.data.day_low === null || snapshot.data.day_high === null ? "Unavailable" : `RM ${snapshot.data.day_low.toFixed(2)} – RM ${snapshot.data.day_high.toFixed(2)}`}</strong></div><div><span>Volume</span><strong>{snapshot.data.volume === null ? "Unavailable" : snapshot.data.volume.toLocaleString()}</strong></div></div><h2 className="section-heading">Recent closing prices</h2><div className="chart-panel"><PriceChart dates={snapshot.data.history_dates} prices={snapshot.data.history_prices} /></div><p className="muted-note">This is a daily market snapshot, not a guaranteed real-time quote. Verify the timestamp before acting.</p></section>}</>;
+}

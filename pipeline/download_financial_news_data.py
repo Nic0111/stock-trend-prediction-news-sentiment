@@ -6,7 +6,7 @@ import json
 import math
 import os
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
@@ -14,9 +14,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
-import joblib
 import pandas as pd
 from sklearn.pipeline import Pipeline
+
+from pipeline.finbert_sentiment_model import load_finbert_sentiment_model
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -27,7 +28,8 @@ FINANCIAL_NEWS_JSON_DIR = FINANCIAL_NEWS_DATA_DIR / "json"
 FINANCIAL_NEWS_CSV_DIR = FINANCIAL_NEWS_DATA_DIR / "csv"
 CONFIG_DIR = PROJECT_ROOT / "config"
 METADATA_FILE = DATA_DIR / "stock-metadata.csv"
-SENTIMENT_MODEL_FILE = MODELS_DIR / "financial-news-sentiment-model.joblib"
+FINBERT_SENTIMENT_MODEL_DIR = MODELS_DIR / "experimental" / "finbert-sentiment"
+SENTIMENT_RUNTIME_CONFIG_FILE = MODELS_DIR / "sentiment-runtime-config.json"
 NEWSAPI_KEY_FILE = CONFIG_DIR / "newsapi_key.txt"
 
 NEWSAPI_ENDPOINT = "https://newsapi.org/v2/everything"
@@ -36,12 +38,15 @@ SEARCH_IN = "title,description"
 LANGUAGE = "en"
 SORT_BY = "publishedAt"
 PAGE_SIZE = 100
-MAX_LOOKBACK_DAYS = 21
+NEWS_RETRIEVAL_LOOKBACK_DAYS = 30
+NEWS_CONTEXT_CONFIG_VERSION = 3
+NEWS_HISTORICAL_CONTEXT_START_DAYS = NEWS_RETRIEVAL_LOOKBACK_DAYS + 1
+NEWS_HISTORICAL_CONTEXT_END_DAYS = 90
 SENTIMENT_PROBABILITY_THRESHOLD = 0.55
 DASHBOARD_ARTICLES = 5
 
-CONTEXT_WINDOWS = {1: 7, 5: 14, 10: 21}
-CONTEXT_HALF_LIVES = {1: 3.5, 5: 7.0, 10: 10.5}
+CONTEXT_WINDOWS = {1: 7, 5: 14, 10: 30}
+CONTEXT_HALF_LIVES = {1: 3.5, 5: 7.0, 10: 15.0}
 SENTIMENT_SCORE_MAP = {"positive": 1, "neutral": 0, "negative": -1}
 
 KNOWN_COMPANY_ALIASES = {
@@ -63,8 +68,10 @@ ARTICLE_COLUMNS = [
     "query_text",
     "display_rank",
     "matched_alias",
+    "provider",
     "source_id",
     "source_name",
+    "source_domain",
     "author",
     "title",
     "description",
@@ -95,9 +102,29 @@ class NewsContextResult:
     contexts: Dict[str, Dict[str, Any]]
     articles: List[Dict[str, Any]]
     output_paths: Dict[str, str]
+    provider_mode: str = "newsapi"
+    provider_article_counts: Dict[str, int] = field(default_factory=dict)
+    provider_status: Dict[str, str] = field(default_factory=dict)
+    provider_metadata: Dict[str, Any] = field(default_factory=dict)
+    # Articles outside the current sentiment retrieval window are deliberately
+    # kept separate so they cannot enter contexts or be mistaken for current
+    # evidence by downstream consumers.
+    historical_articles: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+def build_news_context_metadata() -> Dict[str, Any]:
+    """Return the immutable retrieval/context contract attached to news results."""
+    return {
+        "news_context_config_version": NEWS_CONTEXT_CONFIG_VERSION,
+        "retrieval_lookback_days": NEWS_RETRIEVAL_LOOKBACK_DAYS,
+        "historical_context_start_days": NEWS_HISTORICAL_CONTEXT_START_DAYS,
+        "historical_context_end_days": NEWS_HISTORICAL_CONTEXT_END_DAYS,
+        "context_windows": {str(horizon): window for horizon, window in CONTEXT_WINDOWS.items()},
+        "context_half_lives": {str(horizon): half_life for horizon, half_life in CONTEXT_HALF_LIVES.items()},
+    }
 
 
 def ensure_data_structure() -> None:
@@ -208,7 +235,7 @@ def build_newsapi_query(query_variants: Sequence[str]) -> str:
 
 
 def get_news_date_range(
-    lookback_days: int = MAX_LOOKBACK_DAYS,
+    lookback_days: int = NEWS_RETRIEVAL_LOOKBACK_DAYS,
     as_of_date: date | None = None,
 ) -> Tuple[str, str]:
     end_date = as_of_date or date.today()
@@ -217,7 +244,7 @@ def get_news_date_range(
 
 def build_request_url(
     query_text: str,
-    lookback_days: int = MAX_LOOKBACK_DAYS,
+    lookback_days: int = NEWS_RETRIEVAL_LOOKBACK_DAYS,
     as_of_date: date | None = None,
 ) -> str:
     from_date, to_date = get_news_date_range(lookback_days, as_of_date)
@@ -237,7 +264,7 @@ def build_request_url(
 def fetch_newsapi_response(
     api_key: str,
     query_text: str,
-    lookback_days: int = MAX_LOOKBACK_DAYS,
+    lookback_days: int = NEWS_RETRIEVAL_LOOKBACK_DAYS,
     as_of_date: date | None = None,
 ) -> Dict[str, Any]:
     request = Request(
@@ -325,8 +352,10 @@ def filter_articles(
         rows.append(
             {
                 "matched_alias": matched_alias,
+                "provider": "newsapi",
                 "source_id": clean_text(source.get("id")),
                 "source_name": clean_text(source.get("name")),
+                "source_domain": clean_text(urlparse(url).netloc).casefold().removeprefix("www."),
                 "author": clean_text(article.get("author")),
                 "title": title,
                 "description": description,
@@ -343,18 +372,37 @@ def get_article_sentiment_text(article: Dict[str, Any]) -> str:
     return clean_text(f"{article.get('title', '')} {article.get('description', '')}")
 
 
-def load_sentiment_model() -> Pipeline:
-    if not SENTIMENT_MODEL_FILE.exists():
-        raise FileNotFoundError(
-            "Sentiment model not found. Run `python main.py train_sentiment_model` first."
+def load_sentiment_model() -> object:
+    """Load the approved FinBERT runtime backend.
+
+    The TF-IDF classifier remains available to the offline training and
+    benchmark pipelines, but runtime evidence is intentionally standardized on
+    FinBERT so provider comparisons measure retrieval rather than classifier
+    changes.
+    """
+    runtime_config: Dict[str, Any] = {}
+    if SENTIMENT_RUNTIME_CONFIG_FILE.exists():
+        try:
+            loaded_config = json.loads(SENTIMENT_RUNTIME_CONFIG_FILE.read_text(encoding="utf-8"))
+            if isinstance(loaded_config, dict):
+                runtime_config = loaded_config
+        except (OSError, json.JSONDecodeError):
+            runtime_config = {}
+    backend = str(runtime_config.get("backend", "finbert")).strip().casefold()
+    if backend != "finbert":
+        raise ValueError(
+            "The runtime sentiment backend must be FinBERT. "
+            "TF-IDF is retained only for offline benchmarking."
         )
-    model = joblib.load(SENTIMENT_MODEL_FILE)
-    if not hasattr(model, "predict_proba"):
-        raise TypeError("Saved sentiment model does not support predict_proba")
-    return model
+    configured_directory = runtime_config.get("model_directory")
+    model_directory = Path(configured_directory) if configured_directory else FINBERT_SENTIMENT_MODEL_DIR
+    if not model_directory.is_absolute():
+        model_directory = PROJECT_ROOT / model_directory
+    temperature = float(runtime_config.get("temperature", 1.0))
+    return load_finbert_sentiment_model(str(model_directory), temperature=temperature)
 
 
-def load_or_train_sentiment_model() -> Pipeline:
+def load_or_train_sentiment_model() -> object:
     """Backward-compatible name; runtime training has intentionally been removed."""
     return load_sentiment_model()
 
@@ -383,12 +431,19 @@ def add_sentiment_scores(rows: List[Dict[str, Any]], model: Pipeline) -> int:
     return len(rows)
 
 
-def _article_age_days(published_at: str, as_of_date: date) -> float:
+def article_age_days(published_at: str, as_of_date: date) -> float:
     published = pd.to_datetime(published_at, utc=True, errors="coerce")
     if pd.isna(published):
         return math.inf
     as_of = datetime.combine(as_of_date + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
     return max(0.0, (as_of - published.to_pydatetime()).total_seconds() / 86400.0)
+
+
+def calculate_recency_weight(age_days: float, half_life_days: float) -> float:
+    """Return exponential time decay for an article, with safe invalid-age handling."""
+    if not math.isfinite(age_days) or half_life_days <= 0:
+        return 0.0
+    return math.exp(-math.log(2) * age_days / half_life_days)
 
 
 def build_news_contexts(
@@ -399,7 +454,7 @@ def build_news_contexts(
     for horizon, window_days in CONTEXT_WINDOWS.items():
         half_life = CONTEXT_HALF_LIVES[horizon]
         candidates = [
-            row for row in rows if _article_age_days(str(row["published_at"]), as_of_date) <= window_days
+            row for row in rows if article_age_days(str(row["published_at"]), as_of_date) <= window_days
         ]
         usable = [
             row
@@ -408,9 +463,9 @@ def build_news_contexts(
             and row.get("sentiment_score") in {-1, 0, 1}
         ]
         sources = {
-            clean_text(row.get("source_name")).casefold()
+            (clean_text(row.get("source_domain")) or clean_text(row.get("source_name"))).casefold()
             for row in usable
-            if clean_text(row.get("source_name"))
+            if clean_text(row.get("source_domain")) or clean_text(row.get("source_name"))
         }
         predominantly_uncertain = bool(candidates) and len(usable) < (len(candidates) / 2)
         if not usable:
@@ -425,8 +480,8 @@ def build_news_contexts(
         weighted_sum = 0.0
         total_weight = 0.0
         for row in usable:
-            age_days = _article_age_days(str(row["published_at"]), as_of_date)
-            recency_weight = math.exp(-math.log(2) * age_days / half_life)
+            age_days = article_age_days(str(row["published_at"]), as_of_date)
+            recency_weight = calculate_recency_weight(age_days, half_life)
             weight = recency_weight * float(row["sentiment_probability"])
             weighted_sum += float(row["sentiment_score"]) * weight
             total_weight += weight
@@ -505,11 +560,13 @@ def retrieve_financial_news(
     effective_date = pd.Timestamp(as_of_date).date() if as_of_date is not None else date.today()
     variants = build_company_query_variants(normalized_ticker, company_name, user_aliases)
     query_text = build_newsapi_query(variants)
+    # Preflight the shared sentiment engine before spending a provider request.
+    # NewsAPI and Marketaux cannot recover from the same FinBERT runtime failure.
+    model = load_sentiment_model()
     data = response_data if response_data is not None else fetch_newsapi_response(
-        api_key or get_newsapi_key(), query_text, MAX_LOOKBACK_DAYS, effective_date
+        api_key or get_newsapi_key(), query_text, NEWS_RETRIEVAL_LOOKBACK_DAYS, effective_date
     )
     rows = filter_articles(data, variants)
-    model = load_sentiment_model()
     add_sentiment_scores(rows, model)
     contexts = build_news_contexts(rows, effective_date)
     enriched_rows = enrich_output_rows(normalized_ticker, company_name, query_text, rows)
@@ -531,6 +588,10 @@ def retrieve_financial_news(
         contexts=contexts,
         articles=enriched_rows,
         output_paths={key: str(value) for key, value in paths.items()},
+        provider_mode="newsapi",
+        provider_article_counts={"newsapi": len(rows)},
+        provider_status={"newsapi": "ok"},
+        provider_metadata=build_news_context_metadata(),
     )
 
 
@@ -540,10 +601,10 @@ def retrieve_with_fallback(
     query_variants: Sequence[str],
 ) -> Tuple[int, Dict[str, Any], List[Dict[str, Any]], str, bool]:
     """Compatibility wrapper for the replaced fallback API."""
-    data = fetch_newsapi_response(api_key, query_text, MAX_LOOKBACK_DAYS)
+    data = fetch_newsapi_response(api_key, query_text, NEWS_RETRIEVAL_LOOKBACK_DAYS)
     rows = filter_articles(data, query_variants)
     coverage = "High" if len(rows) >= 5 else "Low"
-    return MAX_LOOKBACK_DAYS, data, rows, coverage, coverage == "Low"
+    return NEWS_RETRIEVAL_LOOKBACK_DAYS, data, rows, coverage, coverage == "Low"
 
 
 def run_financial_news_download_pipeline(
@@ -551,7 +612,9 @@ def run_financial_news_download_pipeline(
     as_of_date: date | str | None = None,
 ) -> NewsContextResult:
     selected_ticker = clean_text(ticker).upper() if ticker else input("Enter stock ticker: ").strip().upper()
-    result = retrieve_financial_news(selected_ticker, as_of_date=as_of_date)
+    from pipeline.marketaux_news_provider import retrieve_news_with_marketaux_fallback
+
+    result = retrieve_news_with_marketaux_fallback(selected_ticker, 5, as_of_date=as_of_date)
     print(f"\nFinancial news context for {result.ticker} - {result.company_name}")
     print(f"Relevant articles: {result.relevant_article_count}")
     for horizon in (1, 5, 10):

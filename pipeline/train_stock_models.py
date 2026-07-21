@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
 import hashlib
+import importlib.util
 import json
 import os
 import warnings
@@ -14,7 +15,12 @@ import numpy as np
 import pandas as pd
 from sklearn.base import clone
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import (
+    ExtraTreesClassifier,
+    HistGradientBoostingClassifier,
+    RandomForestClassifier,
+    VotingClassifier,
+)
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
@@ -37,6 +43,7 @@ from pipeline.model_artifacts import CalibratedStockModel, probability_to_logit
 from pipeline.stock_features import (
     ALL_NUMERIC_FEATURE_COLUMNS,
     BASE_FEATURE_COLUMNS,
+    FEATURE_SCHEMA_VERSION,
     MARKET_FEATURE_COLUMNS,
     STATIONARY_FEATURE_COLUMNS,
     TARGET_HORIZONS,
@@ -58,15 +65,98 @@ BASELINE_FILE = RESULTS_DIR / "stock-model-baselines.csv"
 PER_TICKER_FILE = RESULTS_DIR / "stock-model-per-ticker-metrics.csv"
 REGISTRY_FILE = MODELS_DIR / "model-registry.json"
 
+# The downloaded history starts in 2015. Keep this boundary explicit so a
+# stray older row cannot silently enter development, while 2025 remains the
+# fixed observed benchmark holdout.
+DEVELOPMENT_START_DATE = pd.Timestamp("2015-01-01")
 DEVELOPMENT_END_DATE = pd.Timestamp("2024-12-31")
 TEST_START_DATE = pd.Timestamp("2025-01-01")
 TEST_END_DATE = pd.Timestamp("2025-12-31")
 N_SPLITS = 5
 RANDOM_STATE = 42
 MIN_BALANCED_ACCURACY_GAIN = 0.02
+MIN_DIRECTION_RECALL = 0.35
+MIN_PREDICTED_CLASS_SHARE = 0.20
+MAX_PREDICTED_CLASS_SHARE = 0.80
+MODEL_NAMES = (
+    "logistic-regression",
+    "elastic-net-logistic",
+    "random-forest",
+    "extra-trees",
+    "hist-gradient-boosting",
+    "xgboost",
+    "lightgbm",
+    "catboost",
+    "soft-voting-ensemble",
+)
 
 FEATURE_COLUMNS = list(BASE_FEATURE_COLUMNS)
 IDENTITY_COLUMNS = ["Date", "Ticker"]
+
+
+def available_model_names() -> tuple[str, ...]:
+    """Return the expanded benchmark while keeping optional learners optional."""
+    names = [
+        "logistic-regression",
+        "elastic-net-logistic",
+        "random-forest",
+        "extra-trees",
+        "hist-gradient-boosting",
+        "xgboost",
+        "soft-voting-ensemble",
+    ]
+    if importlib.util.find_spec("lightgbm") is not None:
+        names.append("lightgbm")
+    if importlib.util.find_spec("catboost") is not None:
+        try:
+            from catboost import CatBoostClassifier
+            from sklearn.utils._tags import get_tags
+
+            get_tags(CatBoostClassifier(verbose=False, allow_writing_files=False))
+        except Exception:
+            # CatBoost 1.2.8 is not compatible with scikit-learn 1.8's tag
+            # protocol. Keep it optional rather than allowing one candidate to
+            # abort the complete benchmark.
+            pass
+        else:
+            names.append("catboost")
+    return tuple(names)
+
+
+def search_plan_for_profile(
+    profile: str,
+    available_models: Sequence[str],
+) -> Dict[int, Dict[int, tuple[str, ...]]]:
+    """Choose a bounded evidence-led search without changing validation rules."""
+    available = set(available_models)
+    if profile != "focused":
+        models = tuple(model for model in MODEL_NAMES if model in available)
+        return {
+            horizon: {round_number: models for round_number in (1, 2, 3, 4)}
+            for horizon in TARGET_HORIZONS
+        }
+
+    requested = {
+        1: {
+            3: ("logistic-regression", "elastic-net-logistic", "hist-gradient-boosting", "xgboost", "lightgbm"),
+            4: ("logistic-regression", "hist-gradient-boosting", "xgboost", "lightgbm", "soft-voting-ensemble"),
+        },
+        5: {
+            2: ("logistic-regression", "elastic-net-logistic", "hist-gradient-boosting", "lightgbm"),
+            4: ("logistic-regression", "elastic-net-logistic", "random-forest", "hist-gradient-boosting", "lightgbm", "soft-voting-ensemble"),
+        },
+        10: {
+            2: ("logistic-regression", "elastic-net-logistic", "extra-trees"),
+            4: ("logistic-regression", "elastic-net-logistic", "extra-trees", "soft-voting-ensemble"),
+        },
+    }
+    return {
+        horizon: {
+            round_number: tuple(model for model in models if model in available)
+            for round_number, models in rounds.items()
+        }
+        for horizon, rounds in requested.items()
+    }
 
 
 def ensure_output_structure() -> None:
@@ -147,7 +237,8 @@ def split_development_and_test(
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     target_date_column = f"Target_Date_{horizon}D"
     development = df[
-        (df["Date"] <= DEVELOPMENT_END_DATE)
+        (df["Date"] >= DEVELOPMENT_START_DATE)
+        & (df["Date"] <= DEVELOPMENT_END_DATE)
         & (df[target_date_column] < TEST_START_DATE)
     ].copy()
     test = df[
@@ -229,7 +320,10 @@ def _build_preprocessor(
                 ["Ticker"],
             )
         )
-    return ColumnTransformer(transformers=transformers, remainder="drop")
+    preprocessor = ColumnTransformer(transformers=transformers, remainder="drop")
+    # Keep names through future inference so feature-aware estimators such as
+    # LightGBM receive the same schema at fit and predict time.
+    return preprocessor.set_output(transform="pandas")
 
 
 def build_estimator(
@@ -241,9 +335,64 @@ def build_estimator(
     if model_name == "logistic-regression":
         classifier: Any = LogisticRegression(max_iter=2000, solver="lbfgs", random_state=RANDOM_STATE)
         scale_numeric = True
+    elif model_name == "elastic-net-logistic":
+        classifier = LogisticRegression(
+            max_iter=4000,
+            solver="saga",
+            penalty="elasticnet",
+            random_state=RANDOM_STATE,
+        )
+        scale_numeric = True
     elif model_name == "random-forest":
         classifier = RandomForestClassifier(random_state=RANDOM_STATE, n_jobs=1)
         scale_numeric = False
+    elif model_name == "extra-trees":
+        classifier = ExtraTreesClassifier(random_state=RANDOM_STATE, n_jobs=1)
+        scale_numeric = False
+    elif model_name == "hist-gradient-boosting":
+        classifier = HistGradientBoostingClassifier(random_state=RANDOM_STATE)
+        scale_numeric = False
+    elif model_name == "soft-voting-ensemble":
+        classifier = VotingClassifier(
+            estimators=[
+                (
+                    "logistic",
+                    LogisticRegression(
+                        C=0.1,
+                        class_weight="balanced",
+                        max_iter=3000,
+                        solver="lbfgs",
+                        random_state=RANDOM_STATE,
+                    ),
+                ),
+                (
+                    "extra_trees",
+                    ExtraTreesClassifier(
+                        n_estimators=250,
+                        max_depth=10,
+                        min_samples_leaf=5,
+                        max_features="sqrt",
+                        class_weight="balanced",
+                        random_state=RANDOM_STATE,
+                        n_jobs=1,
+                    ),
+                ),
+                (
+                    "hist_gradient",
+                    HistGradientBoostingClassifier(
+                        max_iter=200,
+                        learning_rate=0.05,
+                        max_leaf_nodes=15,
+                        min_samples_leaf=25,
+                        l2_regularization=0.1,
+                        random_state=RANDOM_STATE,
+                    ),
+                ),
+            ],
+            voting="soft",
+            n_jobs=1,
+        )
+        scale_numeric = True
     elif model_name == "xgboost":
         classifier = XGBClassifier(
             objective="binary:logistic",
@@ -251,6 +400,31 @@ def build_estimator(
             random_state=RANDOM_STATE,
             n_jobs=1,
             verbosity=0,
+        )
+        scale_numeric = False
+    elif model_name == "lightgbm":
+        try:
+            from lightgbm import LGBMClassifier
+        except ImportError as exc:
+            raise ImportError("Install lightgbm to run the LightGBM candidate") from exc
+        classifier = LGBMClassifier(
+            objective="binary",
+            random_state=RANDOM_STATE,
+            n_jobs=1,
+            verbosity=-1,
+        )
+        scale_numeric = False
+    elif model_name == "catboost":
+        try:
+            from catboost import CatBoostClassifier
+        except ImportError as exc:
+            raise ImportError("Install catboost to run the CatBoost candidate") from exc
+        classifier = CatBoostClassifier(
+            loss_function="Logloss",
+            random_seed=RANDOM_STATE,
+            verbose=False,
+            thread_count=1,
+            allow_writing_files=False,
         )
         scale_numeric = False
     else:
@@ -266,10 +440,11 @@ def build_estimator(
 
 def get_parameter_space(model_name: str, profile: str = "full") -> tuple[Dict[str, List[Any]], int]:
     if profile == "quick":
-        if model_name == "logistic-regression":
+        if model_name in {"logistic-regression", "elastic-net-logistic"}:
             return {
                 "classifier__C": [1.0],
                 "classifier__class_weight": ["balanced"],
+                **({"classifier__l1_ratio": [0.5]} if model_name == "elastic-net-logistic" else {}),
             }, 1
         if model_name == "random-forest":
             return {
@@ -287,6 +462,35 @@ def get_parameter_space(model_name: str, profile: str = "full") -> tuple[Dict[st
                 "classifier__subsample": [0.8],
                 "classifier__colsample_bytree": [0.8],
             }, 1
+        if model_name == "extra-trees":
+            return {
+                "classifier__n_estimators": [200],
+                "classifier__max_depth": [10],
+                "classifier__min_samples_leaf": [5],
+                "classifier__max_features": ["sqrt"],
+            }, 1
+        if model_name == "hist-gradient-boosting":
+            return {
+                "classifier__max_iter": [150],
+                "classifier__learning_rate": [0.05],
+                "classifier__max_leaf_nodes": [15],
+                "classifier__min_samples_leaf": [25],
+            }, 1
+        if model_name == "lightgbm":
+            return {
+                "classifier__n_estimators": [200],
+                "classifier__num_leaves": [15],
+                "classifier__learning_rate": [0.05],
+                "classifier__min_child_samples": [25],
+            }, 1
+        if model_name == "catboost":
+            return {
+                "classifier__iterations": [200],
+                "classifier__depth": [5],
+                "classifier__learning_rate": [0.05],
+            }, 1
+        if model_name == "soft-voting-ensemble":
+            return {"classifier__weights": [(2, 1, 1)]}, 1
         raise ValueError(f"Unsupported model: {model_name}")
 
     if model_name == "logistic-regression":
@@ -295,6 +499,12 @@ def get_parameter_space(model_name: str, profile: str = "full") -> tuple[Dict[st
             "classifier__class_weight": [None, "balanced"],
         }
         return space, 8
+    if model_name == "elastic-net-logistic":
+        return {
+            "classifier__C": [0.01, 0.1, 1.0, 10.0],
+            "classifier__l1_ratio": [0.1, 0.5, 0.9],
+            "classifier__class_weight": [None, "balanced"],
+        }, 12
     if model_name == "random-forest":
         space = {
             "classifier__n_estimators": [150, 300],
@@ -313,11 +523,61 @@ def get_parameter_space(model_name: str, profile: str = "full") -> tuple[Dict[st
             "classifier__colsample_bytree": [0.8, 1.0],
         }
         return space, 16
+    if model_name == "extra-trees":
+        return {
+            "classifier__n_estimators": [200, 400],
+            "classifier__max_depth": [5, 10, None],
+            "classifier__min_samples_leaf": [1, 5, 20],
+            "classifier__max_features": ["sqrt", 0.5, 1.0],
+            "classifier__class_weight": [None, "balanced"],
+        }, 20
+    if model_name == "hist-gradient-boosting":
+        return {
+            "classifier__max_iter": [100, 200, 400],
+            "classifier__learning_rate": [0.03, 0.05, 0.1],
+            "classifier__max_leaf_nodes": [7, 15, 31],
+            "classifier__l2_regularization": [0.0, 0.1, 1.0],
+            "classifier__min_samples_leaf": [10, 25, 50],
+        }, 24
+    if model_name == "lightgbm":
+        return {
+            "classifier__n_estimators": [150, 300],
+            "classifier__num_leaves": [7, 15, 31],
+            "classifier__learning_rate": [0.03, 0.05, 0.1],
+            "classifier__min_child_samples": [10, 25, 50],
+            "classifier__reg_lambda": [0.0, 0.1, 1.0],
+        }, 24
+    if model_name == "catboost":
+        return {
+            "classifier__iterations": [150, 300],
+            "classifier__depth": [3, 5, 7],
+            "classifier__learning_rate": [0.03, 0.05, 0.1],
+            "classifier__l2_leaf_reg": [1.0, 3.0, 10.0],
+        }, 24
+    if model_name == "soft-voting-ensemble":
+        return {
+            "classifier__weights": [
+                (1, 1, 1),
+                (2, 1, 1),
+                (3, 1, 1),
+                (2, 2, 1),
+                (1, 2, 2),
+                (1, 1, 2),
+            ]
+        }, 6
     raise ValueError(f"Unsupported model: {model_name}")
 
 
 def _best_result_index(cv_results: Dict[str, Any]) -> int:
-    indexes = range(len(cv_results["params"]))
+    indexes = list(range(len(cv_results["params"])))
+    non_degenerate = [
+        index
+        for index in indexes
+        if cv_results["mean_test_up_recall"][index] >= MIN_DIRECTION_RECALL
+        and cv_results["mean_test_down_recall"][index] >= MIN_DIRECTION_RECALL
+    ]
+    if non_degenerate:
+        indexes = non_degenerate
     return max(
         indexes,
         key=lambda index: (
@@ -335,6 +595,8 @@ def _scoring() -> Dict[str, Any]:
         "balanced_accuracy": make_scorer(balanced_accuracy_score),
         "mcc": make_scorer(matthews_corrcoef),
         "macro_f1": make_scorer(f1_score, average="macro", zero_division=0),
+        "up_recall": make_scorer(recall_score, pos_label=1, zero_division=0),
+        "down_recall": make_scorer(recall_score, pos_label=0, zero_division=0),
     }
 
 
@@ -364,7 +626,7 @@ def run_candidate_search(
         error_score="raise",
         return_train_score=False,
     )
-    if model_name == "logistic-regression" and profile == "full":
+    if model_name == "logistic-regression" and profile in {"full", "focused"}:
         search: Any = GridSearchCV(param_grid=parameter_space, **common)
     else:
         search = RandomizedSearchCV(
@@ -376,6 +638,14 @@ def run_candidate_search(
 
     search.fit(X, y)
     best_index = int(search.best_index_)
+    fold_balanced_accuracy = [
+        float(search.cv_results_[f"split{fold}_test_balanced_accuracy"][best_index])
+        for fold in range(len(splits))
+    ]
+    fold_mcc = [
+        float(search.cv_results_[f"split{fold}_test_mcc"][best_index])
+        for fold in range(len(splits))
+    ]
     best_summary = {
         "horizon_days": horizon,
         "refinement_round": refinement_round,
@@ -384,6 +654,11 @@ def run_candidate_search(
         "cv_balanced_accuracy": float(search.cv_results_["mean_test_balanced_accuracy"][best_index]),
         "cv_mcc": float(search.cv_results_["mean_test_mcc"][best_index]),
         "cv_macro_f1": float(search.cv_results_["mean_test_macro_f1"][best_index]),
+        "cv_up_recall": float(search.cv_results_["mean_test_up_recall"][best_index]),
+        "cv_down_recall": float(search.cv_results_["mean_test_down_recall"][best_index]),
+        "cv_fold_balanced_accuracy": fold_balanced_accuracy,
+        "cv_fold_mcc": fold_mcc,
+        "cv_positive_mcc_folds": int(sum(value > 0 for value in fold_mcc)),
         "best_parameters": json.dumps(search.best_params_, sort_keys=True),
         "input_columns": list(input_columns),
         "feature_columns": list(feature_columns),
@@ -400,6 +675,8 @@ def run_candidate_search(
                 "cv_balanced_accuracy": search.cv_results_["mean_test_balanced_accuracy"][index],
                 "cv_mcc": search.cv_results_["mean_test_mcc"][index],
                 "cv_macro_f1": search.cv_results_["mean_test_macro_f1"][index],
+                "cv_up_recall": search.cv_results_["mean_test_up_recall"][index],
+                "cv_down_recall": search.cv_results_["mean_test_down_recall"][index],
                 "parameters": json.dumps(parameters, sort_keys=True),
             }
         )
@@ -416,14 +693,60 @@ def calculate_metrics(
         "balanced_accuracy": float(balanced_accuracy_score(y_true, y_pred)),
         "precision": float(precision_score(y_true, y_pred, zero_division=0)),
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
+        "specificity": float(recall_score(y_true, y_pred, pos_label=0, zero_division=0)),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
         "macro_f1": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
         "mcc": float(matthews_corrcoef(y_true, y_pred)),
+        "predicted_up_rate": float(np.mean(np.asarray(y_pred) == 1)),
+        "predicted_down_rate": float(np.mean(np.asarray(y_pred) == 0)),
     }
     if probability_up is not None and len(np.unique(y_true)) == 2:
         metrics["roc_auc"] = float(roc_auc_score(y_true, probability_up))
         metrics["average_precision"] = float(average_precision_score(y_true, probability_up))
     return metrics
+
+
+def select_directional_threshold(
+    y_true: np.ndarray,
+    probability_up: np.ndarray,
+) -> tuple[float, Dict[str, float], bool]:
+    """Select a threshold without accepting an all-Up/all-Down classifier."""
+    probabilities = np.asarray(probability_up, dtype=float)
+    labels = np.asarray(y_true, dtype=int)
+    quantiles = np.quantile(probabilities, np.linspace(0.02, 0.98, 97))
+    thresholds = np.unique(np.concatenate([quantiles, np.array([0.5])]))
+
+    best_valid: tuple[tuple[float, ...], float, Dict[str, float]] | None = None
+    best_any: tuple[tuple[float, ...], float, Dict[str, float]] | None = None
+    prevalence = float(labels.mean())
+    for threshold in thresholds:
+        predictions = (probabilities >= threshold).astype(int)
+        metrics = calculate_metrics(labels, predictions, probabilities)
+        key = (
+            metrics["balanced_accuracy"],
+            metrics["mcc"],
+            metrics["macro_f1"],
+            -abs(metrics["predicted_up_rate"] - prevalence),
+            -abs(float(threshold) - 0.5),
+        )
+        candidate = (key, float(threshold), metrics)
+        if best_any is None or candidate[0] > best_any[0]:
+            best_any = candidate
+        constraints_passed = (
+            metrics["recall"] >= MIN_DIRECTION_RECALL
+            and metrics["specificity"] >= MIN_DIRECTION_RECALL
+            and MIN_PREDICTED_CLASS_SHARE
+            <= metrics["predicted_up_rate"]
+            <= MAX_PREDICTED_CLASS_SHARE
+        )
+        if constraints_passed and (best_valid is None or candidate[0] > best_valid[0]):
+            best_valid = candidate
+
+    selected = best_valid or best_any
+    if selected is None:
+        raise ValueError("No threshold candidates were generated")
+    _, threshold, metrics = selected
+    return threshold, metrics, best_valid is not None
 
 
 def fit_calibrated_champion(
@@ -455,25 +778,17 @@ def fit_calibrated_champion(
     calibrator.fit(probability_to_logit(raw_oof), y_oof)
     calibrated_oof = calibrator.predict_proba(probability_to_logit(raw_oof))[:, 1]
 
-    best_threshold = 0.5
-    best_metrics: Dict[str, float] = {}
-    best_key = (-np.inf, -np.inf, -np.inf, -np.inf)
-    for threshold in np.round(np.arange(0.30, 0.701, 0.01), 2):
-        predictions = (calibrated_oof >= threshold).astype(int)
-        metrics = calculate_metrics(y_oof, predictions, calibrated_oof)
-        key = (
-            metrics["balanced_accuracy"],
-            metrics["mcc"],
-            metrics["macro_f1"],
-            -abs(float(threshold) - 0.5),
-        )
-        if key > best_key:
-            best_key = key
-            best_threshold = float(threshold)
-            best_metrics = metrics
+    best_threshold, best_metrics, threshold_constraints_passed = select_directional_threshold(
+        y_oof, calibrated_oof
+    )
 
     final_estimator = clone(estimator)
     final_estimator.fit(X, y)
+    feature_reference_values: Dict[str, float] = {}
+    for column in feature_columns:
+        median = pd.to_numeric(development_df[column], errors="coerce").median()
+        if pd.notna(median):
+            feature_reference_values[column] = float(median)
     artifact = CalibratedStockModel(
         estimator=final_estimator,
         calibrator=calibrator,
@@ -483,8 +798,14 @@ def fit_calibrated_champion(
         refinement_round=refinement_round,
         model_name=model_name,
         horizon_days=horizon,
+        threshold_constraints_passed=threshold_constraints_passed,
+        feature_reference_values=feature_reference_values,
     )
-    return artifact, {"threshold": best_threshold, **best_metrics}
+    return artifact, {
+        "threshold": best_threshold,
+        "threshold_constraints_passed": threshold_constraints_passed,
+        **best_metrics,
+    }
 
 
 def build_baseline_predictions(
@@ -538,10 +859,11 @@ def _save_horizon_reports(
 
 def run_training_pipeline(search_profile: str | None = None) -> None:
     warnings.filterwarnings("ignore", category=UserWarning)
+    warnings.filterwarnings("ignore", category=FutureWarning)
     ensure_output_structure()
     profile = search_profile or os.getenv("MODEL_SEARCH_PROFILE", "full").strip().lower()
-    if profile not in {"full", "quick"}:
-        raise ValueError("MODEL_SEARCH_PROFILE must be 'full' or 'quick'")
+    if profile not in {"full", "focused", "quick"}:
+        raise ValueError("MODEL_SEARCH_PROFILE must be 'full', 'focused', or 'quick'")
 
     files = get_model_input_csv_files()
     dataset_hash = hash_file_set(files)
@@ -554,23 +876,43 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
     summary_rows: List[Dict[str, Any]] = []
     created_at = datetime.now()
     run_id = created_at.strftime("%Y%m%dT%H%M%S")
+    model_names = available_model_names()
+    search_plan = search_plan_for_profile(profile, model_names)
     registry: Dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "feature_schema_version": FEATURE_SCHEMA_VERSION,
         "created_at": created_at.isoformat(timespec="seconds"),
         "run_id": run_id,
         "dataset_sha256": dataset_hash,
+        "development_start_date": DEVELOPMENT_START_DATE.date().isoformat(),
         "development_end_date": DEVELOPMENT_END_DATE.date().isoformat(),
         "test_start_date": TEST_START_DATE.date().isoformat(),
         "test_end_date": TEST_END_DATE.date().isoformat(),
         "search_profile": profile,
+        "model_candidates": list(model_names),
+        "search_plan": {
+            str(horizon): {
+                str(round_number): list(models)
+                for round_number, models in rounds.items()
+            }
+            for horizon, rounds in search_plan.items()
+        },
+        "benchmark_context": {
+            "test_status": "fixed observed benchmark",
+            "test_warning": "2025 results were inspected during subsequent design review; new choices are selected from development evidence only.",
+            "acceptance_rule": "balanced accuracy gain >= 0.02, positive MCC, macro-F1 no worse than strongest baseline",
+        },
         "horizons": {},
     }
 
     for horizon in TARGET_HORIZONS:
-        print(f"\n[Selecting {horizon}D champion using 2021-2024 development data]")
+        print(
+            f"\n[Selecting {horizon}D champion using "
+            f"{DEVELOPMENT_START_DATE.year}-{DEVELOPMENT_END_DATE.year} development data]"
+        )
         best_candidates: List[tuple[Pipeline, Dict[str, Any], pd.DataFrame, List[Tuple[np.ndarray, np.ndarray]]]] = []
 
-        for refinement_round in (1, 2, 3):
+        for refinement_round, round_models in search_plan[horizon].items():
             feature_columns = feature_columns_for_round(refinement_round)
             horizon_frame = prepare_horizon_frame(combined, horizon, feature_columns)
             development, _ = split_development_and_test(horizon_frame, horizon)
@@ -578,7 +920,7 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
                 development, f"Target_Date_{horizon}D", n_splits=N_SPLITS
             )
 
-            for model_name in ("logistic-regression", "random-forest", "xgboost"):
+            for model_name in round_models:
                 print(f"Round {refinement_round}: {model_name}")
                 estimator, best_summary, rows = run_candidate_search(
                     development,
@@ -643,11 +985,25 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
             ),
         )
 
+        stability_passed = bool(best_summary.get("cv_positive_mcc_folds", 0) >= 4)
+        threshold_constraints_passed = bool(
+            oof_metrics.get("threshold_constraints_passed", False)
+        )
+        test_directional_balance_passed = bool(
+            test_metrics["recall"] >= MIN_DIRECTION_RECALL
+            and test_metrics["specificity"] >= MIN_DIRECTION_RECALL
+            and MIN_PREDICTED_CLASS_SHARE
+            <= test_metrics["predicted_up_rate"]
+            <= MAX_PREDICTED_CLASS_SHARE
+        )
         threshold_passed = bool(
             test_metrics["balanced_accuracy"]
             >= strongest_baseline_metrics["balanced_accuracy"] + MIN_BALANCED_ACCURACY_GAIN
             and test_metrics["mcc"] > 0
             and test_metrics["macro_f1"] >= strongest_baseline_metrics["macro_f1"]
+            and stability_passed
+            and threshold_constraints_passed
+            and test_directional_balance_passed
         )
         status = "accepted" if threshold_passed else "experimental"
 
@@ -676,6 +1032,11 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
             "cv_balanced_accuracy": best_summary["cv_balanced_accuracy"],
             "cv_mcc": best_summary["cv_mcc"],
             "cv_macro_f1": best_summary["cv_macro_f1"],
+            "cv_up_recall": best_summary["cv_up_recall"],
+            "cv_down_recall": best_summary["cv_down_recall"],
+            "cv_fold_balanced_accuracy": best_summary["cv_fold_balanced_accuracy"],
+            "cv_fold_mcc": best_summary["cv_fold_mcc"],
+            "cv_positive_mcc_folds": best_summary["cv_positive_mcc_folds"],
             "locked_threshold": artifact.threshold,
             "strongest_baseline": strongest_baseline_name,
             "baseline_balanced_accuracy": strongest_baseline_metrics["balanced_accuracy"],
@@ -683,6 +1044,9 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
             - strongest_baseline_metrics["balanced_accuracy"],
             **{f"test_{key}": value for key, value in test_metrics.items()},
             "threshold_passed": threshold_passed,
+            "stability_passed": stability_passed,
+            "threshold_constraints_passed": threshold_constraints_passed,
+            "test_directional_balance_passed": test_directional_balance_passed,
             "status": status,
             "model_path": str(model_path.relative_to(PROJECT_ROOT)),
             "report_path": str(report_path.relative_to(PROJECT_ROOT)),
@@ -698,6 +1062,14 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
             "calibrated": True,
             "decision_threshold": artifact.threshold,
             "threshold_passed": threshold_passed,
+            "stability_passed": stability_passed,
+            "threshold_constraints_passed": threshold_constraints_passed,
+            "test_directional_balance_passed": test_directional_balance_passed,
+            "cv_up_recall": best_summary["cv_up_recall"],
+            "cv_down_recall": best_summary["cv_down_recall"],
+            "cv_fold_balanced_accuracy": best_summary["cv_fold_balanced_accuracy"],
+            "cv_fold_mcc": best_summary["cv_fold_mcc"],
+            "cv_positive_mcc_folds": best_summary["cv_positive_mcc_folds"],
             "status": status,
             "strongest_baseline": strongest_baseline_name,
             "metrics": test_metrics,

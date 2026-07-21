@@ -1,0 +1,5 @@
+# Web-runtime additions for the parity migration. The existing root
+# requirements remain authoritative for the Python prediction pipeline.
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+httpx>=0.27,<1

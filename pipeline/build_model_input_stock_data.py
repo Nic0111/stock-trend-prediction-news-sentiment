@@ -9,6 +9,7 @@ from pipeline.stock_features import (
     ALL_NUMERIC_FEATURE_COLUMNS,
     BASE_FEATURE_COLUMNS,
     MARKET_FEATURE_COLUMNS,
+    REGIME_FEATURE_COLUMNS,
     STATIONARY_FEATURE_COLUMNS,
     TARGET_COLUMNS,
     TARGET_DATE_COLUMNS,
@@ -166,6 +167,9 @@ def write_model_input_ready_summary(
     market_rows = "\n".join(
         f"- Round 3 market context: `{column}`" for column in MARKET_FEATURE_COLUMNS
     )
+    regime_rows = "\n".join(
+        f"- Round 4 regime/relative context: `{column}`" for column in REGIME_FEATURE_COLUMNS
+    )
     horizon_rows = "\n".join(
         (
             f"- {horizon}-day: {totals[horizon]:,} labelled rows "
@@ -192,6 +196,8 @@ def write_model_input_ready_summary(
 {stationary_rows}
 
 {market_rows}
+
+{regime_rows}
 """
     output_path = DATA_PREPROCESSING_SUMMARY_DIR / "model-input-ready-dataset-summary.md"
     output_path.write_text(content, encoding="utf-8")

@@ -23,8 +23,10 @@ MARKET_CONTEXT_FILE = RAW_MARKET_CONTEXT_DIR / "ftse-bursa-malaysia-klci-raw.csv
 
 METADATA_FILE = DATA_DIR / "stock-metadata.csv"
 
-# Locked project date range
-START_DATE = "2021-01-01"
+# Locked project date range.  The longer history deliberately covers multiple
+# market regimes (pre-pandemic, COVID shock, recovery, and recent conditions)
+# while the model trainer keeps 2025 as the fixed benchmark holdout.
+START_DATE = "2015-01-01"
 END_DATE_EXCLUSIVE = "2026-01-01"
 MARKET_CONTEXT_TICKER = "^KLSE"
 
@@ -87,7 +89,7 @@ def ensure_data_structure() -> None:
 
 def download_stock_data(ticker: str) -> pd.DataFrame:
     """
-    Download raw daily stock data from yfinance for the locked date range.
+    Download raw daily stock data from yfinance for the locked 2015-2025 range.
     """
     df = yf.download(
         tickers=ticker,

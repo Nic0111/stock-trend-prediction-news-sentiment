@@ -11,8 +11,12 @@ import numpy as np
 import pandas as pd
 
 from pipeline.download_financial_news_data import (
+    CONTEXT_HALF_LIVES,
+    CONTEXT_WINDOWS,
     build_company_query_variants,
     build_news_contexts,
+    build_request_url,
+    calculate_recency_weight,
     filter_articles,
     is_relevant_article,
 )
@@ -20,13 +24,18 @@ from pipeline.model_artifacts import CalibratedStockModel
 from pipeline.predict_stock_trend import PROJECT_ROOT, predict_stock_trend
 from pipeline.stock_features import (
     BASE_FEATURE_COLUMNS,
+    FEATURE_SCHEMA_VERSION,
+    REGIME_FEATURE_COLUMNS,
     STATIONARY_FEATURE_COLUMNS,
     add_stock_targets,
     build_stock_features,
 )
 from pipeline.train_stock_models import (
+    available_model_names,
     build_purged_date_splits,
     prepare_horizon_frame,
+    search_plan_for_profile,
+    select_directional_threshold,
     split_development_and_test,
 )
 
@@ -75,7 +84,32 @@ class ConstantCalibrator:
         return np.tile([0.3, 0.7], (len(X), 1))
 
 
+class FeatureEstimator:
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        probability = np.clip(0.5 + pd.to_numeric(X["Return_1D"]).to_numpy() * 2, 0.01, 0.99)
+        return np.column_stack([1 - probability, probability])
+
+
+class IdentityLogitCalibrator:
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        probability = 1 / (1 + np.exp(-np.asarray(X, dtype=float).reshape(-1)))
+        return np.column_stack([1 - probability, probability])
+
+
 class StockFeatureTests(unittest.TestCase):
+    def test_market_alignment_removes_provider_only_sessions(self) -> None:
+        stock = make_stock_data(periods=180)
+        market = make_market_data(periods=180)
+        missing_dates = market.loc[[70, 125], "Date"].tolist()
+        market = market.drop(index=[70, 125]).reset_index(drop=True)
+
+        features = build_stock_features(stock, market)
+        feature_dates = set(pd.to_datetime(features["Date"]))
+        self.assertTrue(set(missing_dates).isdisjoint(feature_dates))
+        latest = features.sort_values("Date").iloc[-1]
+        self.assertTrue(pd.notna(latest["Rolling_Beta_60D"]))
+        self.assertTrue(pd.notna(latest["Rolling_Correlation_60D"]))
+
     def test_targets_keep_horizon_specific_missing_tails_and_dates(self) -> None:
         raw = make_stock_data(periods=90)
         features = build_stock_features(raw)
@@ -96,9 +130,35 @@ class StockFeatureTests(unittest.TestCase):
         latest = features.sort_values("Date").iloc[-1]
         self.assertTrue(np.isfinite(float(latest["Market_Return_1D"])))
         self.assertTrue(np.isfinite(float(latest["Excess_Return_5D"])))
+        self.assertTrue(all(np.isfinite(float(latest[column])) for column in REGIME_FEATURE_COLUMNS))
 
 
 class TemporalSplitTests(unittest.TestCase):
+    def test_expanded_model_benchmark_has_diverse_tabular_candidates(self) -> None:
+        candidates = set(available_model_names())
+        self.assertTrue({"logistic-regression", "elastic-net-logistic", "random-forest", "extra-trees", "hist-gradient-boosting", "xgboost", "soft-voting-ensemble"}.issubset(candidates))
+        focused = search_plan_for_profile("focused", tuple(candidates))
+        self.assertEqual(set(focused), {1, 5, 10})
+        self.assertEqual(set(focused[1]), {3, 4})
+        self.assertNotIn("random-forest", focused[10][2])
+        self.assertIn("soft-voting-ensemble", focused[5][4])
+
+    def test_threshold_selection_rejects_degenerate_direction_coverage(self) -> None:
+        labels = np.array([0, 1] * 50)
+        useful_probabilities = np.linspace(0.1, 0.9, 100)
+        _, metrics, passed = select_directional_threshold(labels, useful_probabilities)
+        self.assertTrue(passed)
+        self.assertGreaterEqual(metrics["recall"], 0.35)
+        self.assertGreaterEqual(metrics["specificity"], 0.35)
+        self.assertGreaterEqual(metrics["predicted_up_rate"], 0.20)
+        self.assertLessEqual(metrics["predicted_up_rate"], 0.80)
+
+        _, degenerate_metrics, degenerate_passed = select_directional_threshold(
+            np.zeros(100, dtype=int), np.full(100, 0.5)
+        )
+        self.assertFalse(degenerate_passed)
+        self.assertIn(degenerate_metrics["predicted_up_rate"], {0.0, 1.0})
+
     @classmethod
     def setUpClass(cls) -> None:
         raw = make_stock_data(("1155.KL", "1295.KL", "1023.KL"))
@@ -125,6 +185,11 @@ class TemporalSplitTests(unittest.TestCase):
 
 
 class NewsContextTests(unittest.TestCase):
+    def test_newsapi_request_uses_30_day_retrieval_boundary(self) -> None:
+        url = build_request_url('"Maybank"', as_of_date=date(2026, 7, 10))
+        self.assertIn("from=2026-06-10", url)
+        self.assertIn("to=2026-07-10", url)
+
     def test_short_mb_alias_is_not_generated_or_matched(self) -> None:
         variants = build_company_query_variants("1155.KL", "Malayan Banking Berhad")
         self.assertNotIn("MB", variants)
@@ -165,7 +230,36 @@ class NewsContextTests(unittest.TestCase):
         contexts = build_news_contexts(rows, date(2026, 4, 18))
         self.assertEqual(contexts["1"]["coverage_confidence"], "High")
         self.assertGreater(contexts["1"]["weighted_sentiment_score"], 0)
-        self.assertEqual(contexts["10"]["window_days"], 21)
+        self.assertEqual(contexts["10"]["window_days"], 30)
+        self.assertEqual(contexts["10"]["half_life_days"], 15.0)
+
+    def test_context_contract_and_boundary_decay(self) -> None:
+        self.assertEqual(CONTEXT_WINDOWS, {1: 7, 5: 14, 10: 30})
+        self.assertEqual(CONTEXT_HALF_LIVES, {1: 3.5, 5: 7.0, 10: 15.0})
+        self.assertAlmostEqual(calculate_recency_weight(30.0, 15.0), 0.25)
+        self.assertAlmostEqual(calculate_recency_weight(0.0, 15.0), 1.0)
+
+    def test_context_boundary_includes_30_days_but_excludes_older_articles(self) -> None:
+        rows = [
+            {
+                "published_at": "2026-06-11T00:00:00Z",
+                "source_name": "Boundary Source",
+                "sentiment_label": "positive",
+                "sentiment_score": 1,
+                "sentiment_probability": 0.9,
+                "sentiment_uncertain": False,
+            },
+            {
+                "published_at": "2026-06-10T23:59:59Z",
+                "source_name": "Older Source",
+                "sentiment_label": "negative",
+                "sentiment_score": -1,
+                "sentiment_probability": 0.9,
+                "sentiment_uncertain": False,
+            },
+        ]
+        contexts = build_news_contexts(rows, date(2026, 7, 10))
+        self.assertEqual(contexts["10"]["candidate_article_count"], 1)
 
 
 class SentimentTrainingTests(unittest.TestCase):
@@ -207,6 +301,22 @@ class SentimentTrainingTests(unittest.TestCase):
 
 
 class InferenceTests(unittest.TestCase):
+    def test_local_feature_contributions_explain_model_sensitivity(self) -> None:
+        artifact = CalibratedStockModel(
+            estimator=FeatureEstimator(),
+            calibrator=IdentityLogitCalibrator(),
+            threshold=0.5,
+            input_columns=["Return_1D"],
+            numeric_feature_columns=["Return_1D"],
+            refinement_round=1,
+            model_name="feature-test",
+            horizon_days=1,
+            feature_reference_values={"Return_1D": 0.0},
+        )
+        factors = artifact.local_feature_contributions(pd.DataFrame({"Return_1D": [0.1]}))
+        self.assertEqual(factors[0]["feature"], "Return_1D")
+        self.assertGreater(float(factors[0]["contribution"]), 0)
+
     def test_inference_uses_registry_schema_and_retains_latest_row(self) -> None:
         stock = make_stock_data(periods=100)
         input_columns = list(BASE_FEATURE_COLUMNS)
@@ -229,6 +339,7 @@ class InferenceTests(unittest.TestCase):
                 json.dumps(
                     {
                         "dataset_sha256": "abc1234567890",
+                        "feature_schema_version": FEATURE_SCHEMA_VERSION,
                         "horizons": {
                             "5": {
                                 "artifact_path": str(artifact_path.relative_to(PROJECT_ROOT)),

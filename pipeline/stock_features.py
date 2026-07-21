@@ -80,12 +80,30 @@ MARKET_FEATURE_COLUMNS = (
     "Excess_Return_5D",
 )
 
+REGIME_FEATURE_COLUMNS = (
+    "Excess_Return_10D",
+    "Rolling_Beta_20D",
+    "Rolling_Correlation_20D",
+    "Rolling_Beta_60D",
+    "Rolling_Correlation_60D",
+    "Volatility_Ratio_5D_20D",
+    "KLCI_Trend_Regime",
+    "KLCI_Volatility_Regime",
+)
+
 ALL_NUMERIC_FEATURE_COLUMNS = tuple(
-    dict.fromkeys((*BASE_FEATURE_COLUMNS, *STATIONARY_FEATURE_COLUMNS, *MARKET_FEATURE_COLUMNS))
+    dict.fromkeys(
+        (*BASE_FEATURE_COLUMNS, *STATIONARY_FEATURE_COLUMNS, *MARKET_FEATURE_COLUMNS, *REGIME_FEATURE_COLUMNS)
+    )
 )
 
 TARGET_COLUMNS = tuple(f"Target_{horizon}D" for horizon in TARGET_HORIZONS)
 TARGET_DATE_COLUMNS = tuple(f"Target_Date_{horizon}D" for horizon in TARGET_HORIZONS)
+
+# Increment this whenever the date-alignment or feature semantics change.  The
+# runtime uses the same value to reject predictions/caches built with an older
+# feature definition.
+FEATURE_SCHEMA_VERSION = "aligned-market-sessions-v2"
 
 
 def _safe_divide(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
@@ -101,7 +119,7 @@ def _validate_stock_columns(df: pd.DataFrame) -> None:
 def _prepare_stock_frame(stock_df: pd.DataFrame) -> pd.DataFrame:
     _validate_stock_columns(stock_df)
     df = stock_df.copy()
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce", utc=True).dt.tz_localize(None)
     df["Ticker"] = df["Ticker"].astype("string").str.strip().str.upper()
 
     numeric_columns = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
@@ -113,6 +131,23 @@ def _prepare_stock_frame(stock_df: pd.DataFrame) -> pd.DataFrame:
         subset=["Ticker", "Date"], keep="last"
     )
     return df.reset_index(drop=True)
+
+
+def _prepare_market_frame(market_df: pd.DataFrame) -> pd.DataFrame:
+    """Return valid KLCI sessions with a stable, timezone-free date column."""
+    required = ["Date", "Adj Close"]
+    missing = [column for column in required if column not in market_df.columns]
+    if missing:
+        raise ValueError(f"Missing required market columns: {missing}")
+
+    market = market_df[required].copy()
+    # Normalize provider timestamps so stock and market dates can be joined
+    # safely even when one response includes a timezone and the other does not.
+    market["Date"] = pd.to_datetime(market["Date"], errors="coerce", utc=True).dt.tz_localize(None)
+    market["Adj Close"] = pd.to_numeric(market["Adj Close"], errors="coerce")
+    market = market.dropna(subset=required)
+    market = market[market["Adj Close"] > 0]
+    return market.sort_values("Date").drop_duplicates("Date", keep="last").reset_index(drop=True)
 
 
 def _build_single_stock_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -187,15 +222,7 @@ def _build_single_stock_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_market_features(market_df: pd.DataFrame) -> pd.DataFrame:
-    required = ["Date", "Adj Close"]
-    missing = [column for column in required if column not in market_df.columns]
-    if missing:
-        raise ValueError(f"Missing required market columns: {missing}")
-
-    market = market_df[required].copy()
-    market["Date"] = pd.to_datetime(market["Date"], errors="coerce")
-    market["Adj Close"] = pd.to_numeric(market["Adj Close"], errors="coerce")
-    market = market.dropna().sort_values("Date").drop_duplicates("Date", keep="last")
+    market = _prepare_market_frame(market_df)
 
     market_return_1d = market["Adj Close"].pct_change(1, fill_method=None)
     market["Market_Return_1D"] = market_return_1d
@@ -217,16 +244,30 @@ def build_stock_features(
 ) -> pd.DataFrame:
     """Build all reusable stock features without requiring future target values."""
     prepared = _prepare_stock_frame(stock_df)
+    market_frame = _prepare_market_frame(market_df) if market_df is not None else None
+    if market_frame is not None and market_frame.empty:
+        raise ValueError("No valid KLCI sessions are available for market-context features")
+    market_dates = set(market_frame["Date"]) if market_frame is not None else None
     stock_frames = [
-        _build_single_stock_features(group)
+        # Market-context features must be calculated on paired stock/KLCI
+        # sessions.  Providers can emit stock-only holiday/zero-volume rows;
+        # retaining those rows makes one missing KLCI return poison every later
+        # 60-session beta/correlation window.
+        _build_single_stock_features(
+            group[group["Date"].isin(market_dates)].copy()
+            if market_dates is not None
+            else group
+        )
         for _, group in prepared.groupby("Ticker", sort=True)
+        if market_dates is None or bool(group["Date"].isin(market_dates).any())
     ]
     if not stock_frames:
         return prepared
 
     features = pd.concat(stock_frames, ignore_index=True)
     if market_df is not None:
-        market_features = _build_market_features(market_df)
+        features = features.sort_values(["Ticker", "Date"]).reset_index(drop=True)
+        market_features = _build_market_features(market_frame)
         features = features.merge(market_features, on="Date", how="left", validate="many_to_one")
         features["Excess_Return_1D"] = (
             features["Return_1D"] - features["Market_Return_1D"]
@@ -234,8 +275,60 @@ def build_stock_features(
         features["Excess_Return_5D"] = (
             features["Return_5D"] - features["Market_Return_5D"]
         )
+        features["Excess_Return_10D"] = (
+            features["Return_10D"] - features["Market_Return_10D"]
+        )
+        features["Volatility_Ratio_5D_20D"] = _safe_divide(
+            features["Volatility_5D"], features["Volatility_20D"]
+        )
+        features["KLCI_Trend_Regime"] = np.where(
+            features["Market_AdjClose_to_MA_20"].isna(),
+            np.nan,
+            (features["Market_AdjClose_to_MA_20"] > 0).astype(float),
+        )
+        market_regimes = (
+            features[["Date", "Market_Volatility_20D"]]
+            .drop_duplicates("Date")
+            .sort_values("Date")
+        )
+        market_volatility_median = market_regimes["Market_Volatility_20D"].rolling(
+            60, min_periods=20
+        ).median()
+        market_regimes["KLCI_Volatility_Regime"] = np.where(
+            market_volatility_median.isna(),
+            np.nan,
+            (market_regimes["Market_Volatility_20D"] > market_volatility_median).astype(float),
+        )
+        features = features.merge(
+            market_regimes[["Date", "KLCI_Volatility_Regime"]],
+            on="Date",
+            how="left",
+            validate="many_to_one",
+        )
+
+        # Compute market sensitivity separately for each ticker so that no
+        # company's returns are mixed with another company's rolling window.
+        for _, indexes in features.groupby("Ticker", sort=False).groups.items():
+            stock_returns = features.loc[indexes, "Return_1D"]
+            market_returns = features.loc[indexes, "Market_Return_1D"]
+            market_variance_20 = market_returns.rolling(20, min_periods=20).var()
+            market_variance_60 = market_returns.rolling(60, min_periods=60).var()
+            features.loc[indexes, "Rolling_Beta_20D"] = (
+                stock_returns.rolling(20, min_periods=20).cov(market_returns) / market_variance_20
+            )
+            features.loc[indexes, "Rolling_Correlation_20D"] = (
+                stock_returns.rolling(20, min_periods=20).corr(market_returns)
+            )
+            features.loc[indexes, "Rolling_Beta_60D"] = (
+                stock_returns.rolling(60, min_periods=60).cov(market_returns) / market_variance_60
+            )
+            features.loc[indexes, "Rolling_Correlation_60D"] = (
+                stock_returns.rolling(60, min_periods=60).corr(market_returns)
+            )
     else:
         for column in MARKET_FEATURE_COLUMNS:
+            features[column] = np.nan
+        for column in REGIME_FEATURE_COLUMNS:
             features[column] = np.nan
 
     return features.replace([np.inf, -np.inf], np.nan).sort_values(
@@ -269,6 +362,8 @@ def feature_columns_for_round(round_number: int) -> tuple[str, ...]:
         return STATIONARY_FEATURE_COLUMNS
     if round_number == 3:
         return (*STATIONARY_FEATURE_COLUMNS, *MARKET_FEATURE_COLUMNS)
+    if round_number == 4:
+        return (*STATIONARY_FEATURE_COLUMNS, *MARKET_FEATURE_COLUMNS, *REGIME_FEATURE_COLUMNS)
     raise ValueError(f"Unsupported refinement round: {round_number}")
 
 
