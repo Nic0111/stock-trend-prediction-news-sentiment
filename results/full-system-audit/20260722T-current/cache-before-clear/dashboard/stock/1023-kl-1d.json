@@ -1,0 +1,56 @@
+{
+  "schema_version": 4,
+  "captured_at": "2026-07-20T18:17:10+00:00",
+  "payload": {
+    "ticker": "1023.KL",
+    "company_name": "CIMB Group Holdings Berhad",
+    "horizon_days": 1,
+    "as_of_date": "2026-07-17",
+    "prediction_label": "Down",
+    "probability_up": 0.4275686385946996,
+    "decision_threshold": 0.4373876102106486,
+    "model_name": "elastic-net-logistic",
+    "model_version": "fb584fc7e9ae",
+    "refinement_round": 1,
+    "benchmark_passed": false,
+    "status": "experimental",
+    "stale_data_warning": false,
+    "latest_data_age_days": 4,
+    "threshold_constraints_passed": true,
+    "evidence_strength": "Limited",
+    "supporting_factors": [
+      {
+        "feature": "Adj Close",
+        "label": "Adj Close",
+        "impact_probability_points": 37.57,
+        "relationship": "supports"
+      },
+      {
+        "feature": "Close",
+        "label": "Close",
+        "impact_probability_points": 36.98,
+        "relationship": "supports"
+      },
+      {
+        "feature": "Open",
+        "label": "Open",
+        "impact_probability_points": 16.9,
+        "relationship": "supports"
+      }
+    ],
+    "opposing_factors": [
+      {
+        "feature": "Low",
+        "label": "Low",
+        "impact_probability_points": 24.16,
+        "relationship": "opposes"
+      },
+      {
+        "feature": "High",
+        "label": "High",
+        "impact_probability_points": 22.8,
+        "relationship": "opposes"
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "backend": "finbert",
+  "model_directory": "models/experimental/finbert-sentiment",
+  "base_model": "yiyanghkust/finbert-pretrain",
+  "class_order": [
+    "negative",
+    "neutral",
+    "positive"
+  ],
+  "evaluation_scope": "Financial PhraseBank frozen test split",
+  "evaluation_rows": 968,
+  "accuracy": 0.84400826446281,
+  "balanced_accuracy": 0.8303498129399083,
+  "macro_f1": 0.8248195781653725,
+  "temperature": 1.52,
+  "previous_backend": "tfidf_logistic_regression",
+  "deployment_note": "FinBERT promoted after challenger benchmark; Malaysian Bursa generalisation remains unvalidated."
+}

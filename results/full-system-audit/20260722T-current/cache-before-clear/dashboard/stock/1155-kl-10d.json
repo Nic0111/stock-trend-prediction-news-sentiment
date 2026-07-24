@@ -1,0 +1,69 @@
+{
+  "schema_version": 7,
+  "captured_at": "2026-07-22T08:52:51+00:00",
+  "payload": {
+    "ticker": "1155.KL",
+    "company_name": "Malayan Banking Berhad",
+    "horizon_days": 10,
+    "as_of_date": "2026-07-21",
+    "prediction_label": "Up",
+    "probability_up": 0.5138200255518356,
+    "decision_threshold": 0.5105431751888228,
+    "model_name": "soft-voting-ensemble",
+    "model_version": "838558e80923",
+    "refinement_round": 4,
+    "benchmark_passed": false,
+    "status": "experimental",
+    "stale_data_warning": false,
+    "latest_data_age_days": 1,
+    "threshold_constraints_passed": true,
+    "evidence_strength": "Limited",
+    "supporting_factors": [
+      {
+        "feature": "KLCI_Volatility_Regime",
+        "label": "KLCI volatility regime",
+        "impact_probability_points": 0.31,
+        "relationship": "supports"
+      },
+      {
+        "feature": "MA_20_to_MA_60",
+        "label": "medium-term versus long-term trend",
+        "impact_probability_points": 0.19,
+        "relationship": "supports"
+      },
+      {
+        "feature": "Volatility_20D",
+        "label": "20-day volatility",
+        "impact_probability_points": 0.18,
+        "relationship": "supports"
+      }
+    ],
+    "opposing_factors": [
+      {
+        "feature": "RSI_14",
+        "label": "RSI momentum",
+        "impact_probability_points": 0.09,
+        "relationship": "opposes"
+      }
+    ],
+    "market_reference_date": "2026-07-21",
+    "observation_lag_sessions": 0,
+    "freshness_status": "fresh",
+    "freshness_reason": "Latest feature-complete row matches the latest valid aligned market session.",
+    "feature_schema_version": "aligned-market-sessions-v2",
+    "global_evidence_status": "experimental",
+    "ticker_evidence_status": "experimental",
+    "shadow_evidence_status": "experimental",
+    "acceptance_policy_version": "horizon-acceptance-v2",
+    "failed_acceptance_checks": [
+      "brier_skill",
+      "development_stability",
+      "shadow:balanced_accuracy_gain",
+      "shadow:bootstrap_gain",
+      "shadow:brier_skill",
+      "shadow:development_stability",
+      "shadow:macro_f1_not_worse",
+      "shadow:positive_mcc"
+    ]
+  }
+}

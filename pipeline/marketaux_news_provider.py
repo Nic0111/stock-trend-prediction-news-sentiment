@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Mapping, MutableMapping, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from pipeline.finbert_sentiment_model import FinBERTRuntimeError
+from pipeline.news_relevance import classify_entity_relevance, classify_non_news_source
 from pipeline.download_financial_news_data import (
     ARTICLE_COLUMNS,
     CONTEXT_WINDOWS,
@@ -35,11 +36,11 @@ from pipeline.download_financial_news_data import (
     NEWS_RETRIEVAL_LOOKBACK_DAYS,
     NewsContextResult,
     add_sentiment_scores,
+    annotate_contribution_horizons,
     article_age_days,
     build_news_context_metadata,
     build_company_query_variants,
     build_news_contexts,
-    build_newsapi_query,
     clean_text,
     ensure_data_structure,
     load_sentiment_model,
@@ -47,7 +48,9 @@ from pipeline.download_financial_news_data import (
     match_relevant_alias,
     normalize_title,
     normalize_url,
+    prediction_cutoff_at,
     slugify,
+    enrich_output_rows,
 )
 
 
@@ -64,6 +67,9 @@ MARKETAUX_CACHE_TTL_SECONDS = 6 * 60 * 60
 MARKETAUX_STALE_TTL_SECONDS = 24 * 60 * 60
 MARKETAUX_HISTORICAL_SCOPE = "historical"
 MARKETAUX_RECENT_SCOPE = "recent"
+# Bump this when the Marketaux request shape or filtering contract changes.
+# It is deliberately provider-specific so NewsAPI caches are unaffected.
+MARKETAUX_QUERY_CONFIG_VERSION = 2
 MARKETAUX_TIMEZONE = ZoneInfo("Asia/Kuala_Lumpur")
 
 
@@ -229,6 +235,8 @@ def _read_marketaux_cache(
         return None
     if clean_text(payload.get("cache_scope")) != scope:
         return None
+    if int(payload.get("marketaux_query_config_version", 0) or 0) != MARKETAUX_QUERY_CONFIG_VERSION:
+        return None
     if int(payload.get("news_context_config_version", 0) or 0) != NEWS_CONTEXT_CONFIG_VERSION:
         return None
     captured_at = clean_text(payload.get("captured_at"))
@@ -253,6 +261,10 @@ def _read_marketaux_cache(
         (result.provider_metadata or {}).get("news_context_config_version", 0) or 0
     ) != NEWS_CONTEXT_CONFIG_VERSION:
         return None
+    if int(
+        (result.provider_metadata or {}).get("marketaux_query_config_version", 0) or 0
+    ) != MARKETAUX_QUERY_CONFIG_VERSION:
+        return None
     return result, {
         "cache_state": "stale" if age_seconds > MARKETAUX_CACHE_TTL_SECONDS else "fresh",
         "captured_at": captured_at,
@@ -270,6 +282,7 @@ def _write_marketaux_cache(result: NewsContextResult, captured_at: str) -> None:
         _marketaux_cache_path(result.ticker, as_of_date, scope=scope),
         {
             "captured_at": captured_at,
+            "marketaux_query_config_version": MARKETAUX_QUERY_CONFIG_VERSION,
             "news_context_config_version": NEWS_CONTEXT_CONFIG_VERSION,
             "cache_scope": scope,
             "result": result.to_dict(),
@@ -291,6 +304,7 @@ def build_marketaux_request_url(
     published_after: date | None = None,
     published_before: date | None = None,
     limit: int = MARKETAUX_ARTICLE_LIMIT,
+    require_entities: bool = True,
     endpoint: str = MARKETAUX_ENDPOINT,
 ) -> str:
     """Build a bounded, deterministic Marketaux news request."""
@@ -305,8 +319,8 @@ def build_marketaux_request_url(
             published_before if published_before is not None else as_of_date + timedelta(days=1)
         ),
         "language": "en",
-        "filter_entities": "true",
-        "must_have_entities": "true",
+        "filter_entities": "true" if require_entities else "false",
+        "must_have_entities": "true" if require_entities else "false",
         "group_similar": "true",
         "sort": "published_at",
         "limit": str(limit),
@@ -317,6 +331,17 @@ def build_marketaux_request_url(
     if search:
         params["search"] = search
     return f"{endpoint}?{urlencode(params)}"
+
+
+def build_marketaux_search_query(query_variants: Sequence[str]) -> str:
+    """Build Marketaux's documented phrase-OR query for alias search."""
+
+    phrases = [
+        f'"{clean_text(variant).replace(chr(34), "")}"'
+        for variant in query_variants
+        if clean_text(variant)
+    ]
+    return " | ".join(phrases)
 
 
 def build_marketaux_entity_search_url(
@@ -396,6 +421,7 @@ def fetch_marketaux_response(
     published_after: date | None = None,
     published_before: date | None = None,
     limit: int = MARKETAUX_ARTICLE_LIMIT,
+    require_entities: bool = True,
     timeout: float = MARKETAUX_TIMEOUT_SECONDS,
     opener: Callable[..., Any] = urlopen,
 ) -> tuple[Dict[str, Any], Dict[str, str]]:
@@ -409,6 +435,7 @@ def fetch_marketaux_response(
             published_after=published_after,
             published_before=published_before,
             limit=limit,
+            require_entities=require_entities,
         ),
         timeout=timeout,
         opener=opener,
@@ -529,6 +556,9 @@ def normalize_marketaux_rows(
     query_variants: Sequence[str],
     *,
     entity_mapping: Mapping[str, Any] | None = None,
+    diagnostics: MutableMapping[str, int] | None = None,
+    ticker: str | None = None,
+    review_articles: List[Dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     seen_urls: set[str] = set()
@@ -539,11 +569,17 @@ def normalize_marketaux_rows(
         snippet = clean_text(article.get("snippet"))
         url = clean_text(article.get("url"))
         published_at = clean_text(article.get("published_at"))
+        source_domain = clean_text(article.get("source"))
         entity = _matching_entity(article, entity_mapping)
-        matched_alias = match_relevant_alias(title, f"{description} {snippet}", query_variants)
-        exact_symbol = bool(entity_mapping and clean_text(entity_mapping.get("symbol")) and entity)
         if not title or not url or not published_at or not (description or snippet):
             continue
+        exclusion_reason = classify_non_news_source(url, source_domain)
+        if exclusion_reason:
+            if diagnostics is not None:
+                diagnostics[exclusion_reason] = diagnostics.get(exclusion_reason, 0) + 1
+            continue
+        matched_alias = match_relevant_alias(title, f"{description} {snippet}", query_variants)
+        exact_symbol = bool(entity_mapping and clean_text(entity_mapping.get("symbol")) and entity)
         if not matched_alias and not exact_symbol:
             continue
         normalized_url = normalize_url(url)
@@ -557,12 +593,11 @@ def normalize_marketaux_rows(
             "title_description" if description else
             "title_snippet"
         )
-        rows.append(
-            {
+        row = {
                 "matched_alias": matched_alias or clean_text((entity or {}).get("name")),
                 "source_id": clean_text(article.get("source")),
                 "source_name": clean_text(article.get("source")),
-                "source_domain": clean_text(article.get("source")),
+                "source_domain": source_domain,
                 "author": "",
                 "title": title,
                 "description": description or snippet,
@@ -576,7 +611,19 @@ def normalize_marketaux_rows(
                 "provider_entity_match_score": (entity or {}).get("match_score"),
                 "provider_entity_sentiment_score": (entity or {}).get("sentiment_score"),
             }
-        )
+        if ticker and review_articles is not None:
+            entity_decision = classify_entity_relevance(
+                ticker,
+                title,
+                f"{description} {snippet}",
+                matched_alias=matched_alias or clean_text((entity or {}).get("name")),
+                provider_entity_match=exact_symbol,
+            )
+            row.update(entity_decision.to_dict())
+            if entity_decision.status != "included":
+                review_articles.append(row)
+                continue
+        rows.append(row)
     return rows
 
 
@@ -615,6 +662,7 @@ def retrieve_marketaux_financial_news(
     published_after: date | None = None,
     published_before: date | None = None,
     historical_only: bool = False,
+    force_search: bool = False,
 ) -> NewsContextResult:
     ensure_data_structure()
     metadata = load_stock_metadata()
@@ -625,8 +673,15 @@ def retrieve_marketaux_financial_news(
     effective_date = pd.Timestamp(as_of_date).date() if as_of_date is not None else date.today()
     variants = build_company_query_variants(normalized_ticker, company_name)
     api_token = token or get_marketaux_api_token()
-    symbol = clean_text((entity_mapping or {}).get("symbol"))
-    query_text = ",".join([symbol]) if symbol else build_newsapi_query(variants)
+    symbol = "" if force_search else clean_text((entity_mapping or {}).get("symbol"))
+    if symbol:
+        query_text = ",".join([symbol])
+    else:
+        # Marketaux has its own query language: `|` is OR.  Do not reuse the
+        # NewsAPI query builder here because the literal word `OR` is not a
+        # Marketaux operator and can reduce or distort alias-search results.
+        query_text = build_marketaux_search_query(variants)
+    query_mode = "symbol" if symbol else "alias_search"
     if response_data is None:
         payload, headers = fetch_marketaux_response(
             api_token,
@@ -636,12 +691,26 @@ def retrieve_marketaux_financial_news(
             lookback_days=lookback_days,
             published_after=published_after,
             published_before=published_before,
+            # Alias searches must not require Marketaux's entity recognizer:
+            # StockSense applies its own alias and entity-disambiguation
+            # filters after retrieval.  Symbol searches retain the stricter
+            # provider-side entity gate.
+            require_entities=bool(symbol),
             opener=opener,
         )
     else:
         payload = dict(response_data)
         headers = _safe_headers(response_headers)
-    rows = normalize_marketaux_rows(payload, variants, entity_mapping=entity_mapping if symbol else None)
+    filter_diagnostics: Dict[str, int] = {}
+    review_rows: List[Dict[str, Any]] = []
+    rows = normalize_marketaux_rows(
+        payload,
+        variants,
+        entity_mapping=entity_mapping if symbol else None,
+        diagnostics=filter_diagnostics,
+        ticker=normalized_ticker,
+        review_articles=review_rows,
+    )
     if historical_only:
         # Keep the range invariant local to the adapter as API date filters are
         # inclusive/format-dependent across providers.
@@ -655,17 +724,17 @@ def retrieve_marketaux_financial_news(
         contexts = build_news_contexts([], effective_date)
     else:
         add_sentiment_scores(rows, model or load_sentiment_model())
-        contexts = build_news_contexts(rows, effective_date)
-    enriched_rows = [
-        {
-            "query_ticker": normalized_ticker,
-            "query_company": company_name,
-            "query_text": query_text,
-            "display_rank": index,
-            **row,
-        }
-        for index, row in enumerate(rows, start=1)
-    ]
+        cutoff_at = prediction_cutoff_at(effective_date)
+        annotate_contribution_horizons(rows, effective_date, cutoff_at)
+        contexts = build_news_contexts(rows, effective_date, cutoff_at)
+    enriched_rows = enrich_output_rows(normalized_ticker, company_name, query_text, rows)
+    enriched_review_rows = enrich_output_rows(
+        normalized_ticker,
+        company_name,
+        query_text,
+        review_rows,
+        automatic_included=False,
+    )
     paths = _output_paths(normalized_ticker) if persist_outputs else {}
     if persist_outputs:
         paths["raw_json"].parent.mkdir(parents=True, exist_ok=True)
@@ -677,6 +746,9 @@ def retrieve_marketaux_financial_news(
     metadata_out = {
         **build_news_context_metadata(),
         "coverage_mode": "entity" if symbol else "alias_search",
+        "query_mode": query_mode,
+        "marketaux_query_config_version": MARKETAUX_QUERY_CONFIG_VERSION,
+        "experimental_force_search": force_search,
         "entity_symbol": symbol or None,
         "entity_exchange": clean_text((entity_mapping or {}).get("exchange")) or None,
         "entity_country": clean_text((entity_mapping or {}).get("country")) or None,
@@ -684,6 +756,10 @@ def retrieve_marketaux_financial_news(
         "marketaux_headers": _safe_headers(headers),
         "cache_scope": MARKETAUX_HISTORICAL_SCOPE if historical_only else MARKETAUX_RECENT_SCOPE,
         "historical_only": historical_only,
+        "prediction_cutoff_at": prediction_cutoff_at(effective_date).isoformat(),
+        "excluded_non_news_count": sum(filter_diagnostics.values()),
+        "excluded_non_news_reasons": filter_diagnostics,
+        "entity_review_article_count": len(enriched_review_rows),
     }
     return NewsContextResult(
         ticker=normalized_ticker,
@@ -709,6 +785,10 @@ def retrieve_marketaux_financial_news(
             "marketaux_cache_state": "miss",
         },
         historical_articles=enriched_rows if historical_only else [],
+        review_articles=[] if historical_only else enriched_review_rows,
+        automatic_articles=[] if historical_only else list(enriched_rows),
+        automatic_review_articles=[] if historical_only else list(enriched_review_rows),
+        automatic_contexts={} if historical_only else dict(contexts),
     )
 
 
@@ -796,6 +876,20 @@ def _merge_news_results(
     for index, article in enumerate(merged, start=1):
         article["display_rank"] = index
 
+    merged_review: List[Dict[str, Any]] = []
+    included_ids = {_article_identity(article) for article in merged}
+    for raw_article in [*newsapi_result.review_articles, *marketaux_result.review_articles]:
+        article = dict(raw_article)
+        if _article_identity(article) in included_ids:
+            continue
+        if _find_duplicate_article(article, merged_review) is None:
+            article["automatic_included"] = False
+            article["effective_included"] = False
+            article["user_override"] = None
+            merged_review.append(article)
+    for index, article in enumerate(merged_review, start=1):
+        article["display_rank"] = index
+
     counts: Dict[str, int] = {}
     for article in merged:
         providers = article.get("provider_sources") or [clean_text(article.get("provider")) or "newsapi"]
@@ -809,6 +903,12 @@ def _merge_news_results(
         "marketaux_used": True,
         "marketaux_trigger": trigger,
         "marketaux_cache_state": marketaux_cache_state,
+        "marketaux_query_mode": clean_text(
+            (marketaux_result.provider_metadata or {}).get("query_mode")
+        ) or None,
+        "marketaux_query_config_version": (
+            marketaux_result.provider_metadata or {}
+        ).get("marketaux_query_config_version"),
         "deduplicated_article_count": duplicate_count,
         "provider_article_counts_before_merge": {
             "newsapi": newsapi_result.relevant_article_count,
@@ -816,7 +916,21 @@ def _merge_news_results(
         },
         "marketaux_headers": dict((marketaux_result.provider_metadata or {}).get("marketaux_headers") or {}),
         "marketaux_usage": dict((marketaux_result.provider_metadata or {}).get("marketaux_usage") or {}),
+        "entity_review_article_count": len(merged_review),
     }
+    newsapi_excluded = int(metadata.get("excluded_non_news_count", 0) or 0)
+    marketaux_excluded = int(
+        (marketaux_result.provider_metadata or {}).get("excluded_non_news_count", 0) or 0
+    )
+    newsapi_reasons = dict(metadata.get("excluded_non_news_reasons") or {})
+    marketaux_reasons = dict(
+        (marketaux_result.provider_metadata or {}).get("excluded_non_news_reasons") or {}
+    )
+    for reason, count in marketaux_reasons.items():
+        newsapi_reasons[reason] = int(newsapi_reasons.get(reason, 0) or 0) + int(count or 0)
+    metadata["excluded_non_news_count"] = newsapi_excluded + marketaux_excluded
+    metadata["excluded_non_news_reasons"] = newsapi_reasons
+    merged_as_of = pd.Timestamp(newsapi_result.as_of_date).date()
     return NewsContextResult(
         ticker=newsapi_result.ticker,
         company_name=newsapi_result.company_name,
@@ -826,7 +940,7 @@ def _merge_news_results(
         raw_article_count=newsapi_result.raw_article_count + marketaux_result.raw_article_count,
         relevant_article_count=len(merged),
         results_truncated=newsapi_result.results_truncated or marketaux_result.results_truncated,
-        contexts=build_news_contexts(merged, pd.Timestamp(newsapi_result.as_of_date).date()),
+        contexts=build_news_contexts(merged, merged_as_of, prediction_cutoff_at(merged_as_of)),
         articles=merged,
         output_paths=newsapi_result.output_paths,
         provider_mode="newsapi_marketaux_complement",
@@ -837,6 +951,10 @@ def _merge_news_results(
             *list(newsapi_result.historical_articles or []),
             *list(marketaux_result.historical_articles or []),
         ],
+        review_articles=merged_review,
+        automatic_articles=list(merged),
+        automatic_review_articles=list(merged_review),
+        automatic_contexts=build_news_contexts(merged, merged_as_of, prediction_cutoff_at(merged_as_of)),
     )
 
 
@@ -849,6 +967,7 @@ def _with_provider_metadata(
     retrieval_source: str = "live",
     cache_state: str = "not_used",
     error: str | None = None,
+    newsapi_error: str | None = None,
 ) -> NewsContextResult:
     metadata = {
         **dict(result.provider_metadata or {}),
@@ -861,6 +980,17 @@ def _with_provider_metadata(
         metadata["marketaux_trigger"] = trigger
     if error:
         metadata["marketaux_error"] = error
+    if newsapi_error:
+        metadata["newsapi_error"] = newsapi_error
+    existing_newsapi_status = clean_text((result.provider_status or {}).get("newsapi"))
+    if existing_newsapi_status:
+        newsapi_status = existing_newsapi_status
+    elif result.provider_mode.startswith("marketaux"):
+        # A Marketaux-only result means NewsAPI did not provide the returned
+        # articles. Never label that provider as successful by default.
+        newsapi_status = "unavailable"
+    else:
+        newsapi_status = "ok"
     return NewsContextResult(
         ticker=result.ticker,
         company_name=result.company_name,
@@ -875,9 +1005,14 @@ def _with_provider_metadata(
         output_paths=result.output_paths,
         provider_mode=result.provider_mode,
         provider_article_counts=result.provider_article_counts or {"newsapi": result.relevant_article_count},
-        provider_status={"newsapi": "ok", "marketaux": provider_status},
+        provider_status={"newsapi": newsapi_status, "marketaux": provider_status},
         provider_metadata=metadata,
         historical_articles=list(result.historical_articles or []),
+        review_articles=list(result.review_articles or []),
+        automatic_articles=list(result.automatic_articles or result.articles),
+        automatic_review_articles=list(result.automatic_review_articles or result.review_articles),
+        automatic_contexts=dict(result.automatic_contexts or result.contexts),
+        user_overrides=dict(result.user_overrides or {}),
     )
 
 
@@ -920,6 +1055,10 @@ def _with_historical_context(
             provider_status={"newsapi": "unavailable", "marketaux": status},
             provider_metadata=metadata,
             historical_articles=historical_articles,
+            review_articles=list(historical_result.review_articles or []),
+            automatic_articles=list(historical_result.automatic_articles or []),
+            automatic_review_articles=list(historical_result.automatic_review_articles or historical_result.review_articles or []),
+            automatic_contexts=dict(historical_result.automatic_contexts or {}),
         )
 
     metadata = {
@@ -951,6 +1090,11 @@ def _with_historical_context(
         },
         provider_metadata=metadata,
         historical_articles=historical_articles,
+        review_articles=list(base_result.review_articles or []),
+        automatic_articles=list(base_result.automatic_articles or base_result.articles),
+        automatic_review_articles=list(base_result.automatic_review_articles or base_result.review_articles),
+        automatic_contexts=dict(base_result.automatic_contexts or base_result.contexts),
+        user_overrides=dict(base_result.user_overrides or {}),
     )
 
 
@@ -1106,6 +1250,7 @@ def retrieve_news_with_marketaux_fallback(
                 marketaux_used=True,
                 retrieval_source="fallback",
                 cache_state=cache_info["cache_state"],
+                newsapi_error=str(newsapi_error) if newsapi_error else None,
             )
         marketaux_recent_empty = True
         if news is None or news.relevant_article_count <= 0:
@@ -1179,6 +1324,7 @@ def retrieve_news_with_marketaux_fallback(
             provider_status="ok",
             trigger=trigger,
             marketaux_used=True,
+            newsapi_error=str(newsapi_error) if newsapi_error else None,
         )
 
     if marketaux_recent_empty and (news is None or news.relevant_article_count <= 0):
@@ -1218,6 +1364,7 @@ def retrieve_news_with_marketaux_fallback(
             retrieval_source="fallback",
             cache_state=cache_info["cache_state"],
             error=str(marketaux_error) if marketaux_error else None,
+            newsapi_error=str(newsapi_error) if newsapi_error else None,
         )
 
     if news is not None:

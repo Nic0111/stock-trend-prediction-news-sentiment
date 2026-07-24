@@ -7,17 +7,20 @@ import math
 import os
 import re
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, MutableMapping, Sequence, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from sklearn.pipeline import Pipeline
 
-from pipeline.finbert_sentiment_model import load_finbert_sentiment_model
+from pipeline.finbert_sentiment_model import FinBERTArtifactError, load_finbert_sentiment_model
+from pipeline.news_relevance import classify_entity_relevance, classify_non_news_source, stable_article_id
+from pipeline.runtime_provenance import sentiment_artifact_hashes
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -39,7 +42,9 @@ LANGUAGE = "en"
 SORT_BY = "publishedAt"
 PAGE_SIZE = 100
 NEWS_RETRIEVAL_LOOKBACK_DAYS = 30
-NEWS_CONTEXT_CONFIG_VERSION = 3
+# Bump when provider date-window semantics change so cached contexts are not
+# mistaken for results produced under the current NewsAPI boundary contract.
+NEWS_CONTEXT_CONFIG_VERSION = 7
 NEWS_HISTORICAL_CONTEXT_START_DAYS = NEWS_RETRIEVAL_LOOKBACK_DAYS + 1
 NEWS_HISTORICAL_CONTEXT_END_DAYS = 90
 SENTIMENT_PROBABILITY_THRESHOLD = 0.55
@@ -48,6 +53,8 @@ DASHBOARD_ARTICLES = 5
 CONTEXT_WINDOWS = {1: 7, 5: 14, 10: 30}
 CONTEXT_HALF_LIVES = {1: 3.5, 5: 7.0, 10: 15.0}
 SENTIMENT_SCORE_MAP = {"positive": 1, "neutral": 0, "negative": -1}
+BURSA_TIMEZONE = ZoneInfo("Asia/Kuala_Lumpur")
+BURSA_SESSION_CLOSE = time(17, 0)
 
 KNOWN_COMPANY_ALIASES = {
     "1155.KL": ["Maybank", "Malayan Banking", "Maybank Group"],
@@ -86,6 +93,16 @@ ARTICLE_COLUMNS = [
     "probability_neutral",
     "probability_positive",
     "sentiment_uncertain",
+    "article_id",
+    "automatic_relevance",
+    "relevance_score",
+    "relevance_reasons",
+    "matched_entity_terms",
+    "collision_signals",
+    "automatic_included",
+    "effective_included",
+    "user_override",
+    "contributes_to_horizons",
 ]
 
 
@@ -110,6 +127,11 @@ class NewsContextResult:
     # kept separate so they cannot enter contexts or be mistaken for current
     # evidence by downstream consumers.
     historical_articles: List[Dict[str, Any]] = field(default_factory=list)
+    review_articles: List[Dict[str, Any]] = field(default_factory=list)
+    automatic_articles: List[Dict[str, Any]] = field(default_factory=list)
+    automatic_review_articles: List[Dict[str, Any]] = field(default_factory=list)
+    automatic_contexts: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    user_overrides: Dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -124,6 +146,7 @@ def build_news_context_metadata() -> Dict[str, Any]:
         "historical_context_end_days": NEWS_HISTORICAL_CONTEXT_END_DAYS,
         "context_windows": {str(horizon): window for horizon, window in CONTEXT_WINDOWS.items()},
         "context_half_lives": {str(horizon): half_life for horizon, half_life in CONTEXT_HALF_LIVES.items()},
+        "prediction_cutoff_time": "17:00:00+08:00",
     }
 
 
@@ -239,7 +262,14 @@ def get_news_date_range(
     as_of_date: date | None = None,
 ) -> Tuple[str, str]:
     end_date = as_of_date or date.today()
-    return (end_date - timedelta(days=lookback_days)).isoformat(), end_date.isoformat()
+    if lookback_days < 1:
+        raise ValueError("lookback_days must be at least one day")
+    # NewsAPI's free rolling window is timestamp-based.  Subtracting 30 days
+    # from the date creates a 31-date inclusive range and can be rejected when
+    # the observation date is one day behind today.  Return exactly 30 calendar
+    # dates, keeping the request safely inside the provider boundary.
+    start_date = end_date - timedelta(days=lookback_days - 1)
+    return start_date.isoformat(), end_date.isoformat()
 
 
 def build_request_url(
@@ -325,6 +355,10 @@ def is_removed_article(*values: str) -> bool:
 def filter_articles(
     data: Dict[str, Any],
     query_variants: Sequence[str],
+    *,
+    diagnostics: MutableMapping[str, int] | None = None,
+    ticker: str | None = None,
+    review_articles: List[Dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     seen_urls: set[str] = set()
@@ -340,6 +374,14 @@ def filter_articles(
             continue
         if is_removed_article(title, description, content):
             continue
+        exclusion_reason = classify_non_news_source(
+            url,
+            (source.get("name") if isinstance(source, dict) else ""),
+        )
+        if exclusion_reason:
+            if diagnostics is not None:
+                diagnostics[exclusion_reason] = diagnostics.get(exclusion_reason, 0) + 1
+            continue
         matched_alias = match_relevant_alias(title, description, query_variants)
         if not matched_alias:
             continue
@@ -349,8 +391,7 @@ def filter_articles(
             continue
         seen_urls.add(normalized_url)
         seen_titles.add(normalized_title)
-        rows.append(
-            {
+        row = {
                 "matched_alias": matched_alias,
                 "provider": "newsapi",
                 "source_id": clean_text(source.get("id")),
@@ -364,7 +405,18 @@ def filter_articles(
                 "published_at": published_at,
                 "content_snippet": content,
             }
-        )
+        if ticker and review_articles is not None:
+            entity_decision = classify_entity_relevance(
+                ticker,
+                title,
+                description,
+                matched_alias=matched_alias,
+            )
+            row.update(entity_decision.to_dict())
+            if entity_decision.status != "included":
+                review_articles.append(row)
+                continue
+        rows.append(row)
     return rows
 
 
@@ -398,6 +450,18 @@ def load_sentiment_model() -> object:
     model_directory = Path(configured_directory) if configured_directory else FINBERT_SENTIMENT_MODEL_DIR
     if not model_directory.is_absolute():
         model_directory = PROJECT_ROOT / model_directory
+    configured_hashes = runtime_config.get("artifact_hashes")
+    if isinstance(configured_hashes, dict) and configured_hashes:
+        actual_hashes = sentiment_artifact_hashes()
+        mismatches = [
+            key for key, expected in configured_hashes.items()
+            if key in actual_hashes and actual_hashes[key] != expected
+        ]
+        if mismatches:
+            raise FinBERTArtifactError(
+                "FinBERT runtime artifact hashes do not match the deployed configuration: "
+                + ", ".join(mismatches)
+            )
     temperature = float(runtime_config.get("temperature", 1.0))
     return load_finbert_sentiment_model(str(model_directory), temperature=temperature)
 
@@ -431,12 +495,29 @@ def add_sentiment_scores(rows: List[Dict[str, Any]], model: Pipeline) -> int:
     return len(rows)
 
 
-def article_age_days(published_at: str, as_of_date: date) -> float:
+def prediction_cutoff_at(as_of_date: date) -> datetime:
+    """Return the completed Bursa session cutoff for a market observation."""
+
+    return datetime.combine(as_of_date, BURSA_SESSION_CLOSE, tzinfo=BURSA_TIMEZONE)
+
+
+def article_age_days(
+    published_at: str,
+    as_of_date: date,
+    cutoff_at: datetime | None = None,
+) -> float:
     published = pd.to_datetime(published_at, utc=True, errors="coerce")
     if pd.isna(published):
         return math.inf
-    as_of = datetime.combine(as_of_date + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
-    return max(0.0, (as_of - published.to_pydatetime()).total_seconds() / 86400.0)
+    as_of = cutoff_at or datetime.combine(as_of_date + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+    if as_of.tzinfo is None:
+        as_of = as_of.replace(tzinfo=timezone.utc)
+    published_at_utc = published.to_pydatetime()
+    age = (as_of.astimezone(timezone.utc) - published_at_utc).total_seconds() / 86400.0
+    # Future articles are not candidates for a point-in-time context. Returning
+    # infinity keeps the existing caller contract while making the exclusion
+    # explicit and leakage-safe.
+    return age if age >= 0 else math.inf
 
 
 def calculate_recency_weight(age_days: float, half_life_days: float) -> float:
@@ -449,12 +530,15 @@ def calculate_recency_weight(age_days: float, half_life_days: float) -> float:
 def build_news_contexts(
     rows: Sequence[Dict[str, Any]],
     as_of_date: date,
+    cutoff_at: datetime | None = None,
 ) -> Dict[str, Dict[str, Any]]:
     contexts: Dict[str, Dict[str, Any]] = {}
     for horizon, window_days in CONTEXT_WINDOWS.items():
         half_life = CONTEXT_HALF_LIVES[horizon]
         candidates = [
-            row for row in rows if article_age_days(str(row["published_at"]), as_of_date) <= window_days
+            row
+            for row in rows
+            if article_age_days(str(row["published_at"]), as_of_date, cutoff_at) <= window_days
         ]
         usable = [
             row
@@ -480,7 +564,7 @@ def build_news_contexts(
         weighted_sum = 0.0
         total_weight = 0.0
         for row in usable:
-            age_days = article_age_days(str(row["published_at"]), as_of_date)
+            age_days = article_age_days(str(row["published_at"]), as_of_date, cutoff_at)
             recency_weight = calculate_recency_weight(age_days, half_life)
             weight = recency_weight * float(row["sentiment_probability"])
             weighted_sum += float(row["sentiment_score"]) * weight
@@ -505,6 +589,24 @@ def build_news_contexts(
     return contexts
 
 
+def annotate_contribution_horizons(
+    rows: Sequence[Dict[str, Any]],
+    as_of_date: date,
+    cutoff_at: datetime | None = None,
+) -> None:
+    """Attach server-authoritative horizon contribution flags to article rows."""
+
+    for row in rows:
+        horizons: list[int] = []
+        usable = not bool(row.get("sentiment_uncertain", True)) and row.get("sentiment_score") in {-1, 0, 1}
+        if usable:
+            age = article_age_days(str(row.get("published_at", "")), as_of_date, cutoff_at)
+            for horizon, window_days in CONTEXT_WINDOWS.items():
+                if age <= window_days:
+                    horizons.append(horizon)
+        row["contributes_to_horizons"] = horizons
+
+
 def build_output_paths(ticker: str) -> Dict[str, Path]:
     ticker_slug = slugify(ticker)
     return {
@@ -520,17 +622,25 @@ def enrich_output_rows(
     company_name: str,
     query_text: str,
     rows: Sequence[Dict[str, Any]],
+    *,
+    automatic_included: bool = True,
 ) -> List[Dict[str, Any]]:
-    return [
-        {
+    enriched: List[Dict[str, Any]] = []
+    for index, row in enumerate(rows, start=1):
+        enriched_row = {
             "query_ticker": ticker,
             "query_company": company_name,
             "query_text": query_text,
             "display_rank": index,
             **row,
         }
-        for index, row in enumerate(rows, start=1)
-    ]
+        enriched_row["article_id"] = stable_article_id(enriched_row)
+        enriched_row.setdefault("automatic_relevance", "included" if automatic_included else "review")
+        enriched_row.setdefault("automatic_included", automatic_included)
+        enriched_row.setdefault("effective_included", automatic_included)
+        enriched_row.setdefault("user_override", None)
+        enriched.append(enriched_row)
+    return enriched
 
 
 def _save_article_csv(rows: Sequence[Dict[str, Any]], output_path: Path) -> None:
@@ -550,6 +660,8 @@ def retrieve_financial_news(
     user_aliases: Sequence[str] | None = None,
     api_key: str | None = None,
     response_data: Dict[str, Any] | None = None,
+    *,
+    persist_outputs: bool = True,
 ) -> NewsContextResult:
     ensure_data_structure()
     metadata = load_stock_metadata()
@@ -566,15 +678,33 @@ def retrieve_financial_news(
     data = response_data if response_data is not None else fetch_newsapi_response(
         api_key or get_newsapi_key(), query_text, NEWS_RETRIEVAL_LOOKBACK_DAYS, effective_date
     )
-    rows = filter_articles(data, variants)
+    filter_diagnostics: Dict[str, int] = {}
+    review_rows: List[Dict[str, Any]] = []
+    rows = filter_articles(
+        data,
+        variants,
+        diagnostics=filter_diagnostics,
+        ticker=normalized_ticker,
+        review_articles=review_rows,
+    )
     add_sentiment_scores(rows, model)
-    contexts = build_news_contexts(rows, effective_date)
+    cutoff_at = prediction_cutoff_at(effective_date)
+    annotate_contribution_horizons(rows, effective_date, cutoff_at)
+    contexts = build_news_contexts(rows, effective_date, cutoff_at)
     enriched_rows = enrich_output_rows(normalized_ticker, company_name, query_text, rows)
-    paths = build_output_paths(normalized_ticker)
-    paths["raw_json"].write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    _save_article_csv(enriched_rows, paths["filtered_articles"])
-    _save_article_csv(enriched_rows[:DASHBOARD_ARTICLES], paths["dashboard_top5"])
-    _save_context_csv(contexts, paths["context_summary"])
+    enriched_review_rows = enrich_output_rows(
+        normalized_ticker,
+        company_name,
+        query_text,
+        review_rows,
+        automatic_included=False,
+    )
+    paths = build_output_paths(normalized_ticker) if persist_outputs else {}
+    if persist_outputs:
+        paths["raw_json"].write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        _save_article_csv(enriched_rows, paths["filtered_articles"])
+        _save_article_csv(enriched_rows[:DASHBOARD_ARTICLES], paths["dashboard_top5"])
+        _save_context_csv(contexts, paths["context_summary"])
 
     return NewsContextResult(
         ticker=normalized_ticker,
@@ -591,7 +721,17 @@ def retrieve_financial_news(
         provider_mode="newsapi",
         provider_article_counts={"newsapi": len(rows)},
         provider_status={"newsapi": "ok"},
-        provider_metadata=build_news_context_metadata(),
+        provider_metadata={
+            **build_news_context_metadata(),
+            "prediction_cutoff_at": cutoff_at.isoformat(),
+            "excluded_non_news_count": sum(filter_diagnostics.values()),
+            "excluded_non_news_reasons": filter_diagnostics,
+            "entity_review_article_count": len(enriched_review_rows),
+        },
+        review_articles=enriched_review_rows,
+        automatic_articles=list(enriched_rows),
+        automatic_review_articles=list(enriched_review_rows),
+        automatic_contexts=dict(contexts),
     )
 
 

@@ -1,0 +1,38 @@
+{
+  "policy_version": "horizon-acceptance-v2",
+  "random_seed": 42,
+  "bootstrap_repetitions": 2000,
+  "significance_level": 0.05,
+  "common": {
+    "minimum_balanced_accuracy_gain": 0.02,
+    "minimum_direction_recall": 0.35,
+    "limited_minimum_direction_recall": 0.20,
+    "minimum_predicted_class_share": 0.2,
+    "maximum_predicted_class_share": 0.8,
+    "limited_minimum_predicted_class_share": 0.1,
+    "limited_maximum_predicted_class_share": 0.9,
+    "minimum_positive_mcc_folds": 4,
+    "limited_minimum_positive_mcc_folds": 3,
+    "minimum_brier_skill": 0.0
+  },
+  "horizons": {
+    "1": {
+      "purge_sessions": 1,
+      "bootstrap_block_sessions": 5,
+      "minimum_observed_dates": 200,
+      "minimum_shadow_dates": 100
+    },
+    "5": {
+      "purge_sessions": 5,
+      "bootstrap_block_sessions": 5,
+      "minimum_observed_dates": 200,
+      "minimum_shadow_dates": 100
+    },
+    "10": {
+      "purge_sessions": 10,
+      "bootstrap_block_sessions": 10,
+      "minimum_observed_dates": 200,
+      "minimum_shadow_dates": 100
+    }
+  }
+}

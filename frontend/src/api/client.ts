@@ -90,6 +90,26 @@ export function retrieveNews(ticker: string, horizon: Horizon, signal?: AbortSig
   });
 }
 
+export function updateNewsOverride(
+  analysisId: string,
+  articleId: string,
+  action: "include" | "exclude" | "reset",
+  signal?: AbortSignal,
+): Promise<DashboardAnalysis> {
+  return request<DashboardAnalysis>(`/analyses/${encodeURIComponent(analysisId)}/news-overrides`, {
+    method: "PATCH",
+    body: JSON.stringify({ article_id: articleId, action }),
+    signal,
+  });
+}
+
+export function resetNewsOverrides(analysisId: string, signal?: AbortSignal): Promise<DashboardAnalysis> {
+  return request<DashboardAnalysis>(`/analyses/${encodeURIComponent(analysisId)}/news-overrides`, {
+    method: "DELETE",
+    signal,
+  });
+}
+
 export function askStockSense(
   ticker: string,
   horizon: Horizon,

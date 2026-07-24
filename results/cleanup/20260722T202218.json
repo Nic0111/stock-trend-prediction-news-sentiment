@@ -1,0 +1,166 @@
+{
+  "cleanup_run_id": "20260722T202218",
+  "active_artifacts": [
+    "models\\stock-trend-10d-20260722T162145.joblib",
+    "models\\stock-trend-1d-20260722T162145.joblib",
+    "models\\stock-trend-5d-20260722T162145.joblib"
+  ],
+  "deleted": [
+    {
+      "path": "models\\stock-trend-10d-20260711T164613.joblib",
+      "sha256": "6b19dac7d67b650f681ee6396734da743b4281a9b04c639df5458dac575e01d0",
+      "size": 5901,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-10d-20260711T180650.joblib",
+      "sha256": "3b9bbd68d7384839e5651461807cf60e36cde1fc1ff20fcc05b65317c970afde",
+      "size": 5933,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-10d-20260711T181357.joblib",
+      "sha256": "1b7db8e4571094b18d3ea3b6916170060379f17da4422910f3836f1650d1a0f9",
+      "size": 6738,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-10d-20260711T182949.joblib",
+      "sha256": "e2039804d435dac9b015f5ca6be94011affc895bfde0e853f468b05b451fdfc2",
+      "size": 6228,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-10d-20260711T182958.joblib",
+      "sha256": "e2039804d435dac9b015f5ca6be94011affc895bfde0e853f468b05b451fdfc2",
+      "size": 6228,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-10d-20260717T174329.joblib",
+      "sha256": "f1d43caf6f0e7e4fdf874fc0503d6ca60fdef9f50ac3bb5730de809d2fea89b3",
+      "size": 7941,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-10d-20260721T015432.joblib",
+      "sha256": "f438919642dab859e70a0eac63084886627d908c13ff486a54b2e6916685a101",
+      "size": 4092622,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-1d-20260711T163506.joblib",
+      "sha256": "cf82400a5f7ede6e2f9836d93d34856e4194c71b04dc0b5db3af03b362e5c2e7",
+      "size": 914500,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-1d-20260711T164613.joblib",
+      "sha256": "9e81d5363061e905dbe52dae258a55081f3406ad5b68be6e4e8ca1e9c3592dba",
+      "size": 6584,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-1d-20260711T165048.joblib",
+      "sha256": "cf82400a5f7ede6e2f9836d93d34856e4194c71b04dc0b5db3af03b362e5c2e7",
+      "size": 914500,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-1d-20260711T180650.joblib",
+      "sha256": "93c0692c404b0322dcaa5ff57a11957a70755cc462252ce0b32b919028c00f6a",
+      "size": 6616,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-1d-20260711T181357.joblib",
+      "sha256": "cfe47ef2e5d00d84d2fa42dea0f3cc69c8cc6db9692d8106714e7cbf1f591f6e",
+      "size": 811551,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-1d-20260711T182949.joblib",
+      "sha256": "2cff0120479868e65e77780024f6d30c43de59841841684e480954685463fe7f",
+      "size": 810807,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-1d-20260711T182958.joblib",
+      "sha256": "2cff0120479868e65e77780024f6d30c43de59841841684e480954685463fe7f",
+      "size": 810807,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-1d-20260717T174329.joblib",
+      "sha256": "7e8f88e538e29b1e073a9c36009953faf9962fe77268713fbf35da3476d48ea0",
+      "size": 7005,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-1d-20260721T015432.joblib",
+      "sha256": "ca9a5b6c8164342046d9d9144ade0a5f509cb289894973f4a4242c8fb845e196",
+      "size": 5301,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-5d-20260711T164613.joblib",
+      "sha256": "e283e0b6215509b9150fdea77f131644969944d6e8fb287b89cb37bcfb83bf67",
+      "size": 2980034,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-5d-20260711T180650.joblib",
+      "sha256": "9b498f1ee89f92bf9475f1e3a63181dab6fea653bb1b27bc2001e6387dad8657",
+      "size": 2980066,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-5d-20260711T181357.joblib",
+      "sha256": "23cbf3dc1bbaa305a8637debadf3869ad14196ce5e1c353e812cfce324471962",
+      "size": 6738,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-5d-20260711T182949.joblib",
+      "sha256": "2dbaa2cb66d5e2c1d7de0ca9614f14e8cb30511e11a26690e50a3b8a54c51fa6",
+      "size": 6228,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-5d-20260711T182958.joblib",
+      "sha256": "2dbaa2cb66d5e2c1d7de0ca9614f14e8cb30511e11a26690e50a3b8a54c51fa6",
+      "size": 6228,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-5d-20260717T174329.joblib",
+      "sha256": "51cf0bfb01c45b9284d1d5a16c40125c19b3b4e7da9d490d250e6225dffd7404",
+      "size": 278041,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-5d-20260721T015432.joblib",
+      "sha256": "56fcd65cf855420b1b310113e1de08912159e7648ef534c581e12e3f5a9187c5",
+      "size": 123254,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-champion-10d.joblib",
+      "sha256": "d43dc4401434043cec2d3b05c89f15e3eecbed52479c1e35e33e8f07dd9c926a",
+      "size": 5900,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-champion-1d.joblib",
+      "sha256": "30bc1959c960abf26e9efdbd1f1de95f96a14f5a12fe94ce3405a871ddb75846",
+      "size": 1648492,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    },
+    {
+      "path": "models\\stock-trend-champion-5d.joblib",
+      "sha256": "586b1b21437633915ac87dce912b1a9dc0b134bcea94e58337c9f7b12b96fd50",
+      "size": 5884,
+      "reason": "unreferenced timestamped/champion stock artifact"
+    }
+  ]
+}

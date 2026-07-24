@@ -1,0 +1,16 @@
+{
+  "artifacts": {
+    "1": "2f635ce4ad51b89fe29d356a518126af0750b1a484b59575d758f91d15e51018",
+    "10": "32a6771f5d8e625b157057b785c4d366486b2261480551fffb152bb576c1a758",
+    "5": "43b5d3c2f83124c7cff77c7019aece8b09c5796071367599913bcfc3f91e79e4"
+  },
+  "dataset_sha256": "838558e8092340a152c135965d0d149a6e20ad8cb056c182598fdd9dda56901f",
+  "registry_signature": "6d56b75986d4f0cae6f22953098fd0e84a1b2afa8595300d4cb2340341da2a9f",
+  "reports": {
+    "model-comparison-summary.csv": "1020d105b1409477dcc195643ed66ba7835655a3daa6e2d612951975cb6e07b3",
+    "stock-model-baselines.csv": "cb278ebcad17049baca8925c947ffbb98c04bdfd762f2fc9c7cb16a7f0859444",
+    "stock-model-candidates.csv": "25989801208fbe7ec78a6f593073bb6990604bd7190a2df01d4a18f2712b8f61",
+    "stock-model-per-ticker-metrics.csv": "6a49cdce730e9e25d5042e569b0fb28f9c47410150559eb1ac6c922c953a4cbc"
+  },
+  "run_id": "20260723T001759571649"
+}

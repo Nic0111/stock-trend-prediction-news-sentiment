@@ -69,6 +69,11 @@ class PredictionResponse(BaseModel):
     freshness_status: str = "unknown"
     freshness_reason: Optional[str] = None
     feature_schema_version: str = "legacy-unversioned"
+    global_evidence_status: str = "experimental"
+    ticker_evidence_status: str = "experimental"
+    shadow_evidence_status: Optional[str] = None
+    acceptance_policy_version: str = "legacy"
+    failed_acceptance_checks: List[str] = Field(default_factory=list)
     prediction_available: bool = True
     directional_signal_available: bool = False
     evidence_status: str = "experimental"
@@ -91,6 +96,38 @@ class NewsContextResponse(BaseModel):
     provider_status: Dict[str, str] = Field(default_factory=dict)
     provider_metadata: Dict[str, Any] = Field(default_factory=dict)
     historical_articles: List[Dict[str, Any]] = Field(default_factory=list)
+    review_articles: List[Dict[str, Any]] = Field(default_factory=list)
+    automatic_articles: List[Dict[str, Any]] = Field(default_factory=list)
+    automatic_review_articles: List[Dict[str, Any]] = Field(default_factory=list)
+    automatic_contexts: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    user_overrides: Dict[str, str] = Field(default_factory=dict)
+
+
+class CombinedOutlookResponse(BaseModel):
+    """Top-level Stock Outlook synthesis or validated fusion result."""
+
+    ticker: str
+    company_name: str
+    horizon_days: int
+    mode: Literal["stock_led_synthesis", "validated_fusion", "unavailable"]
+    direction: Optional[str] = None
+    probability_up: Optional[float] = None
+    decision_threshold: Optional[float] = None
+    probability_kind: Optional[Literal["stock_model", "combined"]] = None
+    validation_status: str = "unavailable"
+    relationship: Literal["reinforcing", "conflicting", "balanced", "news_unavailable"]
+    news_tone: str = "unavailable"
+    news_coverage: str = "Unavailable"
+    as_of_date: Optional[str] = None
+    news_cutoff_at: Optional[str] = None
+    explanation: str
+    stock_probability_up: Optional[float] = None
+    stock_direction: Optional[str] = None
+    news_score: Optional[float] = None
+    usable_article_count: int = 0
+    source_count: int = 0
+    component_contributions: Dict[str, float] = Field(default_factory=dict)
+    fusion_model_version: Optional[str] = None
 
 
 class DashboardAnalysisResponse(BaseModel):
@@ -106,6 +143,7 @@ class DashboardAnalysisResponse(BaseModel):
     news_captured_at: Optional[str] = None
     news_warning: Optional[str] = None
     generated_at: str
+    combined_outlook: Optional[CombinedOutlookResponse] = None
 
 
 class AnalysisResponse(DashboardAnalysisResponse):
@@ -115,6 +153,11 @@ class AnalysisResponse(DashboardAnalysisResponse):
 class AnalysisRequest(BaseModel):
     ticker: str = Field(min_length=1)
     horizon: Horizon
+
+
+class NewsOverrideRequest(BaseModel):
+    article_id: str = Field(min_length=1)
+    action: Literal["include", "exclude", "reset"]
 
 
 class ComparisonRequest(BaseModel):
@@ -171,3 +214,7 @@ class SystemStatusResponse(BaseModel):
     openrouter_fallback_model: str
     feature_schema_version: str
     model_registry_signature: str
+    fusion_data_ready: bool = False
+    fusion_readiness_reason: str = "Historical point-in-time fusion data is not ready."
+    fusion_models_available: Dict[str, bool] = Field(default_factory=dict)
+    fusion_validation_status: Dict[str, str] = Field(default_factory=dict)

@@ -1,0 +1,11 @@
+file_name,original_rows,rows_with_missing_essential_values_dropped,rows_with_numeric_conversion_missing_dropped,logically_invalid_rows_dropped,statistical_outlier_rows_flagged_not_removed,invalid_date_rows_dropped,duplicate_date_rows_removed,final_rows
+celcomdigi-berhad-raw.csv,2707,0,0,1,231,0,0,2706
+cimb-group-holdings-berhad-raw.csv,2709,0,0,1,339,0,0,2708
+ihh-healthcare-berhad-raw.csv,2708,0,0,2,234,0,0,2706
+malayan-banking-berhad-raw.csv,2708,0,0,0,146,0,0,2708
+misc-berhad-raw.csv,2709,0,0,0,327,0,0,2709
+petronas-chemicals-group-berhad-raw.csv,2708,0,0,1,153,0,0,2707
+press-metal-aluminium-holdings-berhad-raw.csv,2708,0,0,0,147,0,0,2708
+public-bank-berhad-raw.csv,2709,0,0,0,160,0,0,2709
+tenaga-nasional-berhad-raw.csv,2708,0,0,0,454,0,0,2708
+ytl-corporation-berhad-raw.csv,2707,0,0,0,554,0,0,2707

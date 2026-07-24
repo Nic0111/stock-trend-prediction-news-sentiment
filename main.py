@@ -62,6 +62,20 @@ def run_benchmark_sentiment_models(profile: str = "full") -> None:
     run_finbert_benchmark(profile=profile)
 
 
+def run_train_finbert(profile: str = "full", device: str = "cuda", promote: bool = True) -> None:
+    from pipeline.benchmark_finbert_sentiment import run_finbert_benchmark
+
+    report = run_finbert_benchmark(profile=profile, device=device, promote=promote)
+    print(json.dumps(report, indent=2, default=str))
+
+
+def run_audit_system(level: str = "full", live_providers: bool = False) -> None:
+    from pipeline.system_audit import run_system_audit
+
+    report = run_system_audit(level=level, live_providers=live_providers)
+    print(json.dumps(report, indent=2, default=str))
+
+
 def run_collect_news_provider_benchmark(
     as_of: str | None = None,
     tickers: list[str] | None = None,
@@ -96,10 +110,22 @@ def run_evaluate_news_provider_benchmark(
     print(json.dumps(report, indent=2))
 
 
-def run_train_models(search_profile: str | None = None) -> None:
+def run_train_models(search_profile: str | None = None, promote: bool | None = None) -> None:
     from pipeline.train_stock_models import run_training_pipeline
 
-    run_training_pipeline(search_profile=search_profile)
+    run_training_pipeline(search_profile=search_profile, promote=promote)
+
+
+def run_promote_stock_models(run_id: str, horizons: list[int] | None = None, approve: bool = False) -> None:
+    from pipeline.train_stock_models import promote_stock_models
+
+    print(promote_stock_models(run_id, horizons, approve=approve))
+
+
+def run_verify_stock_reproducibility(run_a: str, run_b: str) -> None:
+    from pipeline.train_stock_models import verify_stock_reproducibility
+
+    print(json.dumps(verify_stock_reproducibility(run_a, run_b), indent=2))
 
 
 def run_predict_stock(ticker: str, horizon: int, as_of: str | None = None) -> None:
@@ -107,6 +133,27 @@ def run_predict_stock(ticker: str, horizon: int, as_of: str | None = None) -> No
 
     result = predict_stock_trend(ticker, horizon, as_of)
     print(json.dumps(result.to_dict(), indent=2))
+
+
+def run_evaluate_horizon_shadow(
+    start: str = "2026-01-01",
+    end: str = "2026-06-30",
+    run_id: str | None = None,
+) -> None:
+    from pipeline.evaluate_horizon_shadow import run_shadow_evaluation
+    from pathlib import Path
+
+    registry_path = None
+    if run_id:
+        registry_path = Path(__file__).resolve().parent / "models" / "staged-stock-runs" / run_id / "model-registry.json"
+    kwargs = {"registry_path": registry_path} if registry_path is not None else {}
+    print(json.dumps(run_shadow_evaluation(start, end, **kwargs), indent=2))
+
+
+def run_recompute_horizon_acceptance() -> None:
+    from pipeline.recompute_horizon_acceptance import recompute_acceptance
+
+    print(json.dumps(recompute_acceptance(), indent=2))
 
 
 def run_all(search_profile: str = "full") -> None:
@@ -155,6 +202,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     benchmark_parser.add_argument("--profile", choices=["full", "quick"], default="full")
 
+    finbert_parser = subparsers.add_parser(
+        "train_finbert",
+        help="Run the full FinBERT challenger training with an explicit device and guarded promotion",
+    )
+    finbert_parser.add_argument("--profile", choices=["full", "quick"], default="full")
+    finbert_parser.add_argument("--device", choices=["cuda", "cpu", "auto"], default="cuda")
+    finbert_parser.add_argument("--no-promote", action="store_true")
+
+    audit_parser = subparsers.add_parser("audit_system", help="Run the end-to-end StockSense integrity audit")
+    audit_parser.add_argument("--level", choices=["quick", "full"], default="full")
+    audit_parser.add_argument("--live-providers", action="store_true")
+
     provider_collect_parser = subparsers.add_parser(
         "collect_news_provider_benchmark",
         help="Collect a dated NewsAPI/Marketaux challenger snapshot",
@@ -178,13 +237,46 @@ def build_parser() -> argparse.ArgumentParser:
 
     stock_model_parser = subparsers.add_parser("train_models")
     stock_model_parser.add_argument(
-        "--search-profile", choices=["full", "focused", "quick"], default="full"
+        "--search-profile", choices=["full", "focused", "quick", "official"], default="full"
+    )
+
+    promote_parser = subparsers.add_parser(
+        "promote_stock_models",
+        help="Manually promote a reviewed staged official stock-model run",
+    )
+    promote_parser.add_argument("--run-id", required=True)
+    promote_parser.add_argument("--horizon", type=int, choices=[1, 5, 10], action="append")
+    promote_parser.add_argument("--approve", action="store_true")
+
+    reproducibility_parser = subparsers.add_parser(
+        "verify_stock_reproducibility",
+        help="Compare two staged official stock-model runs",
+    )
+    reproducibility_parser.add_argument("--run-a", required=True)
+    reproducibility_parser.add_argument("--run-b", required=True)
+    stock_model_parser.add_argument(
+        "--promote",
+        action="store_true",
+        help="Publish an official run to the production model registry (requires manual review).",
     )
 
     prediction_parser = subparsers.add_parser("predict_stock")
     prediction_parser.add_argument("--ticker", required=True)
     prediction_parser.add_argument("--horizon", type=int, choices=[1, 5, 10], required=True)
     prediction_parser.add_argument("--as-of")
+
+    shadow_parser = subparsers.add_parser(
+        "evaluate_horizon_shadow",
+        help="Evaluate frozen stock champions on the forward 2026 shadow period",
+    )
+    shadow_parser.add_argument("--start", default="2026-01-01")
+    shadow_parser.add_argument("--end", default="2026-06-30")
+    shadow_parser.add_argument("--run-id", help="Evaluate a staged official run")
+
+    subparsers.add_parser(
+        "recompute_horizon_acceptance",
+        help="Reevaluate existing frozen stock artifacts under Horizon Acceptance V2",
+    )
 
     all_parser = subparsers.add_parser("all")
     all_parser.add_argument("--search-profile", choices=["full", "quick"], default="full")
@@ -212,6 +304,10 @@ def main() -> None:
         run_train_sentiment_model(args.search_profile)
     elif command == "benchmark_sentiment_models":
         run_benchmark_sentiment_models(args.profile)
+    elif command == "train_finbert":
+        run_train_finbert(args.profile, args.device, not args.no_promote)
+    elif command == "audit_system":
+        run_audit_system(args.level, args.live_providers)
     elif command == "collect_news_provider_benchmark":
         run_collect_news_provider_benchmark(
             args.as_of,
@@ -223,9 +319,17 @@ def main() -> None:
     elif command == "evaluate_news_provider_benchmark":
         run_evaluate_news_provider_benchmark(args.annotations, args.apply_decision_rules)
     elif command == "train_models":
-        run_train_models(args.search_profile)
+        run_train_models(args.search_profile, True if args.promote else None)
+    elif command == "promote_stock_models":
+        run_promote_stock_models(args.run_id, args.horizon, args.approve)
+    elif command == "verify_stock_reproducibility":
+        run_verify_stock_reproducibility(args.run_a, args.run_b)
     elif command == "predict_stock":
         run_predict_stock(args.ticker, args.horizon, args.as_of)
+    elif command == "evaluate_horizon_shadow":
+        run_evaluate_horizon_shadow(args.start, args.end, args.run_id)
+    elif command == "recompute_horizon_acceptance":
+        run_recompute_horizon_acceptance()
     elif command == "all":
         run_all(args.search_profile)
 

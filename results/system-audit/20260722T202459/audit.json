@@ -1,0 +1,201 @@
+{
+  "audit_run_id": "20260722T202459",
+  "level": "full",
+  "live_providers": false,
+  "registry_signature": "7b31b81cce85749505deafd596879081dd6db8b0f827cc8b7413d8e08e3854c5",
+  "checks": [
+    {
+      "name": "python",
+      "passed": true,
+      "critical": true,
+      "detail": "3.12.3 (tags/v3.12.3:f6650f9, Apr  9 2024, 14:05:25) [MSC v.1938 64 bit (AMD64)]"
+    },
+    {
+      "name": "environment",
+      "passed": true,
+      "critical": true,
+      "detail": null
+    },
+    {
+      "name": "registry_loadable",
+      "passed": true,
+      "critical": true,
+      "detail": null
+    },
+    {
+      "name": "report_bundle_consistency",
+      "passed": true,
+      "critical": false,
+      "detail": "C:\\stock-investment-analytics\\results\\training-runs\\20260722T162145"
+    },
+    {
+      "name": "stock_artifact_1d",
+      "passed": true,
+      "critical": true,
+      "detail": {
+        "path": "C:\\stock-investment-analytics\\models\\stock-trend-1d-20260722T162145.joblib",
+        "exists": true,
+        "expected": "a2005a48b47af6a92db29fbad444e159c975ea1f994199f293f66a69ecb110ff",
+        "actual": "a2005a48b47af6a92db29fbad444e159c975ea1f994199f293f66a69ecb110ff"
+      }
+    },
+    {
+      "name": "stock_artifact_5d",
+      "passed": true,
+      "critical": true,
+      "detail": {
+        "path": "C:\\stock-investment-analytics\\models\\stock-trend-5d-20260722T162145.joblib",
+        "exists": true,
+        "expected": "9caccd25339912394ba48643e355b2afb20c97d8e0a7e6adefa31589f8027f5f",
+        "actual": "9caccd25339912394ba48643e355b2afb20c97d8e0a7e6adefa31589f8027f5f"
+      }
+    },
+    {
+      "name": "stock_artifact_10d",
+      "passed": true,
+      "critical": true,
+      "detail": {
+        "path": "C:\\stock-investment-analytics\\models\\stock-trend-10d-20260722T162145.joblib",
+        "exists": true,
+        "expected": "b09dda79c76d5405bb36d38003d29fbf8debd29454ac2b0cf218b38629ba0134",
+        "actual": "b09dda79c76d5405bb36d38003d29fbf8debd29454ac2b0cf218b38629ba0134"
+      }
+    },
+    {
+      "name": "finbert_artifact",
+      "passed": true,
+      "critical": true,
+      "detail": {
+        "models\\experimental\\finbert-sentiment\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+        "models\\experimental\\finbert-sentiment\\metadata.json": "ec2d9f94262c7f36fffce975f595cd80fbe2b82d836abc737de6e4abbda792b4",
+        "models\\experimental\\finbert-sentiment\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+        "models\\experimental\\finbert-sentiment\\tokenizer_config.json": "00bd5b2d9a46e60d32549452fac5d9b15d8f9ac1945681dfcbc03e3e068090ab",
+        "models\\experimental\\finbert-sentiment\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+        "models\\experimental\\finbert-sentiment\\model.safetensors": "ca13193e64110f4c52ffe9f04aee487db9f92ece7f95698c939c2ab1d4213c48"
+      }
+    },
+    {
+      "name": "stock_metadata",
+      "passed": true,
+      "critical": true,
+      "detail": null
+    },
+    {
+      "name": "raw_stock_coverage",
+      "passed": true,
+      "critical": false,
+      "detail": {
+        "celcomdigi-berhad-raw.csv": {
+          "exists": true,
+          "rows": 2707,
+          "start": "2015-01-02",
+          "end": "2025-12-31"
+        },
+        "cimb-group-holdings-berhad-raw.csv": {
+          "exists": true,
+          "rows": 2709,
+          "start": "2015-01-02",
+          "end": "2025-12-31"
+        },
+        "ihh-healthcare-berhad-raw.csv": {
+          "exists": true,
+          "rows": 2708,
+          "start": "2015-01-02",
+          "end": "2025-12-31"
+        },
+        "malayan-banking-berhad-raw.csv": {
+          "exists": true,
+          "rows": 2708,
+          "start": "2015-01-02",
+          "end": "2025-12-31"
+        },
+        "misc-berhad-raw.csv": {
+          "exists": true,
+          "rows": 2709,
+          "start": "2015-01-02",
+          "end": "2025-12-31"
+        },
+        "petronas-chemicals-group-berhad-raw.csv": {
+          "exists": true,
+          "rows": 2708,
+          "start": "2015-01-02",
+          "end": "2025-12-31"
+        },
+        "press-metal-aluminium-holdings-berhad-raw.csv": {
+          "exists": true,
+          "rows": 2708,
+          "start": "2015-01-02",
+          "end": "2025-12-31"
+        },
+        "public-bank-berhad-raw.csv": {
+          "exists": true,
+          "rows": 2709,
+          "start": "2015-01-02",
+          "end": "2025-12-31"
+        },
+        "tenaga-nasional-berhad-raw.csv": {
+          "exists": true,
+          "rows": 2708,
+          "start": "2015-01-02",
+          "end": "2025-12-31"
+        },
+        "ytl-corporation-berhad-raw.csv": {
+          "exists": true,
+          "rows": 2707,
+          "start": "2015-01-02",
+          "end": "2025-12-31"
+        }
+      }
+    },
+    {
+      "name": "klci_coverage",
+      "passed": true,
+      "critical": false,
+      "detail": {
+        "exists": true,
+        "rows": 2691,
+        "start": "2015-01-02",
+        "end": "2025-12-31"
+      }
+    },
+    {
+      "name": "python_tests",
+      "passed": true,
+      "critical": true,
+      "detail": {
+        "pipeline": {
+          "returncode": 0,
+          "stdout": "Sentiment model saved to C:\\Users\\nicho\\AppData\\Local\\Temp\\tmpqmk0xvu8\\models\\model.joblib; macro-F1=1.0000; status=accepted\n",
+          "stderr": "..Stock signal failed for 1155.KL at 1: Yahoo Finance unavailable\nNews signal failed for 1155.KL: NewsAPI unavailable\n...News sentiment runtime failed for 1295.KL: Install torch and transformers.\n...Stock signal failed for 1155.KL at 5: Yahoo Finance unavailable\n..............................C:\\stock-investment-analytics\\.venv\\Lib\\site-packages\\sklearn\\metrics\\_classification.py:2924: UserWarning: y_pred contains classes not in y_true\n  warnings.warn(\"y_pred contains classes not in y_true\")\n......................................\n----------------------------------------------------------------------\nRan 76 tests in 29.223s\n\nOK\n"
+        },
+        "backend": {
+          "returncode": 0,
+          "stdout": "",
+          "stderr": "C:\\stock-investment-analytics\\.venv\\Lib\\site-packages\\fastapi\\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n  from starlette.testclient import TestClient as TestClient  # noqa\n......\n----------------------------------------------------------------------\nRan 6 tests in 0.150s\n\nOK\n"
+        }
+      }
+    },
+    {
+      "name": "frontend_tests",
+      "passed": true,
+      "critical": true,
+      "detail": {
+        "returncode": 0,
+        "stdout": "\n\u001b[1m\u001b[46m RUN \u001b[49m\u001b[22m \u001b[36mv3.2.7 \u001b[39m\u001b[90mC:/stock-investment-analytics/frontend\u001b[39m\n\n \u001b[32m\u00e2\u0153\u201c\u001b[39m src/components/NewsCard.test.tsx \u001b[2m(\u001b[22m\u001b[2m1 test\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 4\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m\u00e2\u0153\u201c\u001b[39m src/components/CompanySelector.test.tsx \u001b[2m(\u001b[22m\u001b[2m1 test\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 167\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m2 passed\u001b[39m\u001b[22m\u001b[90m (2)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m2 passed\u001b[39m\u001b[22m\u001b[90m (2)\u001b[39m\n\u001b[2m   Start at \u001b[22m 20:25:41\n\u001b[2m   Duration \u001b[22m 25.67s\u001b[2m (transform 212ms, setup 7.03s, collect 6.10s, tests 172ms, environment 30.00s, prepare 1.57s)\u001b[22m\n\n",
+        "stderr": "$ vitest run \"--\" \"--run\"\n"
+      }
+    },
+    {
+      "name": "frontend_build",
+      "passed": true,
+      "critical": true,
+      "detail": {
+        "returncode": 0,
+        "stdout": "\u001b[36mvite v7.3.6 \u001b[32mbuilding client environment for production...\u001b[36m\u001b[39m\ntransforming...\n\u001b[32m\u00e2\u0153\u201c\u001b[39m 2236 modules transformed.\nrendering chunks...\ncomputing gzip size...\n\u001b[2mdist/\u001b[22m\u001b[32mindex.html                             \u001b[39m\u001b[1m\u001b[2m  0.60 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   0.33 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[35massets/index-BiOHyIdQ.css              \u001b[39m\u001b[1m\u001b[2m 29.94 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   7.17 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/PageHeader-Dw7yohPx.js          \u001b[39m\u001b[1m\u001b[2m  0.31 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   0.23 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:     0.70 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/CompanySelector-DRIFSnd2.js     \u001b[39m\u001b[1m\u001b[2m  0.99 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   0.53 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:     3.25 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/Chart-C5yeX2Tn.js               \u001b[39m\u001b[1m\u001b[2m  1.37 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   0.71 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:     3.97 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/LearningCenterPage-Bqyg2Fe4.js  \u001b[39m\u001b[1m\u001b[2m  2.31 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   1.03 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:     3.16 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/MarketSnapshotPage-B3W-6y5z.js  \u001b[39m\u001b[1m\u001b[2m  3.66 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   1.39 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:     7.38 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/AskLearnPage-BjSXp5Ll.js        \u001b[39m\u001b[1m\u001b[2m  3.67 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   1.58 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:     8.20 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/NewsCard-DRfq1kRI.js            \u001b[39m\u001b[1m\u001b[2m  4.04 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   1.79 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:    12.82 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/SystemPages-56z9cHR8.js         \u001b[39m\u001b[1m\u001b[2m  4.14 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   1.64 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:     6.78 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/NewsPage-BMSxczwJ.js            \u001b[39m\u001b[1m\u001b[2m  4.42 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   1.76 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:    10.51 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/ComparePage-DvZMcZA6.js         \u001b[39m\u001b[1m\u001b[2m  5.04 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   1.92 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:    12.21 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/StockOutlookPage-KBE1Jr2l.js    \u001b[39m\u001b[1m\u001b[2m 10.61 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   3.26 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:    24.80 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/OverviewPage-C8CTft6-.js        \u001b[39m\u001b[1m\u001b[2m 21.15 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:   6.89 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:    53.77 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/react-DIlHx8aY.js               \u001b[39m\u001b[1m\u001b[2m 40.90 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:  14.65 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:   455.44 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/query-DObo-xfC.js               \u001b[39m\u001b[1m\u001b[2m 44.40 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:  13.69 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:   182.99 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/index-BArTI9en.js               \u001b[39m\u001b[1m\u001b[2m194.83 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip:  61.97 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map:   903.60 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/charts-DwHAXJKB.js              \u001b[39m\u001b[1m\u001b[2m346.04 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m \u00e2\u201d\u201a gzip: 102.06 kB\u001b[22m\u001b[2m \u00e2\u201d\u201a map: 1,893.28 kB\u001b[22m\n\u001b[32m\u00e2\u0153\u201c built in 14.06s\u001b[39m\n",
+        "stderr": "$ tsc -b && vite build\n"
+      }
+    }
+  ],
+  "critical_failures": [],
+  "warnings": []
+}

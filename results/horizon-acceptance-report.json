@@ -1,0 +1,10 @@
+{
+  "policy_version": "horizon-acceptance-v2",
+  "status_by_horizon": {
+    "1": "experimental",
+    "5": "accepted",
+    "10": "experimental"
+  },
+  "summary_path": "results/horizon-acceptance-summary.csv",
+  "ticker_summary_path": "results/stock-model-per-ticker-acceptance.csv"
+}

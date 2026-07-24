@@ -1,0 +1,70 @@
+{
+  "schema_version": 7,
+  "captured_at": "2026-07-22T06:54:21+00:00",
+  "payload": {
+    "ticker": "1155.KL",
+    "company_name": "Malayan Banking Berhad",
+    "horizon_days": 1,
+    "as_of_date": "2026-07-21",
+    "prediction_label": "Up",
+    "probability_up": 0.4722451271913493,
+    "decision_threshold": 0.4373876102106486,
+    "model_name": "elastic-net-logistic",
+    "model_version": "fb584fc7e9ae",
+    "refinement_round": 1,
+    "benchmark_passed": false,
+    "status": "experimental",
+    "stale_data_warning": false,
+    "latest_data_age_days": 1,
+    "threshold_constraints_passed": true,
+    "evidence_strength": "Moderate",
+    "supporting_factors": [
+      {
+        "feature": "Low",
+        "label": "Low",
+        "impact_probability_points": 43.53,
+        "relationship": "supports"
+      },
+      {
+        "feature": "High",
+        "label": "High",
+        "impact_probability_points": 42.22,
+        "relationship": "supports"
+      },
+      {
+        "feature": "Lag_2",
+        "label": "Lag 2",
+        "impact_probability_points": 33.51,
+        "relationship": "supports"
+      }
+    ],
+    "opposing_factors": [
+      {
+        "feature": "Close",
+        "label": "Close",
+        "impact_probability_points": 51.16,
+        "relationship": "opposes"
+      },
+      {
+        "feature": "Adj Close",
+        "label": "Adj Close",
+        "impact_probability_points": 49.26,
+        "relationship": "opposes"
+      }
+    ],
+    "market_reference_date": "2026-07-21",
+    "observation_lag_sessions": 0,
+    "freshness_status": "fresh",
+    "freshness_reason": "Latest feature-complete row matches the latest valid aligned market session.",
+    "feature_schema_version": "aligned-market-sessions-v2",
+    "global_evidence_status": "limited",
+    "ticker_evidence_status": "experimental",
+    "shadow_evidence_status": "limited",
+    "acceptance_policy_version": "horizon-acceptance-v2",
+    "failed_acceptance_checks": [
+      "directional_recall",
+      "shadow:directional_recall",
+      "shadow:predicted_class_share"
+    ]
+  }
+}

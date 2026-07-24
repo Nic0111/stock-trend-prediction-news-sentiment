@@ -1,0 +1,257 @@
+{
+  "dataset_sha256": "0fe0ee0a0d0ef1c3943856cca8798a15b7a792c6fff852f3d3add548bab36fe1",
+  "end_date": "2026-06-30",
+  "horizons": {
+    "1": {
+      "accepted_checks": {
+        "balanced_accuracy_gain": false,
+        "bootstrap_gain": false,
+        "brier_skill": true,
+        "development_stability": true,
+        "directional_recall": true,
+        "macro_f1_not_worse": true,
+        "positive_mcc": true,
+        "predicted_class_share": true,
+        "threshold_constraints": true
+      },
+      "balanced_accuracy_gain": 0.019672041441704313,
+      "baseline_metrics": {
+        "accuracy": 0.5060869565217392,
+        "balanced_accuracy": 0.5076760786030449,
+        "f1": 0.4991181657848324,
+        "macro_f1": 0.505991329890701,
+        "mcc": 0.015327574072294582,
+        "precision": 0.4716666666666667,
+        "predicted_down_rate": 0.4782608695652174,
+        "predicted_up_rate": 0.5217391304347826,
+        "recall": 0.5299625468164794,
+        "specificity": 0.48538961038961037
+      },
+      "bootstrap": {
+        "block_size": 5,
+        "gain": 0.019672041441704313,
+        "lower": -0.046525217221624206,
+        "median": 0.021706983644023625,
+        "p_value": 0.2623688155922039,
+        "repetitions": 2000,
+        "unique_dates": 115,
+        "upper": 0.08241078115254677
+      },
+      "calibration": {
+        "brier_baseline": 0.24872892249527412,
+        "brier_score": 0.24787809558001725,
+        "brier_skill": 0.0034206995580622346,
+        "calibration_intercept": 0.2709691996480152,
+        "calibration_slope": 1.9498913404118554,
+        "ece_10": 0.043248164253644784,
+        "log_loss": 0.6888923921224958
+      },
+      "failed_checks": [
+        "balanced_accuracy_gain",
+        "bootstrap_gain"
+      ],
+      "limited_checks": {
+        "bootstrap_gain": false,
+        "brier_skill": true,
+        "limited_development_stability": true,
+        "limited_directional_recall": true,
+        "limited_predicted_class_share": true,
+        "positive_mcc": true
+      },
+      "metrics": {
+        "accuracy": 0.5295652173913044,
+        "average_precision": 0.5156370602657971,
+        "balanced_accuracy": 0.5273481200447492,
+        "f1": 0.49486461251167135,
+        "macro_f1": 0.5273346658978211,
+        "mcc": 0.05467654675516038,
+        "precision": 0.4934823091247672,
+        "predicted_down_rate": 0.5330434782608696,
+        "predicted_up_rate": 0.46695652173913044,
+        "recall": 0.49625468164794007,
+        "roc_auc": 0.5400980106036286,
+        "specificity": 0.5584415584415584
+      },
+      "phase": "shadow",
+      "rows": 1150,
+      "scope": "horizon",
+      "status": "experimental",
+      "target_dates": {
+        "maximum": "2026-07-01",
+        "minimum": "2026-01-05"
+      },
+      "ticker": null,
+      "unique_dates": 115
+    },
+    "10": {
+      "accepted_checks": {
+        "balanced_accuracy_gain": false,
+        "bootstrap_gain": false,
+        "brier_skill": false,
+        "development_stability": false,
+        "directional_recall": true,
+        "macro_f1_not_worse": false,
+        "positive_mcc": false,
+        "predicted_class_share": true,
+        "threshold_constraints": true
+      },
+      "balanced_accuracy_gain": -0.01961857001747591,
+      "baseline_metrics": {
+        "accuracy": 0.5191304347826087,
+        "balanced_accuracy": 0.5146645391687562,
+        "f1": 0.5628458498023715,
+        "macro_f1": 0.5142731664470794,
+        "mcc": 0.02951013416318558,
+        "precision": 0.5476923076923077,
+        "predicted_down_rate": 0.43478260869565216,
+        "predicted_up_rate": 0.5652173913043478,
+        "recall": 0.5788617886178862,
+        "specificity": 0.4504672897196262
+      },
+      "bootstrap": {
+        "block_size": 10,
+        "gain": -0.01961857001747591,
+        "lower": -0.08525473754546224,
+        "median": -0.019111605715335517,
+        "p_value": 0.7131434282858571,
+        "repetitions": 2000,
+        "unique_dates": 115,
+        "upper": 0.04482609242656511
+      },
+      "calibration": {
+        "brier_baseline": 0.24879017013232516,
+        "brier_score": 0.24928462933154832,
+        "brier_skill": -0.001987454725241644,
+        "calibration_intercept": 0.13901604902991435,
+        "calibration_slope": 0.007272012949986014,
+        "ece_10": 0.04959772311884952,
+        "log_loss": 0.69171612062742
+      },
+      "failed_checks": [
+        "balanced_accuracy_gain",
+        "positive_mcc",
+        "macro_f1_not_worse",
+        "development_stability",
+        "brier_skill",
+        "bootstrap_gain"
+      ],
+      "limited_checks": {
+        "bootstrap_gain": false,
+        "brier_skill": false,
+        "limited_development_stability": true,
+        "limited_directional_recall": true,
+        "limited_predicted_class_share": true,
+        "positive_mcc": false
+      },
+      "metrics": {
+        "accuracy": 0.5034782608695653,
+        "average_precision": 0.5412434384424103,
+        "balanced_accuracy": 0.4950459691512803,
+        "f1": 0.5703536493604213,
+        "macro_f1": 0.49115004816115815,
+        "mcc": -0.010186167201352727,
+        "precision": 0.530812324929972,
+        "predicted_down_rate": 0.3791304347826087,
+        "predicted_up_rate": 0.6208695652173913,
+        "recall": 0.616260162601626,
+        "roc_auc": 0.5069250056986552,
+        "specificity": 0.37383177570093457
+      },
+      "phase": "shadow",
+      "rows": 1150,
+      "scope": "horizon",
+      "status": "experimental",
+      "target_dates": {
+        "maximum": "2026-07-14",
+        "minimum": "2026-01-16"
+      },
+      "ticker": null,
+      "unique_dates": 115
+    },
+    "5": {
+      "accepted_checks": {
+        "balanced_accuracy_gain": false,
+        "bootstrap_gain": false,
+        "brier_skill": true,
+        "development_stability": true,
+        "directional_recall": true,
+        "macro_f1_not_worse": true,
+        "positive_mcc": true,
+        "predicted_class_share": true,
+        "threshold_constraints": true
+      },
+      "balanced_accuracy_gain": 0.012793034970454364,
+      "baseline_metrics": {
+        "accuracy": 0.5026086956521739,
+        "balanced_accuracy": 0.5045408311537344,
+        "f1": 0.5264900662251656,
+        "macro_f1": 0.5013402712078209,
+        "mcc": 0.00915591224248132,
+        "precision": 0.48923076923076925,
+        "predicted_down_rate": 0.43478260869565216,
+        "predicted_up_rate": 0.5652173913043478,
+        "recall": 0.5698924731182796,
+        "specificity": 0.4391891891891892
+      },
+      "bootstrap": {
+        "block_size": 5,
+        "gain": 0.012793034970454364,
+        "lower": -0.05001913296562236,
+        "median": 0.01264711212396763,
+        "p_value": 0.34182908545727136,
+        "repetitions": 2000,
+        "unique_dates": 115,
+        "upper": 0.07485263675269327
+      },
+      "calibration": {
+        "brier_baseline": 0.2497814744801512,
+        "brier_score": 0.24953464198783026,
+        "brier_skill": 0.0009881937514967243,
+        "calibration_intercept": -0.03328015179596355,
+        "calibration_slope": 1.0353039861947466,
+        "ece_10": 0.04699311700663624,
+        "log_loss": 0.6922168922823785
+      },
+      "failed_checks": [
+        "balanced_accuracy_gain",
+        "bootstrap_gain"
+      ],
+      "limited_checks": {
+        "bootstrap_gain": false,
+        "brier_skill": true,
+        "limited_development_stability": true,
+        "limited_directional_recall": true,
+        "limited_predicted_class_share": true,
+        "positive_mcc": true
+      },
+      "metrics": {
+        "accuracy": 0.5165217391304348,
+        "average_precision": 0.4973977876653922,
+        "balanced_accuracy": 0.5173338661241887,
+        "f1": 0.5223367697594502,
+        "macro_f1": 0.5164500750205702,
+        "mcc": 0.03470304829125967,
+        "precision": 0.5016501650165016,
+        "predicted_down_rate": 0.47304347826086957,
+        "predicted_up_rate": 0.5269565217391304,
+        "recall": 0.5448028673835126,
+        "roc_auc": 0.525010897994769,
+        "specificity": 0.48986486486486486
+      },
+      "phase": "shadow",
+      "rows": 1150,
+      "scope": "horizon",
+      "status": "experimental",
+      "target_dates": {
+        "maximum": "2026-07-07",
+        "minimum": "2026-01-09"
+      },
+      "ticker": null,
+      "unique_dates": 115
+    }
+  },
+  "phase": "shadow",
+  "policy_version": "horizon-acceptance-v2",
+  "run_id": "20260722T164640",
+  "start_date": "2026-01-01"
+}

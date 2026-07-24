@@ -35,18 +35,6 @@ class OpenRouterAnswer:
     model: str
 
 
-def _streamlit_secret() -> str | None:
-    try:
-        import streamlit as st
-
-        value = st.secrets.get(OPENROUTER_API_KEY_ENV_VAR)
-    except Exception:
-        return None
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
-
-
 def _config_file_key() -> str | None:
     """Read the optional project-local key file, without exposing its contents."""
     try:
@@ -57,11 +45,11 @@ def _config_file_key() -> str | None:
 
 
 def get_openrouter_api_key() -> str | None:
-    """Read the key from environment, Streamlit secrets, or the ignored config file."""
+    """Read the key from the process environment or ignored config file."""
     value = os.getenv(OPENROUTER_API_KEY_ENV_VAR)
     if isinstance(value, str) and value.strip():
         return value.strip()
-    return _streamlit_secret() or _config_file_key()
+    return _config_file_key()
 
 
 def _extract_content(value: Any) -> str:

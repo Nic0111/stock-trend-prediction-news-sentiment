@@ -14,11 +14,13 @@ from pipeline.download_financial_news_data import NewsContextResult
 from pipeline.download_financial_news_data import build_news_context_metadata
 from pipeline.marketaux_news_provider import (
     MARKETAUX_CACHE_DIR,
+    MARKETAUX_QUERY_CONFIG_VERSION,
     MarketauxConfigurationError,
     MarketauxRequestError,
     _read_marketaux_cache,
     _write_marketaux_cache,
     build_marketaux_request_url,
+    build_marketaux_search_query,
     get_marketaux_api_token,
     normalize_marketaux_rows,
     probe_marketaux_entity,
@@ -97,6 +99,14 @@ class MarketauxProviderTests(unittest.TestCase):
             provider_status={provider: "ok"},
             provider_metadata={
                 **build_news_context_metadata(),
+                **(
+                    {
+                        "marketaux_query_config_version": MARKETAUX_QUERY_CONFIG_VERSION,
+                        "query_mode": "alias_search",
+                    }
+                    if provider == "marketaux"
+                    else {}
+                ),
                 **({"marketaux_headers": {}} if provider == "marketaux" else {}),
             },
         )
@@ -124,6 +134,19 @@ class MarketauxProviderTests(unittest.TestCase):
         )
         self.assertIn("published_after=2026-04-11", url)
         self.assertIn("published_before=2026-06-10", url)
+
+    def test_experimental_alias_search_uses_marketaux_or_syntax_without_entity_gate(self) -> None:
+        query = build_marketaux_search_query(["Malayan Banking Berhad", "Maybank"])
+        self.assertEqual(query, '"Malayan Banking Berhad" | "Maybank"')
+        url = build_marketaux_request_url(
+            "token",
+            search=query,
+            as_of_date=date(2026, 7, 10),
+            require_entities=False,
+        )
+        self.assertIn("search=%22Malayan+Banking+Berhad%22+%7C+%22Maybank%22", url)
+        self.assertIn("filter_entities=false", url)
+        self.assertIn("must_have_entities=false", url)
 
     def test_token_file_precedes_environment(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -181,6 +204,30 @@ class MarketauxProviderTests(unittest.TestCase):
         self.assertEqual(rows[0]["text_completeness"], "title_description_snippet")
         self.assertEqual(rows[0]["provider_entity_symbol"], "1155.KL")
 
+    def test_package_registry_is_excluded_even_with_exact_entity_match(self) -> None:
+        payload = {
+            "data": [
+                {
+                    "title": "python-mytnb 0.1.0",
+                    "description": "Python library for the Tenaga Nasional Berhad API.",
+                    "snippet": "Package metadata",
+                    "url": "https://pypi.org/project/python-mytnb/",
+                    "published_at": "2026-07-10T08:00:00Z",
+                    "source": "pypi.org",
+                    "entities": [{"symbol": "1155.KL", "name": "Malayan Banking Berhad"}],
+                }
+            ]
+        }
+        diagnostics: dict[str, int] = {}
+        rows = normalize_marketaux_rows(
+            payload,
+            ["Malayan Banking Berhad", "Maybank"],
+            entity_mapping={"symbol": "1155.KL"},
+            diagnostics=diagnostics,
+        )
+        self.assertEqual(rows, [])
+        self.assertEqual(diagnostics, {"package_registry": 1})
+
     def test_retrieval_reuses_shared_sentiment_and_context_contract(self) -> None:
         response = {
             "meta": {"found": 1, "returned": 1},
@@ -210,6 +257,54 @@ class MarketauxProviderTests(unittest.TestCase):
         self.assertEqual(result.relevant_article_count, 1)
         self.assertEqual(result.articles[0]["sentiment_label"], "positive")
         self.assertEqual(result.provider_metadata["coverage_mode"], "entity")
+
+    def test_alias_retrieval_uses_marketaux_query_language_and_disables_entity_gate(self) -> None:
+        response = {"meta": {"found": 0, "returned": 0}, "data": []}
+        with patch(
+            "pipeline.marketaux_news_provider.fetch_marketaux_response",
+            return_value=(response, {}),
+        ) as fetch:
+            with patch(
+                "pipeline.marketaux_news_provider.load_stock_metadata",
+                return_value={"1155.KL": "Malayan Banking Berhad"},
+            ):
+                result = retrieve_marketaux_financial_news(
+                    "1155.KL",
+                    as_of_date=date(2026, 7, 10),
+                    token="token",
+                    model=FakeSentimentModel(),
+                )
+        kwargs = fetch.call_args.kwargs
+        self.assertEqual(
+            kwargs["search"],
+            '"Malayan Banking Berhad" | "Malayan Banking" | "Maybank" | "Maybank Group"',
+        )
+        self.assertIsNone(kwargs["symbols"])
+        self.assertFalse(kwargs["require_entities"])
+        self.assertEqual(result.provider_metadata["query_mode"], "alias_search")
+
+    def test_symbol_retrieval_keeps_marketaux_entity_gate(self) -> None:
+        response = {"meta": {"found": 0, "returned": 0}, "data": []}
+        with patch(
+            "pipeline.marketaux_news_provider.fetch_marketaux_response",
+            return_value=(response, {}),
+        ) as fetch:
+            with patch(
+                "pipeline.marketaux_news_provider.load_stock_metadata",
+                return_value={"1155.KL": "Malayan Banking Berhad"},
+            ):
+                result = retrieve_marketaux_financial_news(
+                    "1155.KL",
+                    as_of_date=date(2026, 7, 10),
+                    token="token",
+                    entity_mapping={"symbol": "1155.KL", "status": "supported"},
+                    model=FakeSentimentModel(),
+                )
+        kwargs = fetch.call_args.kwargs
+        self.assertEqual(kwargs["symbols"], ["1155.KL"])
+        self.assertIsNone(kwargs["search"])
+        self.assertTrue(kwargs["require_entities"])
+        self.assertEqual(result.provider_metadata["query_mode"], "symbol")
 
     def test_foreign_same_name_listing_is_not_exact_bursa_coverage(self) -> None:
         payload = {
@@ -278,6 +373,25 @@ class MarketauxProviderTests(unittest.TestCase):
         self.assertEqual(result.provider_article_counts, {"newsapi": 1, "marketaux": 1})
         self.assertEqual(result.contexts["5"]["unique_source_count"], 2)
 
+    def test_newsapi_failure_is_not_reported_as_success_for_marketaux_fallback(self) -> None:
+        marketaux = self._news_result(provider="marketaux", source="Marketaux Source")
+        with tempfile.TemporaryDirectory() as directory, \
+            patch("pipeline.marketaux_news_provider.MARKETAUX_CACHE_DIR", Path(directory)), \
+            patch(
+                "pipeline.download_financial_news_data.retrieve_financial_news",
+                side_effect=RuntimeError("NewsAPI HTTP 429"),
+            ), \
+            patch("pipeline.marketaux_news_provider.retrieve_marketaux_financial_news", return_value=marketaux):
+            result = retrieve_news_with_marketaux_fallback(
+                "1155.KL",
+                5,
+                as_of_date="2026-07-10",
+                marketaux_token="token",
+            )
+        self.assertEqual(result.provider_status["newsapi"], "unavailable")
+        self.assertEqual(result.provider_status["marketaux"], "ok")
+        self.assertIn("HTTP 429", result.provider_metadata["newsapi_error"])
+
     def test_fresh_marketaux_cache_prevents_second_request(self) -> None:
         newsapi = self._news_result(coverage="Low")
         marketaux = self._news_result(coverage="Low", provider="marketaux", source="Marketaux Source")
@@ -293,6 +407,16 @@ class MarketauxProviderTests(unittest.TestCase):
     def test_legacy_marketaux_cache_is_not_used(self) -> None:
         result = self._news_result(provider="marketaux")
         result.provider_metadata["news_context_config_version"] = 1
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "pipeline.marketaux_news_provider.MARKETAUX_CACHE_DIR", Path(directory)
+        ):
+            _write_marketaux_cache(result, result.retrieved_at)
+            loaded = _read_marketaux_cache("1155.KL", date(2026, 7, 10))
+        self.assertIsNone(loaded)
+
+    def test_old_marketaux_query_cache_is_not_used(self) -> None:
+        result = self._news_result(provider="marketaux")
+        result.provider_metadata.pop("marketaux_query_config_version", None)
         with tempfile.TemporaryDirectory() as directory, patch(
             "pipeline.marketaux_news_provider.MARKETAUX_CACHE_DIR", Path(directory)
         ):
@@ -325,7 +449,11 @@ class MarketauxProviderTests(unittest.TestCase):
             provider_mode="marketaux_historical_context",
             provider_article_counts={"marketaux_historical": 1},
             provider_status={"marketaux": "ok"},
-            provider_metadata=build_news_context_metadata(),
+            provider_metadata={
+                **build_news_context_metadata(),
+                "marketaux_query_config_version": MARKETAUX_QUERY_CONFIG_VERSION,
+                "query_mode": "alias_search",
+            },
             historical_articles=[
                 {
                     "provider": "marketaux",

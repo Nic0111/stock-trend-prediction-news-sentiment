@@ -62,12 +62,18 @@ export interface Prediction {
   freshness_status?: "fresh" | "delayed" | "stale" | "unknown" | string;
   freshness_reason?: string | null;
   feature_schema_version?: string;
+  global_evidence_status?: "accepted" | "limited" | "experimental" | string;
+  ticker_evidence_status?: "accepted" | "limited" | "experimental" | string;
+  shadow_evidence_status?: "accepted" | "limited" | "experimental" | null | string;
+  acceptance_policy_version?: string;
+  failed_acceptance_checks?: string[];
   prediction_available: boolean;
   directional_signal_available: boolean;
   evidence_status: string;
 }
 
 export interface NewsArticle {
+  article_id?: string;
   title?: string;
   description?: string;
   content_snippet?: string;
@@ -81,6 +87,15 @@ export interface NewsArticle {
   sentiment_probability?: number;
   sentiment_uncertain?: boolean;
   sentiment_score?: number;
+  automatic_relevance?: "included" | "review" | "unrelated" | string;
+  relevance_score?: number;
+  relevance_reasons?: string[];
+  matched_entity_terms?: string[];
+  collision_signals?: string[];
+  automatic_included?: boolean;
+  effective_included?: boolean;
+  user_override?: "include" | "exclude" | null | string;
+  contributes_to_horizons?: number[];
   [key: string]: unknown;
 }
 
@@ -101,6 +116,38 @@ export interface NewsContext {
   provider_status: Record<string, string>;
   provider_metadata: Record<string, unknown>;
   historical_articles: NewsArticle[];
+  review_articles: NewsArticle[];
+  automatic_articles: NewsArticle[];
+  automatic_review_articles: NewsArticle[];
+  automatic_contexts: Record<string, Record<string, unknown>>;
+  user_overrides: Record<string, string>;
+}
+
+export type SynthesisRelationship = "reinforcing" | "conflicting" | "balanced" | "news_unavailable";
+
+export interface CombinedOutlook {
+  ticker: string;
+  company_name: string;
+  horizon_days: number;
+  mode: "stock_led_synthesis" | "validated_fusion" | "unavailable";
+  direction: string | null;
+  probability_up: number | null;
+  decision_threshold: number | null;
+  probability_kind: "stock_model" | "combined" | null;
+  validation_status: string;
+  relationship: SynthesisRelationship;
+  news_tone: string;
+  news_coverage: string;
+  as_of_date: string | null;
+  news_cutoff_at: string | null;
+  explanation: string;
+  stock_probability_up: number | null;
+  stock_direction: string | null;
+  news_score: number | null;
+  usable_article_count: number;
+  source_count: number;
+  component_contributions: Record<string, number>;
+  fusion_model_version: string | null;
 }
 
 export interface DashboardAnalysis {
@@ -117,6 +164,7 @@ export interface DashboardAnalysis {
   news_warning: string | null;
   generated_at: string;
   analysis_id: string;
+  combined_outlook: CombinedOutlook | null;
 }
 
 export interface ComparisonItem {
@@ -145,6 +193,10 @@ export interface SystemStatus {
   openrouter_fallback_model: string;
   feature_schema_version: string;
   model_registry_signature: string;
+  fusion_data_ready?: boolean;
+  fusion_readiness_reason?: string;
+  fusion_models_available?: Record<string, boolean>;
+  fusion_validation_status?: Record<string, string>;
 }
 
 export interface ChatMessage {

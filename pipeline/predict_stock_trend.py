@@ -12,6 +12,7 @@ import pandas as pd
 import yfinance as yf
 
 from pipeline.model_artifacts import CalibratedStockModel
+from pipeline.horizon_acceptance import weaker_status
 from pipeline.stock_features import FEATURE_SCHEMA_VERSION, build_stock_features
 
 
@@ -87,16 +88,21 @@ class PredictionResult:
     freshness_status: str = "unknown"
     freshness_reason: str | None = None
     feature_schema_version: str = FEATURE_SCHEMA_VERSION
+    global_evidence_status: str = "experimental"
+    ticker_evidence_status: str = "experimental"
+    shadow_evidence_status: str | None = None
+    acceptance_policy_version: str = "legacy"
+    failed_acceptance_checks: list[str] = field(default_factory=list)
 
     @property
     def evidence_status(self) -> str:
         """Human-facing evidence tier used by the dashboard and tutor."""
-        return "accepted" if self.directional_signal_available else "experimental"
+        return str(self.status).lower()
 
     @property
     def directional_signal_available(self) -> bool:
         """Whether the frozen validation benchmark accepts this direction as evidence."""
-        return self.benchmark_passed and self.threshold_constraints_passed
+        return self.evidence_status == "accepted" and self.threshold_constraints_passed
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -169,6 +175,32 @@ def predict_stock_trend(
     horizon_registry = registry.get("horizons", {}).get(str(horizon_days))
     if not horizon_registry:
         raise KeyError(f"Registry has no model for {horizon_days}D horizon")
+
+    global_status = str(
+        horizon_registry.get(
+            "global_status",
+            horizon_registry.get("status", "experimental"),
+        )
+    ).lower()
+    shadow_acceptance = horizon_registry.get("shadow_acceptance") or {}
+    shadow_status = str(shadow_acceptance.get("status", "")).lower() or None
+    if shadow_status not in {"accepted", "limited", "experimental"}:
+        shadow_status = None
+    effective_global_status = weaker_status(global_status, shadow_status) if shadow_status else global_status
+    ticker_entry = (horizon_registry.get("ticker_acceptance") or {}).get(normalized_ticker, {})
+    ticker_status = str(ticker_entry.get("status", "accepted")).lower()
+    if ticker_status not in {"accepted", "limited", "experimental"}:
+        ticker_status = "experimental"
+    effective_status = weaker_status(effective_global_status, ticker_status)
+    observed_acceptance = horizon_registry.get("observed_acceptance") or {}
+    failed_checks = list(observed_acceptance.get("failed_checks", []))
+    if shadow_status and shadow_status != "accepted":
+        failed_checks.extend(
+            f"shadow:{name}" for name in (shadow_acceptance.get("failed_checks") or [])
+        )
+    policy_version = str(
+        registry.get("benchmark_context", {}).get("acceptance_policy_version", "legacy")
+    )
 
     effective_date = pd.Timestamp(as_of_date).date() if as_of_date is not None else date.today()
     start_date = effective_date - timedelta(days=DOWNLOAD_LOOKBACK_DAYS)
@@ -277,8 +309,8 @@ def predict_stock_trend(
         model_name=str(horizon_registry["model_name"]),
         model_version=str(registry.get("dataset_sha256", "unknown"))[:12],
         refinement_round=refinement_round,
-        benchmark_passed=bool(horizon_registry["threshold_passed"]),
-        status=str(horizon_registry["status"]),
+        benchmark_passed=effective_status == "accepted",
+        status=effective_status,
         stale_data_warning=freshness_status == "stale",
         latest_data_age_days=age_days,
         threshold_constraints_passed=bool(
@@ -295,6 +327,11 @@ def predict_stock_trend(
         freshness_status=freshness_status,
         freshness_reason=freshness_reason,
         feature_schema_version=str(registry.get("feature_schema_version", FEATURE_SCHEMA_VERSION)),
+        global_evidence_status=effective_global_status,
+        ticker_evidence_status=ticker_status,
+        shadow_evidence_status=shadow_status,
+        acceptance_policy_version=policy_version,
+        failed_acceptance_checks=sorted(set(failed_checks)),
     )
 
 

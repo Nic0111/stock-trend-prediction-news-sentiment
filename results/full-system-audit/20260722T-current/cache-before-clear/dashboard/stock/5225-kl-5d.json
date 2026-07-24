@@ -1,0 +1,61 @@
+{
+  "schema_version": 6,
+  "captured_at": "2026-07-20T18:51:29+00:00",
+  "payload": {
+    "ticker": "5225.KL",
+    "company_name": "IHH Healthcare Berhad",
+    "horizon_days": 5,
+    "as_of_date": "2026-07-17",
+    "prediction_label": "Down",
+    "probability_up": 0.47991080043155154,
+    "decision_threshold": 0.48504320031212633,
+    "model_name": "xgboost",
+    "model_version": "fb584fc7e9ae",
+    "refinement_round": 1,
+    "benchmark_passed": false,
+    "status": "experimental",
+    "stale_data_warning": false,
+    "latest_data_age_days": 4,
+    "threshold_constraints_passed": true,
+    "evidence_strength": "Limited",
+    "supporting_factors": [
+      {
+        "feature": "MA_20",
+        "label": "Ma 20",
+        "impact_probability_points": 0.37,
+        "relationship": "supports"
+      },
+      {
+        "feature": "Volume",
+        "label": "Volume",
+        "impact_probability_points": 0.2,
+        "relationship": "supports"
+      },
+      {
+        "feature": "Return_5D",
+        "label": "5-day momentum",
+        "impact_probability_points": 0.16,
+        "relationship": "supports"
+      }
+    ],
+    "opposing_factors": [
+      {
+        "feature": "Return_1D",
+        "label": "1-day momentum",
+        "impact_probability_points": 0.3,
+        "relationship": "opposes"
+      },
+      {
+        "feature": "MA_60",
+        "label": "Ma 60",
+        "impact_probability_points": 0.16,
+        "relationship": "opposes"
+      }
+    ],
+    "market_reference_date": "2026-07-17",
+    "observation_lag_sessions": 0,
+    "freshness_status": "fresh",
+    "freshness_reason": "Latest feature-complete row matches the latest valid aligned market session.",
+    "feature_schema_version": "aligned-market-sessions-v2"
+  }
+}

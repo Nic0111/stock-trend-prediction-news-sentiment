@@ -13,6 +13,7 @@ import gc
 import hashlib
 import json
 import random
+import shutil
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
@@ -36,6 +37,7 @@ from pipeline.train_financial_news_sentiment_model import (
     load_sentiment_training_data,
     sentiment_parameter_space,
 )
+from pipeline.runtime_provenance import SENTIMENT_RUNTIME_CONFIG_FILE, sentiment_artifact_hashes
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -126,6 +128,14 @@ def _set_seed(seed: int, torch: Any) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+
+def _resolve_device(torch: Any, requested: str) -> Any:
+    if requested not in {"auto", "cpu", "cuda"}:
+        raise ValueError("device must be auto, cpu, or cuda")
+    if requested == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA was requested for the official FinBERT run, but no CUDA device is available.")
+    return torch.device("cuda" if requested == "cuda" or (requested == "auto" and torch.cuda.is_available()) else "cpu")
 
 
 def _stable_softmax(logits: np.ndarray, temperature: float = 1.0) -> np.ndarray:
@@ -353,8 +363,8 @@ def _finbert_fold(
     torch: Any,
     DataLoader: Any,
     profile: str,
+    device: Any,
 ) -> Tuple[np.ndarray, int, float]:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     amp_enabled = device.type == "cuda"
     batch_size = 4 if profile == "full" else 2
     epochs = 4 if profile == "full" else 1
@@ -396,10 +406,18 @@ def _finbert_fold(
     return best_logits, best_epoch, float(best_score)
 
 
-def _run_finbert_benchmark(development: pd.DataFrame, test: pd.DataFrame, profile: str) -> Dict[str, Any]:
+def _run_finbert_benchmark(
+    development: pd.DataFrame,
+    test: pd.DataFrame,
+    profile: str,
+    device_name: str = "auto",
+    model_output_dir: Path = MODELS_DIR,
+    run_id: str | None = None,
+) -> Dict[str, Any]:
     torch, DataLoader, Dataset, model_classes = _require_transformer_dependencies()
     model_class, tokenizer_class = model_classes
     _set_seed(RANDOM_STATE, torch)
+    device = _resolve_device(torch, device_name)
     tokenizer = tokenizer_class.from_pretrained(FINBERT_BASE_MODEL, use_fast=True)
     development_labels = development["Sentiment"].map(LABEL_TO_ID).to_numpy(dtype=int)
     test_labels = test["Sentiment"].map(LABEL_TO_ID).to_numpy(dtype=int)
@@ -423,13 +441,13 @@ def _run_finbert_benchmark(development: pd.DataFrame, test: pd.DataFrame, profil
             torch,
             DataLoader,
             profile,
+            device,
         )
         oof_logits[validation_indices] = logits
         fold_epochs.append(best_epoch)
         fold_scores.append(score)
 
     final_epochs = max(1, int(round(float(np.median(fold_epochs)))))
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     amp_enabled = device.type == "cuda"
     batch_size = 4 if profile == "full" else 2
     full_encoded = tokenizer(
@@ -445,11 +463,11 @@ def _run_finbert_benchmark(development: pd.DataFrame, test: pd.DataFrame, profil
     model = _make_finbert_model(model_class, torch).to(device)
     _train_finbert(model, full_loader, final_epochs, torch, device, amp_enabled)
     test_logits, _ = _evaluate_finbert(model, test_loader, torch, device, amp_enabled)
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(MODELS_DIR)
-    tokenizer.save_pretrained(MODELS_DIR)
+    model_output_dir.mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(model_output_dir)
+    tokenizer.save_pretrained(model_output_dir)
     _write_json(
-        FINBERT_METADATA_FILE,
+        model_output_dir / "metadata.json",
         {
             "base_model": FINBERT_BASE_MODEL,
             "max_length": MAX_LENGTH,
@@ -459,6 +477,8 @@ def _run_finbert_benchmark(development: pd.DataFrame, test: pd.DataFrame, profil
             "final_epochs": final_epochs,
             "class_order": LABEL_ORDER,
             "dataset_split": str(SPLIT_FILE.relative_to(PROJECT_ROOT)),
+            "device": str(device),
+            "run_id": run_id,
         },
     )
     del model, full_loader, test_loader, full_dataset, test_dataset
@@ -473,6 +493,8 @@ def _run_finbert_benchmark(development: pd.DataFrame, test: pd.DataFrame, profil
         "fold_macro_f1": fold_scores,
         "final_epochs": final_epochs,
         "device": str(device),
+        "model_output_dir": str(model_output_dir.relative_to(PROJECT_ROOT)),
+        "run_id": run_id,
     }
 
 
@@ -550,7 +572,11 @@ def _metrics_table(
 _TEST_LABELS = np.empty(0, dtype=int)
 
 
-def run_finbert_benchmark(profile: str = "full") -> Dict[str, Any]:
+def run_finbert_benchmark(
+    profile: str = "full",
+    device: str = "auto",
+    promote: bool = False,
+) -> Dict[str, Any]:
     global _TEST_LABELS
     if profile not in {"full", "quick"}:
         raise ValueError("profile must be 'full' or 'quick'")
@@ -560,7 +586,9 @@ def run_finbert_benchmark(profile: str = "full") -> Dict[str, Any]:
     print(f"Frozen sentiment split: development={len(development)}, test={len(test)}")
     started = time.perf_counter()
     tfidf = _run_tfidf_benchmark(development, test, profile)
-    finbert = _run_finbert_benchmark(development, test, profile)
+    run_id = time.strftime("%Y%m%dT%H%M%S")
+    staging_dir = PROJECT_ROOT / "models" / "experimental" / f"finbert-sentiment-staging-{run_id}"
+    finbert = _run_finbert_benchmark(development, test, profile, device, staging_dir, run_id)
     test_labels = _TEST_LABELS
     oof_labels = development["Sentiment"].map(LABEL_TO_ID).to_numpy(dtype=int)
     rows, ensemble_weight, ensemble_probabilities = _metrics_table(tfidf, finbert, oof_labels)
@@ -630,7 +658,36 @@ def run_finbert_benchmark(profile: str = "full") -> Dict[str, Any]:
         "test_rows": len(test),
         "elapsed_seconds": time.perf_counter() - started,
         "limitation": "Evaluation uses Financial PhraseBank only; Bursa-specific generalisation is not validated.",
+        "device_requested": device,
+        "device_used": finbert.get("device"),
+        "staging_model_directory": finbert.get("model_output_dir"),
+        "promotion_requested": promote,
     }
+    if promote and finbert_eligible:
+        backup_dir = PROJECT_ROOT / "models" / "experimental" / f"finbert-sentiment-backup-{run_id}"
+        if MODELS_DIR.exists():
+            shutil.copytree(MODELS_DIR, backup_dir)
+        if MODELS_DIR.exists():
+            shutil.rmtree(MODELS_DIR)
+        shutil.copytree(staging_dir, MODELS_DIR)
+        runtime_config = {}
+        if SENTIMENT_RUNTIME_CONFIG_FILE.exists():
+            runtime_config = json.loads(SENTIMENT_RUNTIME_CONFIG_FILE.read_text(encoding="utf-8"))
+        runtime_config.update(
+            {
+                "backend": "finbert",
+                "model_directory": str(MODELS_DIR.relative_to(PROJECT_ROOT)).replace("\\", "/"),
+                "training_run_id": run_id,
+                "training_device": finbert.get("device"),
+                "evaluation_profile": profile,
+                "artifact_hashes": sentiment_artifact_hashes(),
+            }
+        )
+        _write_json(SENTIMENT_RUNTIME_CONFIG_FILE, runtime_config)
+        recommendation_payload["promoted"] = True
+        recommendation_payload["backup_model_directory"] = str(backup_dir.relative_to(PROJECT_ROOT))
+    else:
+        recommendation_payload["promoted"] = False
     _write_json(RECOMMENDATION_FILE, recommendation_payload)
     report_lines = [
         "# StockSense sentiment model challenger benchmark",
@@ -661,12 +718,14 @@ def run_finbert_benchmark(profile: str = "full") -> Dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark FinBERT against the StockSense TF-IDF sentiment baseline")
     parser.add_argument("--profile", choices=["full", "quick"], default="full")
+    parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
+    parser.add_argument("--promote", action="store_true", help="Promote FinBERT only when its frozen gates pass")
     parser.add_argument("--report-only", action="store_true")
     args = parser.parse_args()
     if args.report_only:
         write_existing_report()
     else:
-        run_finbert_benchmark(args.profile)
+        run_finbert_benchmark(args.profile, device=args.device, promote=args.promote)
 
 
 if __name__ == "__main__":

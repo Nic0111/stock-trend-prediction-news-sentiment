@@ -9,6 +9,7 @@ from unittest.mock import patch
 from pipeline.finbert_sentiment_model import FinBERTDependencyError
 from pipeline import dashboard_service
 from pipeline.download_financial_news_data import NewsContextResult, build_news_context_metadata
+from pipeline.evidence_synthesis import build_stock_led_outlook
 from pipeline.predict_stock_trend import PredictionResult
 from pipeline.stock_features import FEATURE_SCHEMA_VERSION
 
@@ -116,7 +117,12 @@ class DashboardServiceTests(unittest.TestCase):
             root = Path(temporary_directory)
             with patch.object(dashboard_service, "STOCK_CACHE_DIR", root / "stock"):
                 path = root / "stock" / "1155-kl-5d.json"
-                dashboard_service._write_cache(path, prediction.to_dict(), dashboard_service._now_iso())
+                dashboard_service._write_cache(
+                    path,
+                    prediction.to_dict(),
+                    dashboard_service._now_iso(),
+                    dashboard_service.stock_cache_signature("1155.KL", 5),
+                )
                 loaded, captured_at = dashboard_service._load_stock_fallback("1155.KL", 5)
         self.assertIsNotNone(loaded)
         self.assertIsNotNone(captured_at)
@@ -135,6 +141,9 @@ class DashboardServiceTests(unittest.TestCase):
                 live = dashboard_service.run_dashboard_analysis("1155.KL", 5)
                 self.assertEqual(live.stock_source, "live")
                 self.assertEqual(live.news_source, "live")
+                self.assertIsNotNone(live.combined_outlook)
+                self.assertEqual(live.combined_outlook.relationship, "reinforcing")
+                news_call.assert_called_with("1155.KL", 5, as_of_date="2026-07-09")
                 self.assertTrue((root / "stock" / "1155-kl-5d.json").exists())
                 self.assertTrue((root / "news" / "1155-kl.json").exists())
 
@@ -148,6 +157,30 @@ class DashboardServiceTests(unittest.TestCase):
             self.assertEqual(fallback.news, news)
             self.assertEqual(stock_call.call_count, 2)
             self.assertEqual(news_call.call_count, 2)
+
+    def test_stock_cache_is_rejected_when_producer_signature_changes(self) -> None:
+        prediction = make_prediction()
+        prediction.feature_schema_version = FEATURE_SCHEMA_VERSION
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            with patch.object(dashboard_service, "STOCK_CACHE_DIR", root / "stock"):
+                dashboard_service._write_cache(
+                    root / "stock" / "1155-kl-5d.json",
+                    prediction.to_dict(),
+                    dashboard_service._now_iso(),
+                    "signature-before-retraining",
+                )
+                loaded, captured_at = dashboard_service._load_stock_fallback("1155.KL", 5)
+        self.assertIsNone(loaded)
+        self.assertIsNone(captured_at)
+
+    def test_stock_led_synthesis_is_serializable_for_the_api_contract(self) -> None:
+        stock = make_prediction(1)
+        news = make_news()
+        result = build_stock_led_outlook(stock, news, ticker="1155.KL", company_name="Maybank", horizon_days=1)
+        payload = result.to_dict()
+        self.assertEqual(payload["probability_kind"], "stock_model")
+        self.assertEqual(payload["stock_probability_up"], stock.probability_up)
 
     def test_cache_isolated_by_horizon_and_corrupt_cache_is_unavailable(self) -> None:
         stock = make_prediction(5)

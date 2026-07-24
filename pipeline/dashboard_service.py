@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 import re
@@ -11,6 +12,8 @@ from pathlib import Path
 from typing import Any, Dict, Literal
 
 from pipeline.finbert_sentiment_model import FinBERTRuntimeError
+from pipeline.finbert_sentiment_model import FINBERT_MODEL_DIR
+from pipeline.evidence_synthesis import build_stock_led_outlook
 from pipeline.download_financial_news_data import (
     NEWS_CONTEXT_CONFIG_VERSION,
     NewsContextResult,
@@ -20,6 +23,7 @@ from pipeline.marketaux_news_provider import retrieve_news_with_marketaux_fallba
 from pipeline.predict_stock_trend import (
     FEATURE_SCHEMA_VERSION,
     PredictionResult,
+    REGISTRY_FILE,
     SUPPORTED_HORIZONS,
     predict_stock_trend,
 )
@@ -29,7 +33,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DASHBOARD_CACHE_DIR = PROJECT_ROOT / ".cache" / "dashboard"
 STOCK_CACHE_DIR = DASHBOARD_CACHE_DIR / "stock"
 NEWS_CACHE_DIR = DASHBOARD_CACHE_DIR / "news"
-CACHE_SCHEMA_VERSION = 6
+# Bump after correcting provider provenance so old payloads that labelled a
+# Marketaux-only fallback as NewsAPI-successful cannot be reused.
+CACHE_SCHEMA_VERSION = 9
 CACHE_TTL_SECONDS = 900
 logger = logging.getLogger(__name__)
 
@@ -50,6 +56,7 @@ class DashboardAnalysisResult:
     news_captured_at: str | None
     news_warning: str | None
     generated_at: str
+    combined_outlook: Any | None = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -71,7 +78,73 @@ def _news_cache_path(ticker: str) -> Path:
     return NEWS_CACHE_DIR / f"{_slugify(ticker)}.json"
 
 
-def _write_cache(path: Path, payload: Dict[str, Any], captured_at: str) -> None:
+SENTIMENT_RUNTIME_CONFIG_FILE = PROJECT_ROOT / "models" / "sentiment-runtime-config.json"
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _signature_from_parts(parts: Dict[str, Any]) -> str:
+    encoded = json.dumps(parts, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def stock_cache_signature(ticker: str, horizon_days: int) -> str:
+    """Identify the exact stock artifact and feature contract that produced a cache."""
+    try:
+        registry = json.loads(REGISTRY_FILE.read_text(encoding="utf-8"))
+        entry = registry["horizons"][str(horizon_days)]
+        artifact = PROJECT_ROOT / str(entry["artifact_path"])
+        artifact_hash = _sha256_file(artifact)
+        registry_hash = _sha256_file(REGISTRY_FILE)
+    except (OSError, ValueError, KeyError, TypeError):
+        return "missing"
+    return _signature_from_parts(
+        {
+            "kind": "stock",
+            "ticker": ticker.strip().upper(),
+            "horizon_days": int(horizon_days),
+            "registry_hash": registry_hash,
+            "run_id": registry.get("run_id"),
+            "dataset_sha256": registry.get("dataset_sha256"),
+            "feature_schema_version": registry.get("feature_schema_version"),
+            "artifact_path": str(entry["artifact_path"]),
+            "artifact_sha256": artifact_hash,
+        }
+    )
+
+
+def sentiment_cache_signature() -> str:
+    """Identify the deployed sentiment checkpoint and runtime configuration."""
+    files = [SENTIMENT_RUNTIME_CONFIG_FILE]
+    for name in ("config.json", "metadata.json", "tokenizer.json", "tokenizer_config.json", "vocab.txt", "model.safetensors"):
+        files.append(FINBERT_MODEL_DIR / name)
+    try:
+        hashes = {str(path.relative_to(PROJECT_ROOT)): _sha256_file(path) for path in files if path.exists()}
+        config = json.loads(SENTIMENT_RUNTIME_CONFIG_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return "missing"
+    return _signature_from_parts(
+        {
+            "kind": "news-sentiment",
+            "news_context_config_version": NEWS_CONTEXT_CONFIG_VERSION,
+            "runtime_config": config,
+            "artifact_hashes": hashes,
+        }
+    )
+
+
+def _write_cache(
+    path: Path,
+    payload: Dict[str, Any],
+    captured_at: str,
+    producer_signature: str | None = None,
+) -> None:
     """Persist a cache entry without leaving a partially written JSON file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path: Path | None = None
@@ -89,6 +162,7 @@ def _write_cache(path: Path, payload: Dict[str, Any], captured_at: str) -> None:
                 {
                     "schema_version": CACHE_SCHEMA_VERSION,
                     "captured_at": captured_at,
+                    "producer_signature": producer_signature or "unspecified",
                     "payload": payload,
                 },
                 temporary,
@@ -102,12 +176,14 @@ def _write_cache(path: Path, payload: Dict[str, Any], captured_at: str) -> None:
             temporary_path.unlink(missing_ok=True)
 
 
-def _read_cache(path: Path) -> tuple[Dict[str, Any], str] | None:
+def _read_cache(path: Path, expected_signature: str | None = None) -> tuple[Dict[str, Any], str] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     if data.get("schema_version") != CACHE_SCHEMA_VERSION:
+        return None
+    if expected_signature is not None and data.get("producer_signature") != expected_signature:
         return None
     payload = data.get("payload")
     captured_at = data.get("captured_at")
@@ -138,7 +214,10 @@ def _load_stock_fallback(
     ticker: str,
     horizon_days: int,
 ) -> tuple[PredictionResult | None, str | None]:
-    cached = _read_cache(_stock_cache_path(ticker, horizon_days))
+    cached = _read_cache(
+        _stock_cache_path(ticker, horizon_days),
+        expected_signature=stock_cache_signature(ticker, horizon_days),
+    )
     if cached is None:
         return None, None
     payload, captured_at = cached
@@ -158,7 +237,7 @@ def _load_stock_fallback(
 
 
 def _load_news_fallback(ticker: str) -> tuple[NewsContextResult | None, str | None]:
-    cached = _read_cache(_news_cache_path(ticker))
+    cached = _read_cache(_news_cache_path(ticker), expected_signature=sentiment_cache_signature())
     if cached is None:
         return None, None
     payload, captured_at = cached
@@ -205,7 +284,12 @@ def run_dashboard_analysis(ticker: str, horizon_days: int) -> DashboardAnalysisR
         stock = predict_stock_trend(normalized_ticker, horizon_days)
         stock_source = "live"
         stock_captured_at = _now_iso()
-        _write_cache(_stock_cache_path(normalized_ticker, horizon_days), stock.to_dict(), stock_captured_at)
+        _write_cache(
+            _stock_cache_path(normalized_ticker, horizon_days),
+            stock.to_dict(),
+            stock_captured_at,
+            stock_cache_signature(normalized_ticker, horizon_days),
+        )
     except Exception as exc:
         logger.warning("Stock signal failed for %s at %s: %s", normalized_ticker, horizon_days, exc)
         stock, stock_captured_at = _load_stock_fallback(normalized_ticker, horizon_days)
@@ -216,11 +300,24 @@ def run_dashboard_analysis(ticker: str, horizon_days: int) -> DashboardAnalysisR
     news_captured_at: str | None = None
     news_failure_detail: str | None = None
     try:
-        news = retrieve_news_with_marketaux_fallback(normalized_ticker, horizon_days)
+        # Anchor news to the same completed market observation used by the
+        # stock signal.  Without this explicit date, a stale stock row could
+        # be paired with articles published after that observation.
+        news_as_of = stock.as_of_date if stock is not None else None
+        news = retrieve_news_with_marketaux_fallback(
+            normalized_ticker,
+            horizon_days,
+            as_of_date=news_as_of,
+        )
         retrieval_source = str(news.provider_metadata.get("retrieval_source", "live"))
         news_source = "fallback" if retrieval_source == "fallback" else "live"
         news_captured_at = _now_iso()
-        _write_cache(_news_cache_path(normalized_ticker), news.to_dict(), news_captured_at)
+        _write_cache(
+            _news_cache_path(normalized_ticker),
+            news.to_dict(),
+            news_captured_at,
+            sentiment_cache_signature(),
+        )
     except FinBERTRuntimeError as exc:
         # A shared classifier failure is distinct from a provider outage. Keep
         # the stock signal available and show an actionable dashboard message.
@@ -233,9 +330,18 @@ def run_dashboard_analysis(ticker: str, horizon_days: int) -> DashboardAnalysisR
         news, news_captured_at = _load_news_fallback(normalized_ticker)
         news_source = "fallback" if news is not None else "unavailable"
 
+    company_name = stock.company_name if stock else news.company_name if news else metadata[normalized_ticker]
+    combined_outlook = build_stock_led_outlook(
+        stock,
+        news,
+        ticker=normalized_ticker,
+        company_name=company_name,
+        horizon_days=horizon_days,
+    )
+
     return DashboardAnalysisResult(
         ticker=normalized_ticker,
-        company_name=(stock.company_name if stock else news.company_name if news else metadata[normalized_ticker]),
+        company_name=company_name,
         horizon_days=horizon_days,
         stock=stock,
         stock_source=stock_source,
@@ -261,4 +367,5 @@ def run_dashboard_analysis(ticker: str, horizon_days: int) -> DashboardAnalysisR
             else _generic_warning("news", news_source, news_captured_at)
         ),
         generated_at=_now_iso(),
+        combined_outlook=combined_outlook,
     )

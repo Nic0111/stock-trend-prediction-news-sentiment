@@ -30,6 +30,8 @@ from pipeline.download_financial_news_data import (
 from pipeline.marketaux_news_provider import (
     MarketauxConfigurationError,
     MarketauxRequestError,
+    _record_marketaux_response,
+    _reserve_marketaux_request,
     get_marketaux_api_token,
     probe_marketaux_entities,
     retrieve_marketaux_financial_news,
@@ -130,13 +132,32 @@ def _retrieve(
     entity_coverage: Mapping[str, Mapping[str, Any]],
 ) -> NewsContextResult:
     if provider == "newsapi":
-        return retrieve_financial_news(ticker, as_of_date=as_of_date)
-    if provider == "marketaux":
-        return retrieve_marketaux_financial_news(
+        return retrieve_financial_news(
             ticker,
             as_of_date=as_of_date,
-            entity_mapping=entity_coverage.get(ticker),
+            persist_outputs=False,
         )
+    if provider == "marketaux":
+        _reserve_marketaux_request()
+        try:
+            result = retrieve_marketaux_financial_news(
+                ticker,
+                as_of_date=as_of_date,
+                entity_mapping=entity_coverage.get(ticker),
+                persist_outputs=False,
+                force_search=True,
+            )
+        except Exception as exc:
+            _record_marketaux_response(
+                getattr(exc, "headers", {}) or {},
+                f"benchmark_error_{getattr(exc, 'status', None) or 'request'}",
+            )
+            raise
+        result.provider_metadata["marketaux_usage"] = _record_marketaux_response(
+            (result.provider_metadata or {}).get("marketaux_headers") or {},
+            "benchmark_ok",
+        )
+        return result
     raise ValueError(f"Unsupported provider: {provider}")
 
 

@@ -27,6 +27,7 @@ from backend.app.schemas import (
     CompanyResponse,
     MarketSnapshotResponse,
     NewsContextResponse,
+    NewsOverrideRequest,
     NewsRequest,
     PredictionResponse,
     SystemStatusResponse,
@@ -39,8 +40,10 @@ from pipeline.download_financial_news_data import (
     load_stock_metadata,
 )
 from pipeline.finbert_sentiment_model import FINBERT_MODEL_DIR
+from pipeline.fusion_model import DEFAULT_FUSION_DATASET, DEFAULT_FUSION_REGISTRY, check_fusion_dataset_readiness
 from pipeline.market_snapshot import MarketSnapshot, fetch_market_snapshot
 from pipeline.marketaux_news_provider import MARKETAUX_API_KEY_FILE
+from pipeline.news_corrections import NewsCorrectionError, apply_news_override, reset_news_overrides
 from pipeline.openrouter_client import (
     OPENROUTER_FALLBACK_MODEL,
     OPENROUTER_MODEL,
@@ -56,6 +59,7 @@ from pipeline.predict_stock_trend import (
     PredictionResult,
     predict_stock_trend,
 )
+from pipeline.runtime_provenance import sha256_file
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -161,7 +165,9 @@ def _stock_model_availability() -> dict[str, bool]:
     for horizon in SUPPORTED_HORIZONS:
         entry = registry.get("horizons", {}).get(str(horizon), {})
         artifact = PROJECT_ROOT / str(entry.get("artifact_path", ""))
-        result[str(horizon)] = bool(entry and artifact.exists())
+        expected_hash = entry.get("artifact_sha256")
+        hash_ok = not expected_hash or (artifact.exists() and sha256_file(artifact) == expected_hash)
+        result[str(horizon)] = bool(entry and artifact.exists() and hash_ok)
     return result
 
 
@@ -171,6 +177,62 @@ def _finbert_available() -> bool:
         and importlib.util.find_spec("torch")
         and importlib.util.find_spec("transformers")
     )
+
+
+def _runtime_artifact_integrity() -> dict[str, Any]:
+    """Report hash integrity and identify registries awaiting provenance migration."""
+    try:
+        registry = json.loads(REGISTRY_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"ok": False, "state": "registry_unreadable"}
+    missing_provenance: list[str] = []
+    mismatches: list[str] = []
+    for horizon in SUPPORTED_HORIZONS:
+        entry = registry.get("horizons", {}).get(str(horizon), {})
+        path = PROJECT_ROOT / str(entry.get("artifact_path", ""))
+        if not entry.get("artifact_sha256"):
+            missing_provenance.append(f"stock-{horizon}d")
+        elif not path.exists() or sha256_file(path) != entry["artifact_sha256"]:
+            mismatches.append(f"stock-{horizon}d")
+    if not FINBERT_MODEL_DIR.exists() or not (FINBERT_MODEL_DIR / "model.safetensors").exists():
+        mismatches.append("finbert")
+    state = "verified" if not missing_provenance and not mismatches else "migration_required"
+    return {
+        "ok": not mismatches,
+        "state": state,
+        "missing_provenance": missing_provenance,
+        "mismatches": mismatches,
+    }
+
+
+def _fusion_availability() -> tuple[dict[str, Any], dict[str, bool], dict[str, str]]:
+    """Expose fusion readiness without implying that an experimental model is live."""
+    try:
+        readiness_payload = check_fusion_dataset_readiness(DEFAULT_FUSION_DATASET).to_dict()
+    except Exception as exc:  # status must remain available during setup
+        readiness_payload = {
+            "ready": False,
+            "dataset_path": str(DEFAULT_FUSION_DATASET),
+            "reason": f"Fusion readiness check failed: {exc}",
+            "errors": [str(exc)],
+        }
+    model_available = {str(horizon): False for horizon in SUPPORTED_HORIZONS}
+    validation_status = {str(horizon): "unavailable" for horizon in SUPPORTED_HORIZONS}
+    try:
+        registry_payload = json.loads(DEFAULT_FUSION_REGISTRY.read_text(encoding="utf-8"))
+        for horizon in SUPPORTED_HORIZONS:
+            entry = registry_payload.get("horizons", {}).get(str(horizon), {})
+            status = str(entry.get("validation_status", "unavailable"))
+            validation_status[str(horizon)] = status
+            artifact_reference = str(entry.get("artifact_path", "")).strip()
+            if artifact_reference:
+                artifact = Path(artifact_reference)
+                if not artifact.is_absolute():
+                    artifact = PROJECT_ROOT / artifact
+                model_available[str(horizon)] = status == "accepted" and artifact.is_file()
+    except (OSError, ValueError, TypeError):
+        pass
+    return readiness_payload, model_available, validation_status
 
 
 def _chat_context(request: ChatRequest) -> str:
@@ -192,7 +254,7 @@ def _chat_context(request: ChatRequest) -> str:
     lines.append(f"Analysis generated at: {analysis.generated_at}")
     if analysis.stock is not None:
         stock = analysis.stock
-        validation = "accepted" if stock.directional_signal_available else "experimental"
+        validation = stock.evidence_status
         stock_context = (
             f"direction={stock.prediction_label}; probability_up={stock.probability_up:.3f}; "
             f"decision_threshold={stock.decision_threshold:.3f}"
@@ -201,6 +263,8 @@ def _chat_context(request: ChatRequest) -> str:
             f"Stock signal: {stock_context}; as_of={stock.as_of_date}; "
             f"validation={validation}; source={analysis.stock_source}."
         )
+        if stock.failed_acceptance_checks:
+            lines.append(f"Acceptance checks not passed: {', '.join(stock.failed_acceptance_checks)}.")
         supporting = ", ".join(factor["label"] for factor in stock.supporting_factors) or "none identified"
         opposing = ", ".join(factor["label"] for factor in stock.opposing_factors) or "none identified"
         lines.append(f"Local model reasons: supports={supporting}; opposes={opposing}; threshold_margin_strength={stock.evidence_strength}.")
@@ -218,8 +282,26 @@ def _chat_context(request: ChatRequest) -> str:
             f"retrieval_lookback_days={metadata.get('retrieval_lookback_days', NEWS_RETRIEVAL_LOOKBACK_DAYS)}; "
             f"historical_background_articles={metadata.get('historical_article_count', 0)} (excluded from sentiment); source={analysis.news_source}."
         )
+        if analysis.news.user_overrides:
+            lines.append(
+                f"News evidence was adjusted by the user for this analysis ({len(analysis.news.user_overrides)} article correction(s)); "
+                "treat it as a subjective what-if view, not an automatic system result."
+            )
     else:
         lines.append("News context: unavailable.")
+    combined = analysis.combined_outlook
+    if combined is not None:
+        combined_probability = (
+            "unavailable"
+            if combined.probability_up is None
+            else f"{float(combined.probability_up):.3f}"
+        )
+        lines.append(
+            f"Evidence synthesis: mode={combined.mode}; direction={combined.direction or 'unavailable'}; "
+            f"probability_up={combined_probability}; probability_kind={combined.probability_kind or 'unavailable'}; "
+            f"relationship={combined.relationship}; validation={combined.validation_status}."
+        )
+        lines.append(f"Synthesis explanation: {combined.explanation}")
     return "\n".join(lines)
 
 
@@ -297,9 +379,10 @@ def health_ready() -> dict[str, Any]:
     metadata_ok = (PROJECT_ROOT / "data" / "stock-metadata.csv").exists()
     registry_ok = REGISTRY_FILE.exists()
     models = _stock_model_availability()
+    artifact_integrity = _runtime_artifact_integrity()
     schema_ok = _registry_schema_version() == FEATURE_SCHEMA_VERSION
-    ready = metadata_ok and registry_ok and schema_ok and all(models.values())
-    return {"status": "ready" if ready else "not_ready", "metadata": metadata_ok, "registry": registry_ok, "feature_schema_version": _registry_schema_version(), "schema_expected": FEATURE_SCHEMA_VERSION, "schema_ok": schema_ok, "models": models, "finbert_runtime": _finbert_available()}
+    ready = metadata_ok and registry_ok and schema_ok and all(models.values()) and artifact_integrity["ok"]
+    return {"status": "ready" if ready else "not_ready", "metadata": metadata_ok, "registry": registry_ok, "feature_schema_version": _registry_schema_version(), "schema_expected": FEATURE_SCHEMA_VERSION, "schema_ok": schema_ok, "models": models, "finbert_runtime": _finbert_available(), "artifact_integrity": artifact_integrity}
 
 
 def _registry_schema_version() -> str:
@@ -312,6 +395,7 @@ def _registry_schema_version() -> str:
 
 @app.get("/api/v1/system/status", response_model=SystemStatusResponse)
 def system_status() -> SystemStatusResponse:
+    fusion_readiness, fusion_models, fusion_validation = _fusion_availability()
     return SystemStatusResponse(
         supported_horizons=list(SUPPORTED_HORIZONS),
         news_retrieval_lookback_days=NEWS_RETRIEVAL_LOOKBACK_DAYS,
@@ -325,6 +409,10 @@ def system_status() -> SystemStatusResponse:
         openrouter_fallback_model=OPENROUTER_FALLBACK_MODEL,
         feature_schema_version=_registry_schema_version(),
         model_registry_signature=_model_registry_signature(),
+        fusion_data_ready=bool(fusion_readiness.get("ready", False)),
+        fusion_readiness_reason=str(fusion_readiness.get("reason", "Fusion data is not ready.")),
+        fusion_models_available=fusion_models,
+        fusion_validation_status=fusion_validation,
     )
 
 
@@ -358,6 +446,33 @@ def analysis(request: AnalysisRequest) -> AnalysisResponse:
     analysis_cache.set(analysis_id, result, 3600)
     analysis_signature_cache.set(analysis_id, _model_registry_signature(), 3600)
     return _analysis_response(result, analysis_id)
+
+
+@app.patch("/api/v1/analyses/{analysis_id}/news-overrides", response_model=AnalysisResponse)
+def news_override(analysis_id: str, request: NewsOverrideRequest) -> AnalysisResponse:
+    result = analysis_cache.get(analysis_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail={"code": "ANALYSIS_EXPIRED", "message": "This analysis has expired. Run Analyze again."})
+    if analysis_signature_cache.get(analysis_id) != _model_registry_signature():
+        raise HTTPException(status_code=409, detail={"code": "STALE_ANALYSIS", "message": "The deployed model changed. Run Analyze again before correcting articles."})
+    try:
+        updated = apply_news_override(result, request.article_id, request.action)
+    except NewsCorrectionError as exc:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_NEWS_OVERRIDE", "message": str(exc)}) from exc
+    analysis_cache.set(analysis_id, updated, 3600)
+    return _analysis_response(updated, analysis_id)
+
+
+@app.delete("/api/v1/analyses/{analysis_id}/news-overrides", response_model=AnalysisResponse)
+def reset_news_override(analysis_id: str) -> AnalysisResponse:
+    result = analysis_cache.get(analysis_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail={"code": "ANALYSIS_EXPIRED", "message": "This analysis has expired. Run Analyze again."})
+    if analysis_signature_cache.get(analysis_id) != _model_registry_signature():
+        raise HTTPException(status_code=409, detail={"code": "STALE_ANALYSIS", "message": "The deployed model changed. Run Analyze again before resetting articles."})
+    updated = reset_news_overrides(result)
+    analysis_cache.set(analysis_id, updated, 3600)
+    return _analysis_response(updated, analysis_id)
 
 
 @app.post("/api/v1/comparisons", response_model=ComparisonResponse)

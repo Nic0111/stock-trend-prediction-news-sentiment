@@ -9,10 +9,21 @@
   ],
   "evaluation_scope": "Financial PhraseBank frozen test split",
   "evaluation_rows": 968,
-  "accuracy": 0.84400826446281,
-  "balanced_accuracy": 0.8303498129399083,
-  "macro_f1": 0.8248195781653725,
+  "accuracy": 0.8450413223140496,
+  "balanced_accuracy": 0.8309295230848358,
+  "macro_f1": 0.8256494678540808,
   "temperature": 1.52,
   "previous_backend": "tfidf_logistic_regression",
-  "deployment_note": "FinBERT promoted after challenger benchmark; Malaysian Bursa generalisation remains unvalidated."
+  "training_run_id": "20260722T210300",
+  "training_device": "cuda",
+  "evaluation_profile": "full",
+  "deployment_note": "GPU-trained FinBERT promoted after user-approved challenger benchmark; Malaysian Bursa generalisation remains unvalidated.",
+  "artifact_hashes": {
+    "models\\experimental\\finbert-sentiment\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+    "models\\experimental\\finbert-sentiment\\metadata.json": "ea9a7e40662c8c93ee6639cb396e122d2a17b84bd565c300b8ebd3869cb445e0",
+    "models\\experimental\\finbert-sentiment\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+    "models\\experimental\\finbert-sentiment\\tokenizer_config.json": "00bd5b2d9a46e60d32549452fac5d9b15d8f9ac1945681dfcbc03e3e068090ab",
+    "models\\experimental\\finbert-sentiment\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+    "models\\experimental\\finbert-sentiment\\model.safetensors": "7670c9c9d1435527a66eb88119a3aaa1360aaffdc9efec65f8b56d364a1e6e76"
+  }
 }

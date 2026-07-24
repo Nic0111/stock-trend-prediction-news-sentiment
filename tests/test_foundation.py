@@ -20,6 +20,8 @@ from pipeline.download_financial_news_data import (
     filter_articles,
     is_relevant_article,
 )
+from pipeline.news_relevance import classify_non_news_source, normalize_source_domain
+from pipeline.news_relevance import classify_entity_relevance
 from pipeline.model_artifacts import CalibratedStockModel
 from pipeline.predict_stock_trend import PROJECT_ROOT, predict_stock_trend
 from pipeline.stock_features import (
@@ -185,9 +187,36 @@ class TemporalSplitTests(unittest.TestCase):
 
 
 class NewsContextTests(unittest.TestCase):
+    def test_entity_disambiguation_routes_known_collisions_to_review(self) -> None:
+        misc = classify_entity_relevance(
+            "3816.KL",
+            "Various: Past Masters 267 (Short Fiction, Misc)",
+            "A book listing and miscellaneous discussion.",
+            matched_alias="MISC",
+        )
+        pcg = classify_entity_relevance(
+            "5183.KL",
+            "What to Expect From PG&E's Next Quarterly Earnings Report",
+            "PG&E Corporation (PCG) scheduled an earnings call.",
+            matched_alias="PCG",
+        )
+        self.assertEqual(misc.status, "unrelated")
+        self.assertEqual(pcg.status, "unrelated")
+        self.assertIn("PG&E", pcg.collision_signals)
+
+    def test_entity_disambiguation_accepts_distinctive_company_evidence(self) -> None:
+        result = classify_entity_relevance(
+            "5183.KL",
+            "PETRONAS Chemicals reports stronger quarterly results",
+            "PETRONAS Chemicals Group said its petrochemical segment improved.",
+            matched_alias="PETRONAS Chemicals",
+        )
+        self.assertEqual(result.status, "included")
+        self.assertGreaterEqual(result.score, 0.70)
+
     def test_newsapi_request_uses_30_day_retrieval_boundary(self) -> None:
         url = build_request_url('"Maybank"', as_of_date=date(2026, 7, 10))
-        self.assertIn("from=2026-06-10", url)
+        self.assertIn("from=2026-06-11", url)
         self.assertIn("to=2026-07-10", url)
 
     def test_short_mb_alias_is_not_generated_or_matched(self) -> None:
@@ -197,6 +226,44 @@ class NewsContextTests(unittest.TestCase):
         self.assertTrue(
             is_relevant_article("Maybank reports profit growth", "Malaysian banking news", variants)
         )
+
+    def test_package_registry_domains_are_classified_without_keyword_false_positives(self) -> None:
+        self.assertEqual(normalize_source_domain("https://www.pypi.org/project/python-mytnb/"), "pypi.org")
+        self.assertEqual(
+            classify_non_news_source("https://files.python.pypi.org/packages/item", ""),
+            "package_registry",
+        )
+        self.assertEqual(
+            classify_non_news_source("https://www.reuters.com/technology/company-launches-api", "Reuters"),
+            None,
+        )
+
+    def test_filter_excludes_package_registry_even_when_company_name_matches(self) -> None:
+        variants = build_company_query_variants("5347.KL", "Tenaga Nasional Berhad")
+        package_article = {
+            "source": {"id": None, "name": "PyPI"},
+            "title": "types-aiobotocore-tnb 3.8.0",
+            "description": "Python package for the Tenaga Nasional Berhad API.",
+            "url": "https://pypi.org/project/types-aiobotocore-tnb/",
+            "publishedAt": "2026-07-10T08:00:00Z",
+            "content": "Package metadata",
+        }
+        genuine_article = {
+            **package_article,
+            "title": "Tenaga Nasional launches a new digital platform",
+            "description": "The company announced a technology investment.",
+            "url": "https://www.reuters.com/technology/tenaga-platform",
+            "source": {"id": "reuters", "name": "Reuters"},
+        }
+        diagnostics: dict[str, int] = {}
+        rows = filter_articles(
+            {"articles": [package_article, genuine_article]},
+            variants,
+            diagnostics=diagnostics,
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["source_name"], "Reuters")
+        self.assertEqual(diagnostics, {"package_registry": 1})
 
     def test_filtering_records_alias_and_deduplicates(self) -> None:
         variants = build_company_query_variants("1023.KL", "CIMB Group Holdings Berhad")

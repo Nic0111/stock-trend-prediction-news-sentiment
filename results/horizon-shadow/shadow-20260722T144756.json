@@ -1,0 +1,253 @@
+{
+  "dataset_sha256": "1586a6dbb1b800285e4c78c5e9c03772437a3a907795738e47a149d52d401cf1",
+  "end_date": "2026-06-30",
+  "horizons": {
+    "1": {
+      "accepted_checks": {
+        "balanced_accuracy_gain": true,
+        "bootstrap_gain": true,
+        "brier_skill": true,
+        "development_stability": true,
+        "directional_recall": false,
+        "macro_f1_not_worse": true,
+        "positive_mcc": true,
+        "predicted_class_share": false,
+        "threshold_constraints": true
+      },
+      "balanced_accuracy_gain": 0.03916776107787345,
+      "baseline_metrics": {
+        "accuracy": 0.5356521739130434,
+        "balanced_accuracy": 0.5,
+        "f1": 0.0,
+        "macro_f1": 0.3488108720271801,
+        "mcc": 0.0,
+        "precision": 0.0,
+        "predicted_down_rate": 1.0,
+        "predicted_up_rate": 0.0,
+        "recall": 0.0,
+        "specificity": 1.0
+      },
+      "bootstrap": {
+        "block_size": 5,
+        "gain": 0.03916776107787345,
+        "lower": 0.01295297204376431,
+        "median": 0.03952782877837541,
+        "p_value": 0.0009995002498750624,
+        "repetitions": 2000,
+        "unique_dates": 115,
+        "upper": 0.06443454343213091
+      },
+      "calibration": {
+        "brier_baseline": 0.24872892249527412,
+        "brier_score": 0.2455902331474318,
+        "brier_skill": 0.01261891587176378,
+        "calibration_intercept": 0.1473386979809254,
+        "calibration_slope": 1.8786031254348858,
+        "ece_10": 0.039145276009744615,
+        "log_loss": 0.6842638014889506
+      },
+      "failed_checks": [
+        "directional_recall",
+        "predicted_class_share"
+      ],
+      "limited_checks": {
+        "bootstrap_gain": true,
+        "brier_skill": true,
+        "limited_development_stability": true,
+        "limited_directional_recall": true,
+        "limited_predicted_class_share": true,
+        "positive_mcc": true
+      },
+      "metrics": {
+        "accuracy": 0.5173913043478261,
+        "average_precision": 0.5347857359114996,
+        "balanced_accuracy": 0.5391677610778735,
+        "f1": 0.6190803019903912,
+        "macro_f1": 0.4803586563332739,
+        "mcc": 0.09815353562609286,
+        "precision": 0.4886240520043337,
+        "predicted_down_rate": 0.1973913043478261,
+        "predicted_up_rate": 0.802608695652174,
+        "recall": 0.8445692883895131,
+        "roc_auc": 0.571969696969697,
+        "specificity": 0.23376623376623376
+      },
+      "phase": "shadow",
+      "rows": 1150,
+      "scope": "horizon",
+      "status": "limited",
+      "target_dates": {
+        "maximum": "2026-07-01",
+        "minimum": "2026-01-05"
+      },
+      "ticker": null,
+      "unique_dates": 115
+    },
+    "10": {
+      "accepted_checks": {
+        "balanced_accuracy_gain": false,
+        "bootstrap_gain": false,
+        "brier_skill": false,
+        "development_stability": true,
+        "directional_recall": true,
+        "macro_f1_not_worse": true,
+        "positive_mcc": true,
+        "predicted_class_share": true,
+        "threshold_constraints": true
+      },
+      "balanced_accuracy_gain": 0.011176962236912114,
+      "baseline_metrics": {
+        "accuracy": 0.5347826086956522,
+        "balanced_accuracy": 0.5,
+        "f1": 0.6968838526912181,
+        "macro_f1": 0.34844192634560905,
+        "mcc": 0.0,
+        "precision": 0.5347826086956522,
+        "predicted_down_rate": 0.0,
+        "predicted_up_rate": 1.0,
+        "recall": 1.0,
+        "specificity": 0.0
+      },
+      "bootstrap": {
+        "block_size": 10,
+        "gain": 0.011176962236912114,
+        "lower": -0.044198252463526135,
+        "median": 0.013245541803460048,
+        "p_value": 0.3328335832083958,
+        "repetitions": 2000,
+        "unique_dates": 115,
+        "upper": 0.06436733893103927
+      },
+      "calibration": {
+        "brier_baseline": 0.24879017013232516,
+        "brier_score": 0.2494500564454438,
+        "brier_skill": -0.0026523809713530078,
+        "calibration_intercept": 0.16962604685121632,
+        "calibration_slope": -0.5548698078809241,
+        "ece_10": 0.03860466014889312,
+        "log_loss": 0.6920486378966184
+      },
+      "failed_checks": [
+        "balanced_accuracy_gain",
+        "brier_skill",
+        "bootstrap_gain"
+      ],
+      "limited_checks": {
+        "bootstrap_gain": false,
+        "brier_skill": false,
+        "limited_development_stability": true,
+        "limited_directional_recall": true,
+        "limited_predicted_class_share": true,
+        "positive_mcc": true
+      },
+      "metrics": {
+        "accuracy": 0.5182608695652174,
+        "average_precision": 0.5267924431283586,
+        "balanced_accuracy": 0.5111769622369121,
+        "f1": 0.5764525993883792,
+        "macro_f1": 0.5089924287264477,
+        "mcc": 0.022784710288482325,
+        "precision": 0.5440115440115441,
+        "predicted_down_rate": 0.3973913043478261,
+        "predicted_up_rate": 0.6026086956521739,
+        "recall": 0.6130081300813008,
+        "roc_auc": 0.5020712711800015,
+        "specificity": 0.4093457943925234
+      },
+      "phase": "shadow",
+      "rows": 1150,
+      "scope": "horizon",
+      "status": "experimental",
+      "target_dates": {
+        "maximum": "2026-07-14",
+        "minimum": "2026-01-16"
+      },
+      "ticker": null,
+      "unique_dates": 115
+    },
+    "5": {
+      "accepted_checks": {
+        "balanced_accuracy_gain": true,
+        "bootstrap_gain": true,
+        "brier_skill": true,
+        "development_stability": true,
+        "directional_recall": false,
+        "macro_f1_not_worse": true,
+        "positive_mcc": true,
+        "predicted_class_share": true,
+        "threshold_constraints": true
+      },
+      "balanced_accuracy_gain": 0.06513065484839675,
+      "baseline_metrics": {
+        "accuracy": 0.5147826086956522,
+        "balanced_accuracy": 0.5,
+        "f1": 0.0,
+        "macro_f1": 0.33983926521239954,
+        "mcc": 0.0,
+        "precision": 0.0,
+        "predicted_down_rate": 1.0,
+        "predicted_up_rate": 0.0,
+        "recall": 0.0,
+        "specificity": 1.0
+      },
+      "bootstrap": {
+        "block_size": 5,
+        "gain": 0.06513065484839675,
+        "lower": 0.034827660754151994,
+        "median": 0.06640773047149318,
+        "p_value": 0.0004997501249375312,
+        "repetitions": 2000,
+        "unique_dates": 115,
+        "upper": 0.09614376751937827
+      },
+      "calibration": {
+        "brier_baseline": 0.2497814744801512,
+        "brier_score": 0.24836395797370495,
+        "brier_skill": 0.0056750265783177545,
+        "calibration_intercept": -0.038929923765721006,
+        "calibration_slope": 2.4841782713881093,
+        "ece_10": 0.0641785180341315,
+        "log_loss": 0.6898724288668756
+      },
+      "failed_checks": [
+        "directional_recall"
+      ],
+      "limited_checks": {
+        "bootstrap_gain": true,
+        "brier_skill": true,
+        "limited_development_stability": true,
+        "limited_directional_recall": true,
+        "limited_predicted_class_share": true,
+        "positive_mcc": true
+      },
+      "metrics": {
+        "accuracy": 0.5582608695652174,
+        "average_precision": 0.5239907281371876,
+        "balanced_accuracy": 0.5651306548483968,
+        "f1": 0.6366237482117311,
+        "macro_f1": 0.5367154217777059,
+        "mcc": 0.14671445453126422,
+        "precision": 0.5297619047619048,
+        "predicted_down_rate": 0.26956521739130435,
+        "predicted_up_rate": 0.7304347826086957,
+        "recall": 0.7974910394265233,
+        "roc_auc": 0.5653804005618522,
+        "specificity": 0.3327702702702703
+      },
+      "phase": "shadow",
+      "rows": 1150,
+      "scope": "horizon",
+      "status": "limited",
+      "target_dates": {
+        "maximum": "2026-07-07",
+        "minimum": "2026-01-09"
+      },
+      "ticker": null,
+      "unique_dates": 115
+    }
+  },
+  "phase": "shadow",
+  "policy_version": "horizon-acceptance-v2",
+  "run_id": "20260722T144756",
+  "start_date": "2026-01-01"
+}

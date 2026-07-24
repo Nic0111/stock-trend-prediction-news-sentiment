@@ -1,0 +1,56 @@
+{
+  "schema_version": 7,
+  "captured_at": "2026-07-22T06:55:58+00:00",
+  "payload": {
+    "ticker": "1155.KL",
+    "company_name": "Malayan Banking Berhad",
+    "horizon_days": 5,
+    "as_of_date": "2026-07-21",
+    "prediction_label": "Up",
+    "probability_up": 0.5347101147554986,
+    "decision_threshold": 0.48504320031212633,
+    "model_name": "xgboost",
+    "model_version": "fb584fc7e9ae",
+    "refinement_round": 1,
+    "benchmark_passed": false,
+    "status": "experimental",
+    "stale_data_warning": false,
+    "latest_data_age_days": 1,
+    "threshold_constraints_passed": true,
+    "evidence_strength": "Moderate",
+    "supporting_factors": [
+      {
+        "feature": "Adj Close",
+        "label": "Adj Close",
+        "impact_probability_points": 1.95,
+        "relationship": "supports"
+      },
+      {
+        "feature": "MA_5",
+        "label": "Ma 5",
+        "impact_probability_points": 0.75,
+        "relationship": "supports"
+      },
+      {
+        "feature": "Volatility_20D",
+        "label": "20-day volatility",
+        "impact_probability_points": 0.54,
+        "relationship": "supports"
+      }
+    ],
+    "opposing_factors": [],
+    "market_reference_date": "2026-07-21",
+    "observation_lag_sessions": 0,
+    "freshness_status": "fresh",
+    "freshness_reason": "Latest feature-complete row matches the latest valid aligned market session.",
+    "feature_schema_version": "aligned-market-sessions-v2",
+    "global_evidence_status": "limited",
+    "ticker_evidence_status": "experimental",
+    "shadow_evidence_status": "limited",
+    "acceptance_policy_version": "horizon-acceptance-v2",
+    "failed_acceptance_checks": [
+      "directional_recall",
+      "shadow:directional_recall"
+    ]
+  }
+}

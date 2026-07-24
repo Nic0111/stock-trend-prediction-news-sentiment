@@ -1,0 +1,57 @@
+{
+  "schema_version": 7,
+  "captured_at": "2026-07-22T06:49:31+00:00",
+  "payload": {
+    "ticker": "1295.KL",
+    "company_name": "Public Bank Berhad",
+    "horizon_days": 10,
+    "as_of_date": "2026-07-21",
+    "prediction_label": "Up",
+    "probability_up": 0.5323782116927217,
+    "decision_threshold": 0.5099004744274803,
+    "model_name": "random-forest",
+    "model_version": "fb584fc7e9ae",
+    "refinement_round": 4,
+    "benchmark_passed": false,
+    "status": "experimental",
+    "stale_data_warning": false,
+    "latest_data_age_days": 1,
+    "threshold_constraints_passed": true,
+    "evidence_strength": "Moderate",
+    "supporting_factors": [
+      {
+        "feature": "MACD_Signal",
+        "label": "MACD signal line",
+        "impact_probability_points": 1.66,
+        "relationship": "supports"
+      },
+      {
+        "feature": "MACD",
+        "label": "MACD momentum",
+        "impact_probability_points": 1.19,
+        "relationship": "supports"
+      },
+      {
+        "feature": "Rolling_Correlation_60D",
+        "label": "60-day market correlation",
+        "impact_probability_points": 1.13,
+        "relationship": "supports"
+      }
+    ],
+    "opposing_factors": [],
+    "market_reference_date": "2026-07-21",
+    "observation_lag_sessions": 0,
+    "freshness_status": "fresh",
+    "freshness_reason": "Latest feature-complete row matches the latest valid aligned market session.",
+    "feature_schema_version": "aligned-market-sessions-v2",
+    "global_evidence_status": "experimental",
+    "ticker_evidence_status": "experimental",
+    "shadow_evidence_status": "experimental",
+    "acceptance_policy_version": "horizon-acceptance-v2",
+    "failed_acceptance_checks": [
+      "shadow:balanced_accuracy_gain",
+      "shadow:bootstrap_gain",
+      "shadow:brier_skill"
+    ]
+  }
+}

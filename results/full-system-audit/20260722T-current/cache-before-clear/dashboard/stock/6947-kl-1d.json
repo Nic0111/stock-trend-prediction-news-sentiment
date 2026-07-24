@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "captured_at": "2026-07-11T13:05:05+00:00",
+  "payload": {
+    "ticker": "6947.KL",
+    "company_name": "CelcomDigi Berhad",
+    "horizon_days": 1,
+    "as_of_date": "2026-03-19",
+    "prediction_label": "Up",
+    "probability_up": 0.47329279336413355,
+    "decision_threshold": 0.46116259149305416,
+    "model_name": "hist-gradient-boosting",
+    "model_version": "1578ab4040fc",
+    "refinement_round": 4,
+    "benchmark_passed": true,
+    "status": "accepted",
+    "stale_data_warning": true,
+    "latest_data_age_days": 114,
+    "threshold_constraints_passed": true,
+    "evidence_strength": "Limited",
+    "supporting_factors": [
+      {
+        "feature": "Open_Close_Change",
+        "label": "open-to-close movement",
+        "impact_probability_points": 0.64,
+        "relationship": "supports"
+      },
+      {
+        "feature": "Lag_Return_1D_3",
+        "label": "return three trading days ago",
+        "impact_probability_points": 0.45,
+        "relationship": "supports"
+      },
+      {
+        "feature": "Market_AdjClose_to_MA_20",
+        "label": "KLCI versus 20-day trend",
+        "impact_probability_points": 0.32,
+        "relationship": "supports"
+      }
+    ],
+    "opposing_factors": [
+      {
+        "feature": "Return_5D",
+        "label": "5-day momentum",
+        "impact_probability_points": 0.53,
+        "relationship": "opposes"
+      },
+      {
+        "feature": "Market_Volatility_20D",
+        "label": "Market Volatility 20D",
+        "impact_probability_points": 0.48,
+        "relationship": "opposes"
+      }
+    ]
+  }
+}

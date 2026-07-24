@@ -1,9 +1,13 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 
 from pipeline.benchmark_finbert_sentiment import (
+    _resolve_device,
     build_frozen_split,
     expected_calibration_error,
     fit_temperature,
@@ -12,6 +16,22 @@ from pipeline.benchmark_finbert_sentiment import (
 
 
 class FinBERTBenchmarkTests(unittest.TestCase):
+    def test_cuda_request_fails_instead_of_silently_falling_back(self) -> None:
+        class FakeCuda:
+            @staticmethod
+            def is_available() -> bool:
+                return False
+
+        class FakeTorch:
+            cuda = FakeCuda()
+
+            @staticmethod
+            def device(name: str) -> str:
+                return name
+
+        with self.assertRaisesRegex(RuntimeError, "CUDA was requested"):
+            _resolve_device(FakeTorch, "cuda")
+
     def test_temperature_is_finite_and_probabilities_are_valid(self) -> None:
         logits = np.asarray([[3.0, 0.0, -1.0], [0.2, 1.4, 0.0], [-1.0, 0.0, 2.0]])
         labels = np.asarray([0, 1, 2])
@@ -36,7 +56,14 @@ class FinBERTBenchmarkTests(unittest.TestCase):
         for label, word in [("negative", "loss"), ("neutral", "steady"), ("positive", "gain")]:
             for index in range(20):
                 rows.append({"Sentiment": label, "Sentence": f"{word} company result {index}"})
-        development, test, manifest = build_frozen_split(pd.DataFrame(rows))
+        # The split builder intentionally persists the manifest used by the
+        # offline benchmark.  Redirect that write so a unit test can never
+        # replace the real 4,838-row project manifest with this tiny fixture.
+        with TemporaryDirectory() as directory, patch(
+            "pipeline.benchmark_finbert_sentiment.SPLIT_FILE",
+            Path(directory) / "sentiment-split-manifest.csv",
+        ):
+            development, test, manifest = build_frozen_split(pd.DataFrame(rows))
         self.assertEqual(len(development) + len(test), len(rows))
         self.assertEqual(manifest["sentence_hash"].nunique(), len(rows))
         self.assertEqual(manifest.groupby("sentence_hash")["split"].nunique().max(), 1)

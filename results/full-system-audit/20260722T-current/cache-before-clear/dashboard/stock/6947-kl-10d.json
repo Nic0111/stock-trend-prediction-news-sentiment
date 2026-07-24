@@ -1,0 +1,48 @@
+{
+  "schema_version": 6,
+  "captured_at": "2026-07-22T05:43:08+00:00",
+  "payload": {
+    "ticker": "6947.KL",
+    "company_name": "CelcomDigi Berhad",
+    "horizon_days": 10,
+    "as_of_date": "2026-07-21",
+    "prediction_label": "Up",
+    "probability_up": 0.5197361064649043,
+    "decision_threshold": 0.5099004744274803,
+    "model_name": "random-forest",
+    "model_version": "fb584fc7e9ae",
+    "refinement_round": 4,
+    "benchmark_passed": true,
+    "status": "accepted",
+    "stale_data_warning": false,
+    "latest_data_age_days": 1,
+    "threshold_constraints_passed": true,
+    "evidence_strength": "Limited",
+    "supporting_factors": [
+      {
+        "feature": "KLCI_Volatility_Regime",
+        "label": "KLCI volatility regime",
+        "impact_probability_points": 0.72,
+        "relationship": "supports"
+      },
+      {
+        "feature": "MACD_Signal",
+        "label": "MACD signal line",
+        "impact_probability_points": 0.43,
+        "relationship": "supports"
+      },
+      {
+        "feature": "ATR_14_pct",
+        "label": "Atr 14 Pct",
+        "impact_probability_points": 0.38,
+        "relationship": "supports"
+      }
+    ],
+    "opposing_factors": [],
+    "market_reference_date": "2026-07-21",
+    "observation_lag_sessions": 0,
+    "freshness_status": "fresh",
+    "freshness_reason": "Latest feature-complete row matches the latest valid aligned market session.",
+    "feature_schema_version": "aligned-market-sessions-v2"
+  }
+}

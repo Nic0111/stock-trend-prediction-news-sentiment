@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createAnalysis, getCompanies } from "../api/client";
+import { createAnalysis, getCompanies, resetNewsOverrides, updateNewsOverride } from "../api/client";
 import { LoadingState, ErrorState } from "../components/AsyncState";
 import { CompanyLogo } from "../components/CompanyLogo";
 import { CompanySelector } from "../components/CompanySelector";
 import { isArticleContributingToContext, NewsCard } from "../components/NewsCard";
-import { NewsSummaryCard, TrendCard } from "../components/TrendCard";
+import { CombinedOutlookCard, NewsSummaryCard, TrendCard } from "../components/TrendCard";
 import { PageHeader } from "../components/PageHeader";
 import { useAppState } from "../state/AppState";
 import type { Horizon } from "../types";
@@ -13,12 +13,73 @@ import type { Horizon } from "../types";
 export function StockOutlookPage() {
   const companies = useQuery({ queryKey: ["companies"], queryFn: ({ signal }) => getCompanies(signal), staleTime: 86400000 });
   const { outlookTicker, setOutlookTicker, outlookHorizon, setOutlookHorizon, analysis, setAnalysis } = useAppState();
-  useEffect(() => { if (companies.data?.length && !companies.data.some((company) => company.ticker === outlookTicker)) setOutlookTicker(companies.data[0].ticker); }, [companies.data, outlookTicker, setOutlookTicker]);
-  const analysisMutation = useMutation({ mutationFn: () => createAnalysis({ ticker: outlookTicker, horizon: outlookHorizon }), onSuccess: setAnalysis });
-  if (companies.isLoading) return <><PageHeader eyebrow="Analyze" title="Stock Outlook" description="See the modelled direction and recent news evidence for one Bursa Malaysia company." /><LoadingState /></>;
-  if (companies.isError || !companies.data) return <><PageHeader eyebrow="Analyze" title="Stock Outlook" description="See the modelled direction and recent news evidence for one Bursa Malaysia company." /><ErrorState message={companies.error?.message || "Companies could not be loaded."} /></>;
-  const company = companies.data.find((item) => item.ticker === outlookTicker);
+
+  useEffect(() => {
+    if (companies.data?.length && !companies.data.some((company) => company.ticker === outlookTicker)) {
+      setOutlookTicker(companies.data[0].ticker);
+    }
+  }, [companies.data, outlookTicker, setOutlookTicker]);
+
+  const analysisMutation = useMutation({
+    mutationFn: () => createAnalysis({ ticker: outlookTicker, horizon: outlookHorizon }),
+    onSuccess: setAnalysis,
+  });
   const matchingAnalysis = analysis?.ticker === outlookTicker && analysis.horizon_days === outlookHorizon ? analysis : null;
+  const correctionMutation = useMutation({
+    mutationFn: ({ articleId, action }: { articleId: string; action: "include" | "exclude" }) =>
+      updateNewsOverride(matchingAnalysis!.analysis_id, articleId, action),
+    onSuccess: setAnalysis,
+  });
+  const resetMutation = useMutation({
+    mutationFn: () => resetNewsOverrides(matchingAnalysis!.analysis_id),
+    onSuccess: setAnalysis,
+  });
+
+  if (companies.isLoading) {
+    return <><PageHeader eyebrow="Analyze" title="Stock Outlook" description="See the modelled direction and recent news evidence for one Bursa Malaysia company." /><LoadingState /></>;
+  }
+  if (companies.isError || !companies.data) {
+    return <><PageHeader eyebrow="Analyze" title="Stock Outlook" description="See the modelled direction and recent news evidence for one Bursa Malaysia company." /><ErrorState message={companies.error?.message || "Companies could not be loaded."} /></>;
+  }
+
+  const company = companies.data.find((item) => item.ticker === outlookTicker);
   const newsContext = matchingAnalysis?.news?.contexts[String(outlookHorizon)] || {};
-  return <><PageHeader eyebrow="Analyze" title="Stock Outlook" description="See the modelled direction and recent news evidence for one Bursa Malaysia company." /><section className="selector-panel"><CompanyLogo company={company} className="selector-logo" /><CompanySelector label="Company" companies={companies.data} value={outlookTicker} onChange={setOutlookTicker} /><fieldset><legend>Prediction horizon</legend><div className="radio-row">{([1, 5, 10] as Horizon[]).map((value) => <label key={value}><input type="radio" checked={outlookHorizon === value} onChange={() => setOutlookHorizon(value)} />{value} trading day(s)</label>)}</div></fieldset><button className="primary-button" onClick={() => analysisMutation.mutate()} disabled={analysisMutation.isPending}>{analysisMutation.isPending ? "Analyzing…" : "Analyze"}</button></section>{analysisMutation.isError && <ErrorState message={analysisMutation.error.message} />}{matchingAnalysis && <><div className="signal-grid"><TrendCard analysis={matchingAnalysis} /><NewsSummaryCard analysis={matchingAnalysis} /></div><section className="article-section"><h2 className="section-heading">Relevant News Articles</h2><div className="article-grid">{(matchingAnalysis.news?.articles || []).map((article, index) => <NewsCard article={article} contributingHorizon={isArticleContributingToContext(article, newsContext, matchingAnalysis.news?.as_of_date || "") ? outlookHorizon : undefined} key={`${article.url || article.title}-${index}`} />)}</div></section></>}</>;
+  const articles = matchingAnalysis?.news?.articles || [];
+  const reviewArticles = matchingAnalysis?.news?.review_articles || [];
+
+  return <>
+    <PageHeader eyebrow="Analyze" title="Stock Outlook" description="See the modelled direction and recent news evidence for one Bursa Malaysia company." />
+    <section className="selector-panel">
+      <CompanyLogo company={company} className="selector-logo" />
+      <CompanySelector label="Company" companies={companies.data} value={outlookTicker} onChange={setOutlookTicker} />
+      <fieldset>
+        <legend>Prediction horizon</legend>
+        <div className="radio-row">
+          {([1, 5, 10] as Horizon[]).map((value) => <label key={value}><input type="radio" checked={outlookHorizon === value} onChange={() => setOutlookHorizon(value)} />{value} trading day(s)</label>)}
+        </div>
+      </fieldset>
+      <button className="primary-button" onClick={() => analysisMutation.mutate()} disabled={analysisMutation.isPending}>
+        {analysisMutation.isPending ? "Analyzing..." : "Analyze"}
+      </button>
+    </section>
+    {analysisMutation.isError && <ErrorState message={analysisMutation.error.message} />}
+    {matchingAnalysis && <section className="synthesis-branch">
+      <CombinedOutlookCard analysis={matchingAnalysis} />
+      <div className="synthesis-connectors" aria-hidden="true">
+        <span className="connector-stem" />
+        <span className="connector-junction" />
+        <span className="connector-branch connector-left" />
+        <span className="connector-branch connector-right" />
+      </div>
+      <div className="signal-grid synthesis-children">
+        <div className="synthesis-child"><div className="synthesis-child-label">Stock trend</div><TrendCard analysis={matchingAnalysis} /></div>
+        <div className="synthesis-child"><div className="synthesis-child-label">News sentiment</div><NewsSummaryCard analysis={matchingAnalysis} /></div>
+      </div>
+      <section className="article-section">
+        <div className="section-heading-row"><h2 className="section-heading">Relevant News Articles</h2>{Object.keys(matchingAnalysis.news?.user_overrides || {}).length > 0 && <button className="secondary-button" type="button" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending}>Reset</button>}</div>
+        {articles.length ? <div className="article-grid">{articles.map((article, index) => <NewsCard article={article} contributingHorizon={article.contributes_to_horizons?.includes(outlookHorizon) ? outlookHorizon : (isArticleContributingToContext(article, newsContext, matchingAnalysis.news?.as_of_date || "") ? outlookHorizon : undefined)} onExclude={article.article_id ? () => correctionMutation.mutate({ articleId: article.article_id!, action: "exclude" }) : undefined} busy={correctionMutation.isPending} key={`${article.article_id || article.url || article.title}-${index}`} />)}</div> : <div className="notice">No articles are currently included in the sentiment result.</div>}
+        <details className="review-articles"><summary>Review excluded articles ({reviewArticles.length})</summary><p className="review-articles-help">These articles matched the search but were not specific enough to influence sentiment automatically. Include only if they clearly refer to the selected company.</p>{reviewArticles.length ? <div className="article-grid">{reviewArticles.map((article, index) => <NewsCard review article={article} onInclude={article.article_id ? () => correctionMutation.mutate({ articleId: article.article_id!, action: "include" }) : undefined} busy={correctionMutation.isPending} key={`${article.article_id || article.url || article.title}-review-${index}`} />)}</div> : <div className="notice">No excluded candidates for this analysis.</div>}</details>
+      </section>
+    </section>}
+  </>;
 }

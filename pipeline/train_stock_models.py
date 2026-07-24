@@ -7,13 +7,15 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import warnings
 from datetime import datetime
+from importlib import metadata
 
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.base import clone
+from sklearn.base import BaseEstimator, ClassifierMixin, clone
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import (
     ExtraTreesClassifier,
@@ -40,6 +42,12 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
 
 from pipeline.model_artifacts import CalibratedStockModel, probability_to_logit
+from pipeline.horizon_acceptance import (
+    COMMON_POLICY,
+    POLICY as HORIZON_ACCEPTANCE_POLICY,
+    evaluate_acceptance,
+    weaker_status,
+)
 from pipeline.stock_features import (
     ALL_NUMERIC_FEATURE_COLUMNS,
     BASE_FEATURE_COLUMNS,
@@ -64,6 +72,8 @@ CANDIDATE_FILE = RESULTS_DIR / "stock-model-candidates.csv"
 BASELINE_FILE = RESULTS_DIR / "stock-model-baselines.csv"
 PER_TICKER_FILE = RESULTS_DIR / "stock-model-per-ticker-metrics.csv"
 REGISTRY_FILE = MODELS_DIR / "model-registry.json"
+STAGED_RUNS_DIR = MODELS_DIR / "staged-stock-runs"
+SELECTION_POLICY_FILE = PROJECT_ROOT / "config" / "stock_model_selection_policy.json"
 
 # The downloaded history starts in 2015. Keep this boundary explicit so a
 # stray older row cannot silently enter development, while 2025 remains the
@@ -74,10 +84,23 @@ TEST_START_DATE = pd.Timestamp("2025-01-01")
 TEST_END_DATE = pd.Timestamp("2025-12-31")
 N_SPLITS = 5
 RANDOM_STATE = 42
-MIN_BALANCED_ACCURACY_GAIN = 0.02
-MIN_DIRECTION_RECALL = 0.35
-MIN_PREDICTED_CLASS_SHARE = 0.20
-MAX_PREDICTED_CLASS_SHARE = 0.80
+OFFICIAL_PROFILE = "official"
+OFFICIAL_SEEDS = (11, 42, 73, 101, 202)
+OFFICIAL_MODEL_UNIVERSE = (
+    "logistic-regression",
+    "elastic-net-logistic",
+    "random-forest",
+    "extra-trees",
+    "hist-gradient-boosting",
+    "xgboost",
+    "lightgbm",
+    "soft-voting-ensemble",
+)
+OFFICIAL_FEATURE_ROUNDS = {1: 3, 5: 4, 10: 4}
+MIN_BALANCED_ACCURACY_GAIN = float(COMMON_POLICY["minimum_balanced_accuracy_gain"])
+MIN_DIRECTION_RECALL = float(COMMON_POLICY["minimum_direction_recall"])
+MIN_PREDICTED_CLASS_SHARE = float(COMMON_POLICY["minimum_predicted_class_share"])
+MAX_PREDICTED_CLASS_SHARE = float(COMMON_POLICY["maximum_predicted_class_share"])
 MODEL_NAMES = (
     "logistic-regression",
     "elastic-net-logistic",
@@ -94,6 +117,86 @@ FEATURE_COLUMNS = list(BASE_FEATURE_COLUMNS)
 IDENTITY_COLUMNS = ["Date", "Ticker"]
 
 
+def load_selection_policy() -> Dict[str, Any]:
+    """Load the versioned reproducibility contract used by official training."""
+    return json.loads(SELECTION_POLICY_FILE.read_text(encoding="utf-8"))
+
+
+class SklearnCompatibleCatBoostClassifier(BaseEstimator, ClassifierMixin):
+    """CatBoost adapter for scikit-learn 1.8's estimator/tag protocol.
+
+    CatBoost 1.2.8 still exposes the older scikit-learn integration. Wrapping
+    it in a native BaseEstimator keeps cloning, parameter search, pipelines,
+    and tags working without changing the underlying CatBoost algorithm.
+    """
+
+    def __init__(
+        self,
+        iterations: int = 300,
+        depth: int = 5,
+        learning_rate: float = 0.05,
+        l2_leaf_reg: float = 3.0,
+        loss_function: str = "Logloss",
+        random_seed: int = RANDOM_STATE,
+        verbose: bool = False,
+        thread_count: int = 1,
+        allow_writing_files: bool = False,
+    ) -> None:
+        self.iterations = iterations
+        self.depth = depth
+        self.learning_rate = learning_rate
+        self.l2_leaf_reg = l2_leaf_reg
+        self.loss_function = loss_function
+        self.random_seed = random_seed
+        self.verbose = verbose
+        self.thread_count = thread_count
+        self.allow_writing_files = allow_writing_files
+
+    def fit(self, X: Any, y: Any, **fit_params: Any) -> "SklearnCompatibleCatBoostClassifier":
+        try:
+            from catboost import CatBoostClassifier
+        except ImportError as exc:
+            raise ImportError("Install catboost to run the CatBoost candidate") from exc
+        self._catboost = CatBoostClassifier(
+            iterations=self.iterations,
+            depth=self.depth,
+            learning_rate=self.learning_rate,
+            l2_leaf_reg=self.l2_leaf_reg,
+            loss_function=self.loss_function,
+            random_seed=self.random_seed,
+            verbose=self.verbose,
+            thread_count=self.thread_count,
+            allow_writing_files=self.allow_writing_files,
+        )
+        self._catboost.fit(X, y, **fit_params)
+        self.classes_ = np.asarray(self._catboost.classes_)
+        self.n_features_in_ = getattr(self._catboost, "n_features_in_", X.shape[1])
+        return self
+
+    def predict(self, X: Any) -> np.ndarray:
+        return np.asarray(self._catboost.predict(X)).reshape(-1)
+
+    def predict_proba(self, X: Any) -> np.ndarray:
+        return np.asarray(self._catboost.predict_proba(X))
+
+
+def catboost_compatibility_report() -> Dict[str, Any]:
+    """Report whether CatBoost can run through the current sklearn pipeline."""
+    if importlib.util.find_spec("catboost") is None:
+        return {"installed": False, "compatible": False, "reason": "catboost is not installed"}
+    try:
+        from sklearn.utils._tags import get_tags
+
+        get_tags(SklearnCompatibleCatBoostClassifier())
+        return {
+            "installed": True,
+            "compatible": True,
+            "adapter": "SklearnCompatibleCatBoostClassifier",
+        }
+    except Exception as exc:
+        return {"installed": True, "compatible": False, "reason": str(exc)}
+
+
 def available_model_names() -> tuple[str, ...]:
     """Return the expanded benchmark while keeping optional learners optional."""
     names = [
@@ -107,19 +210,8 @@ def available_model_names() -> tuple[str, ...]:
     ]
     if importlib.util.find_spec("lightgbm") is not None:
         names.append("lightgbm")
-    if importlib.util.find_spec("catboost") is not None:
-        try:
-            from catboost import CatBoostClassifier
-            from sklearn.utils._tags import get_tags
-
-            get_tags(CatBoostClassifier(verbose=False, allow_writing_files=False))
-        except Exception:
-            # CatBoost 1.2.8 is not compatible with scikit-learn 1.8's tag
-            # protocol. Keep it optional rather than allowing one candidate to
-            # abort the complete benchmark.
-            pass
-        else:
-            names.append("catboost")
+    if catboost_compatibility_report()["compatible"]:
+        names.append("catboost")
     return tuple(names)
 
 
@@ -129,6 +221,18 @@ def search_plan_for_profile(
 ) -> Dict[int, Dict[int, tuple[str, ...]]]:
     """Choose a bounded evidence-led search without changing validation rules."""
     available = set(available_models)
+    if profile == OFFICIAL_PROFILE:
+        missing = [model for model in OFFICIAL_MODEL_UNIVERSE if model not in available]
+        if missing:
+            raise RuntimeError(
+                "Official stock-model selection requires the fixed candidate universe. "
+                f"Missing candidates: {', '.join(missing)}"
+            )
+        return {
+            horizon: {OFFICIAL_FEATURE_ROUNDS[horizon]: OFFICIAL_MODEL_UNIVERSE}
+            for horizon in TARGET_HORIZONS
+        }
+
     if profile != "focused":
         models = tuple(model for model in MODEL_NAMES if model in available)
         return {
@@ -178,6 +282,21 @@ def hash_file_set(files: Iterable[Path]) -> str:
             for block in iter(lambda: file.read(1024 * 1024), b""):
                 digest.update(block)
     return digest.hexdigest()
+
+
+def hash_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _installed_version(package: str) -> str | None:
+    try:
+        return metadata.version(package)
+    except metadata.PackageNotFoundError:
+        return None
 
 
 def load_and_combine_model_input_data() -> pd.DataFrame:
@@ -330,27 +449,28 @@ def build_estimator(
     model_name: str,
     refinement_round: int,
     numeric_features: Sequence[str],
+    random_state: int = RANDOM_STATE,
 ) -> Pipeline:
     include_ticker = refinement_round >= 2
     if model_name == "logistic-regression":
-        classifier: Any = LogisticRegression(max_iter=2000, solver="lbfgs", random_state=RANDOM_STATE)
+        classifier: Any = LogisticRegression(max_iter=2000, solver="lbfgs", random_state=random_state)
         scale_numeric = True
     elif model_name == "elastic-net-logistic":
         classifier = LogisticRegression(
             max_iter=4000,
             solver="saga",
             penalty="elasticnet",
-            random_state=RANDOM_STATE,
+            random_state=random_state,
         )
         scale_numeric = True
     elif model_name == "random-forest":
-        classifier = RandomForestClassifier(random_state=RANDOM_STATE, n_jobs=1)
+        classifier = RandomForestClassifier(random_state=random_state, n_jobs=1)
         scale_numeric = False
     elif model_name == "extra-trees":
-        classifier = ExtraTreesClassifier(random_state=RANDOM_STATE, n_jobs=1)
+        classifier = ExtraTreesClassifier(random_state=random_state, n_jobs=1)
         scale_numeric = False
     elif model_name == "hist-gradient-boosting":
-        classifier = HistGradientBoostingClassifier(random_state=RANDOM_STATE)
+        classifier = HistGradientBoostingClassifier(random_state=random_state)
         scale_numeric = False
     elif model_name == "soft-voting-ensemble":
         classifier = VotingClassifier(
@@ -362,7 +482,7 @@ def build_estimator(
                         class_weight="balanced",
                         max_iter=3000,
                         solver="lbfgs",
-                        random_state=RANDOM_STATE,
+                        random_state=random_state,
                     ),
                 ),
                 (
@@ -373,7 +493,7 @@ def build_estimator(
                         min_samples_leaf=5,
                         max_features="sqrt",
                         class_weight="balanced",
-                        random_state=RANDOM_STATE,
+                        random_state=random_state,
                         n_jobs=1,
                     ),
                 ),
@@ -385,7 +505,7 @@ def build_estimator(
                         max_leaf_nodes=15,
                         min_samples_leaf=25,
                         l2_regularization=0.1,
-                        random_state=RANDOM_STATE,
+                        random_state=random_state,
                     ),
                 ),
             ],
@@ -397,7 +517,7 @@ def build_estimator(
         classifier = XGBClassifier(
             objective="binary:logistic",
             eval_metric="logloss",
-            random_state=RANDOM_STATE,
+            random_state=random_state,
             n_jobs=1,
             verbosity=0,
         )
@@ -409,19 +529,19 @@ def build_estimator(
             raise ImportError("Install lightgbm to run the LightGBM candidate") from exc
         classifier = LGBMClassifier(
             objective="binary",
-            random_state=RANDOM_STATE,
+            random_state=random_state,
             n_jobs=1,
             verbosity=-1,
         )
         scale_numeric = False
     elif model_name == "catboost":
-        try:
-            from catboost import CatBoostClassifier
-        except ImportError as exc:
-            raise ImportError("Install catboost to run the CatBoost candidate") from exc
-        classifier = CatBoostClassifier(
+        if not catboost_compatibility_report()["compatible"]:
+            raise RuntimeError(
+                "CatBoost is unavailable or incompatible with the installed scikit-learn version"
+            )
+        classifier = SklearnCompatibleCatBoostClassifier(
             loss_function="Logloss",
-            random_seed=RANDOM_STATE,
+            random_seed=random_state,
             verbose=False,
             thread_count=1,
             allow_writing_files=False,
@@ -439,7 +559,7 @@ def build_estimator(
 
 
 def get_parameter_space(model_name: str, profile: str = "full") -> tuple[Dict[str, List[Any]], int]:
-    if profile == "quick":
+    if profile in {"quick", OFFICIAL_PROFILE}:
         if model_name in {"logistic-regression", "elastic-net-logistic"}:
             return {
                 "classifier__C": [1.0],
@@ -584,6 +704,7 @@ def _best_result_index(cv_results: Dict[str, Any]) -> int:
             cv_results["mean_test_balanced_accuracy"][index],
             cv_results["mean_test_mcc"][index],
             cv_results["mean_test_macro_f1"][index],
+            -index,
         ),
     )
 
@@ -608,14 +729,20 @@ def run_candidate_search(
     feature_columns: Sequence[str],
     splits: Sequence[Tuple[np.ndarray, np.ndarray]],
     profile: str,
+    *,
+    seed: int = RANDOM_STATE,
+    search_seed: int = RANDOM_STATE,
+    fixed_parameters: Dict[str, Any] | None = None,
 ) -> tuple[Pipeline, Dict[str, Any], List[Dict[str, Any]]]:
     include_ticker = refinement_round >= 2
     input_columns = [*(("Ticker",) if include_ticker else ()), *feature_columns]
     X = development_df[input_columns]
     y = development_df[f"Target_{horizon}D"].astype(int)
-    estimator = build_estimator(model_name, refinement_round, feature_columns)
+    estimator = build_estimator(
+        model_name, refinement_round, feature_columns, random_state=seed
+    )
     parameter_space, budget = get_parameter_space(model_name, profile=profile)
-    search_jobs = int(os.getenv("MODEL_SEARCH_JOBS", "-1"))
+    search_jobs = 1 if profile == OFFICIAL_PROFILE else int(os.getenv("MODEL_SEARCH_JOBS", "-1"))
 
     common = dict(
         estimator=estimator,
@@ -626,13 +753,16 @@ def run_candidate_search(
         error_score="raise",
         return_train_score=False,
     )
-    if model_name == "logistic-regression" and profile in {"full", "focused"}:
+    if fixed_parameters is not None:
+        fixed_grid = {key: [value] for key, value in fixed_parameters.items()}
+        search: Any = GridSearchCV(param_grid=fixed_grid, **common)
+    elif model_name == "logistic-regression" and profile in {"full", "focused", OFFICIAL_PROFILE}:
         search: Any = GridSearchCV(param_grid=parameter_space, **common)
     else:
         search = RandomizedSearchCV(
             param_distributions=parameter_space,
             n_iter=budget,
-            random_state=RANDOM_STATE,
+            random_state=search_seed,
             **common,
         )
 
@@ -648,6 +778,8 @@ def run_candidate_search(
     ]
     best_summary = {
         "horizon_days": horizon,
+        "seed": seed,
+        "fixed_parameters": fixed_parameters is not None,
         "refinement_round": refinement_round,
         "model_name": model_name,
         "development_rows": len(development_df),
@@ -672,6 +804,8 @@ def run_candidate_search(
                 "refinement_round": refinement_round,
                 "model_name": model_name,
                 "candidate_index": index,
+                "seed": seed,
+                "fixed_parameters": fixed_parameters is not None,
                 "cv_balanced_accuracy": search.cv_results_["mean_test_balanced_accuracy"][index],
                 "cv_mcc": search.cv_results_["mean_test_mcc"][index],
                 "cv_macro_f1": search.cv_results_["mean_test_macro_f1"][index],
@@ -704,6 +838,135 @@ def calculate_metrics(
         metrics["roc_auc"] = float(roc_auc_score(y_true, probability_up))
         metrics["average_precision"] = float(average_precision_score(y_true, probability_up))
     return metrics
+
+
+OFFICIAL_MODEL_COMPLEXITY = {
+    "logistic-regression": 1,
+    "elastic-net-logistic": 2,
+    "hist-gradient-boosting": 3,
+    "random-forest": 4,
+    "extra-trees": 5,
+    "xgboost": 6,
+    "lightgbm": 6,
+    "soft-voting-ensemble": 7,
+}
+
+
+def _official_candidate_sort_key(summary: Dict[str, Any]) -> tuple[Any, ...]:
+    """Stable ranking: quality, stability, then simpler model and name."""
+    return (
+        -float(summary["cv_balanced_accuracy"]),
+        -float(summary["cv_mcc"]),
+        -float(summary["cv_macro_f1"]),
+        float(summary.get("cv_seed_balanced_accuracy_std", 0.0)),
+        int(OFFICIAL_MODEL_COMPLEXITY.get(str(summary["model_name"]), 99)),
+        str(summary["model_name"]),
+    )
+
+
+def run_official_candidate_selection(
+    development_df: pd.DataFrame,
+    horizon: int,
+    refinement_round: int,
+    model_name: str,
+    feature_columns: Sequence[str],
+    splits: Sequence[Tuple[np.ndarray, np.ndarray]],
+) -> tuple[Pipeline, Dict[str, Any], List[Dict[str, Any]]]:
+    """Evaluate one fixed model/configuration over the official seed panel.
+
+    A single seed-42 search establishes the hyperparameter manifest. Every
+    other seed evaluates that exact manifest, so retraining cannot silently
+    change both the algorithm and the random draw at once.
+    """
+    anchor_estimator, anchor_summary, anchor_rows = run_candidate_search(
+        development_df,
+        horizon,
+        refinement_round,
+        model_name,
+        feature_columns,
+        splits,
+        OFFICIAL_PROFILE,
+        seed=RANDOM_STATE,
+        search_seed=RANDOM_STATE,
+    )
+    fixed_parameters = json.loads(anchor_summary["best_parameters"])
+    seed_summaries: List[Dict[str, Any]] = []
+    seed_rows: List[Dict[str, Any]] = []
+    representative_estimator: Pipeline | None = None
+
+    for seed in OFFICIAL_SEEDS:
+        estimator, summary, rows = run_candidate_search(
+            development_df,
+            horizon,
+            refinement_round,
+            model_name,
+            feature_columns,
+            splits,
+            OFFICIAL_PROFILE,
+            seed=seed,
+            search_seed=RANDOM_STATE,
+            fixed_parameters=fixed_parameters,
+        )
+        seed_summaries.append(summary)
+        seed_rows.extend(rows)
+        if seed == RANDOM_STATE:
+            representative_estimator = estimator
+
+    if representative_estimator is None:
+        raise RuntimeError("Official seed panel did not include the representative seed")
+
+    fold_ba = np.asarray(
+        [summary["cv_fold_balanced_accuracy"] for summary in seed_summaries], dtype=float
+    )
+    fold_mcc = np.asarray([summary["cv_fold_mcc"] for summary in seed_summaries], dtype=float)
+    seed_ba = np.asarray([summary["cv_balanced_accuracy"] for summary in seed_summaries], dtype=float)
+    seed_mcc = np.asarray([summary["cv_mcc"] for summary in seed_summaries], dtype=float)
+    seed_f1 = np.asarray([summary["cv_macro_f1"] for summary in seed_summaries], dtype=float)
+    seed_up_recall = np.asarray([summary["cv_up_recall"] for summary in seed_summaries], dtype=float)
+    seed_down_recall = np.asarray([summary["cv_down_recall"] for summary in seed_summaries], dtype=float)
+    positive_seed_fraction = float(
+        np.mean(
+            [
+                summary["cv_positive_mcc_folds"] >= int(0.8 * len(splits))
+                for summary in seed_summaries
+            ]
+        )
+    )
+    summary = {
+        "horizon_days": horizon,
+        "refinement_round": refinement_round,
+        "model_name": model_name,
+        "development_rows": len(development_df),
+        "cv_balanced_accuracy": float(seed_ba.mean()),
+        "cv_mcc": float(seed_mcc.mean()),
+        "cv_macro_f1": float(seed_f1.mean()),
+        "cv_up_recall": float(seed_up_recall.mean()),
+        "cv_down_recall": float(seed_down_recall.mean()),
+        "cv_fold_balanced_accuracy": [float(value) for value in fold_ba.mean(axis=0)],
+        "cv_fold_mcc": [float(value) for value in fold_mcc.mean(axis=0)],
+        "cv_positive_mcc_folds": int(round(float(np.mean([summary["cv_positive_mcc_folds"] for summary in seed_summaries])))),
+        "cv_seed_balanced_accuracy": [float(value) for value in seed_ba],
+        "cv_seed_mcc": [float(value) for value in seed_mcc],
+        "cv_seed_macro_f1": [float(value) for value in seed_f1],
+        "cv_seed_balanced_accuracy_std": float(seed_ba.std(ddof=0)),
+        "positive_mcc_seed_fraction": positive_seed_fraction,
+        "official_seeds": list(OFFICIAL_SEEDS),
+        "search_seed": RANDOM_STATE,
+        "fixed_hyperparameters": True,
+        "best_parameters": json.dumps(fixed_parameters, sort_keys=True),
+        "input_columns": list(anchor_summary["input_columns"]),
+        "feature_columns": list(feature_columns),
+    }
+    rows: List[Dict[str, Any]] = []
+    for row in anchor_rows:
+        row = dict(row)
+        row["selection_stage"] = "seed-42-search"
+        rows.append(row)
+    for row in seed_rows:
+        row = dict(row)
+        row["selection_stage"] = "official-fixed-manifest"
+        rows.append(row)
+    return representative_estimator, summary, rows
 
 
 def select_directional_threshold(
@@ -812,16 +1075,25 @@ def build_baseline_predictions(
     development_df: pd.DataFrame,
     test_df: pd.DataFrame,
     horizon: int,
+    *,
+    majority_class: int | None = None,
 ) -> Dict[str, np.ndarray]:
     target_column = f"Target_{horizon}D"
-    majority_class = int(development_df[target_column].mean() >= 0.5)
-    return {
+    if majority_class is None:
+        majority_class = int(development_df[target_column].mean() >= 0.5)
+    baselines = {
         "majority-class": np.full(len(test_df), majority_class, dtype=int),
         "previous-horizon-direction": (
             test_df[f"Return_{horizon}D"].to_numpy() > 0
         ).astype(int),
         "ma5-vs-ma20": (test_df["MA_5"].to_numpy() > test_df["MA_20"].to_numpy()).astype(int),
     }
+    market_column = f"Market_Return_{horizon}D"
+    if market_column in test_df.columns:
+        baselines["klci-horizon-direction"] = (
+            test_df[market_column].to_numpy() > 0
+        ).astype(int)
+    return baselines
 
 
 def _atomic_csv(df: pd.DataFrame, path: Path) -> None:
@@ -857,13 +1129,26 @@ def _save_horizon_reports(
     return report_path, matrix_path
 
 
-def run_training_pipeline(search_profile: str | None = None) -> None:
+def run_training_pipeline(
+    search_profile: str | None = None,
+    *,
+    promote: bool | None = None,
+) -> Path:
     warnings.filterwarnings("ignore", category=UserWarning)
     warnings.filterwarnings("ignore", category=FutureWarning)
     ensure_output_structure()
     profile = search_profile or os.getenv("MODEL_SEARCH_PROFILE", "full").strip().lower()
-    if profile not in {"full", "focused", "quick"}:
-        raise ValueError("MODEL_SEARCH_PROFILE must be 'full', 'focused', or 'quick'")
+    if profile not in {"full", "focused", "quick", OFFICIAL_PROFILE}:
+        raise ValueError("MODEL_SEARCH_PROFILE must be 'full', 'focused', 'quick', or 'official'")
+    if promote is None:
+        # Official runs are challengers by default. Promotion is an explicit,
+        # reviewed action so a retrain cannot silently replace production.
+        promote = profile != OFFICIAL_PROFILE
+    if profile == OFFICIAL_PROFILE and promote:
+        raise ValueError(
+            "Official runs must be staged first; evaluate prospective shadow evidence, "
+            "then use promote_stock_models --approve"
+        )
 
     files = get_model_input_csv_files()
     dataset_hash = hash_file_set(files)
@@ -875,11 +1160,17 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
     per_ticker_rows: List[Dict[str, Any]] = []
     summary_rows: List[Dict[str, Any]] = []
     created_at = datetime.now()
-    run_id = created_at.strftime("%Y%m%dT%H%M%S")
+    run_id = created_at.strftime("%Y%m%dT%H%M%S%f")
     model_names = available_model_names()
     search_plan = search_plan_for_profile(profile, model_names)
+    selection_policy = load_selection_policy()
+    artifact_dir = MODELS_DIR
+    if profile == OFFICIAL_PROFILE and not promote:
+        artifact_dir = STAGED_RUNS_DIR / run_id
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+    registry_target = REGISTRY_FILE if promote else artifact_dir / "model-registry.json"
     registry: Dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 4,
         "feature_schema_version": FEATURE_SCHEMA_VERSION,
         "created_at": created_at.isoformat(timespec="seconds"),
         "run_id": run_id,
@@ -889,6 +1180,10 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
         "test_start_date": TEST_START_DATE.date().isoformat(),
         "test_end_date": TEST_END_DATE.date().isoformat(),
         "search_profile": profile,
+        "publication_status": "validated" if promote else "staged",
+        "promotion_required": bool(profile == OFFICIAL_PROFILE and not promote),
+        "selection_policy": selection_policy,
+        "selection_policy_sha256": hash_file(SELECTION_POLICY_FILE),
         "model_candidates": list(model_names),
         "search_plan": {
             str(horizon): {
@@ -901,6 +1196,22 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
             "test_status": "fixed observed benchmark",
             "test_warning": "2025 results were inspected during subsequent design review; new choices are selected from development evidence only.",
             "acceptance_rule": "balanced accuracy gain >= 0.02, positive MCC, macro-F1 no worse than strongest baseline",
+            "acceptance_policy_version": HORIZON_ACCEPTANCE_POLICY["policy_version"],
+            "acceptance_policy_path": str(Path("config") / "horizon_acceptance_policy.json"),
+            "status_tiers": ["accepted", "limited", "experimental"],
+            "official_selection": {
+                "fixed_feature_rounds": selection_policy["feature_round_by_horizon"],
+                "candidate_universe": selection_policy["official_model_universe"],
+                "seeds": selection_policy["evaluation_seeds"],
+                "search_seed": selection_policy["search_seed"],
+                "practical_balanced_accuracy_gain": selection_policy[
+                    "minimum_practical_balanced_accuracy_gain"
+                ],
+                "requires_prospective_shadow": selection_policy[
+                    "requires_prospective_shadow"
+                ],
+                "manual_promotion_required": selection_policy["manual_promotion_required"],
+            },
         },
         "horizons": {},
     }
@@ -922,26 +1233,60 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
 
             for model_name in round_models:
                 print(f"Round {refinement_round}: {model_name}")
-                estimator, best_summary, rows = run_candidate_search(
-                    development,
-                    horizon,
-                    refinement_round,
-                    model_name,
-                    feature_columns,
-                    splits,
-                    profile,
-                )
+                if profile == OFFICIAL_PROFILE:
+                    estimator, best_summary, rows = run_official_candidate_selection(
+                        development,
+                        horizon,
+                        refinement_round,
+                        model_name,
+                        feature_columns,
+                        splits,
+                    )
+                else:
+                    estimator, best_summary, rows = run_candidate_search(
+                        development,
+                        horizon,
+                        refinement_round,
+                        model_name,
+                        feature_columns,
+                        splits,
+                        profile,
+                    )
                 candidate_rows.extend(rows)
                 best_candidates.append((estimator, best_summary, development, splits))
 
-        estimator, best_summary, development, splits = max(
-            best_candidates,
-            key=lambda item: (
-                item[1]["cv_balanced_accuracy"],
-                item[1]["cv_mcc"],
-                item[1]["cv_macro_f1"],
-            ),
-        )
+        if profile == OFFICIAL_PROFILE:
+            ranked_candidates = sorted(best_candidates, key=lambda item: _official_candidate_sort_key(item[1]))
+            estimator, best_summary, development, splits = ranked_candidates[0]
+            top_score = float(best_summary["cv_balanced_accuracy"])
+            confidence_set = [
+                str(item[1]["model_name"])
+                for item in ranked_candidates
+                if top_score - float(item[1]["cv_balanced_accuracy"])
+                <= float(selection_policy["minimum_practical_balanced_accuracy_gain"])
+            ]
+            best_summary["official_confidence_set"] = confidence_set
+            best_summary["official_ranked_candidates"] = [
+                {
+                    "model_name": str(item[1]["model_name"]),
+                    "cv_balanced_accuracy": float(item[1]["cv_balanced_accuracy"]),
+                    "cv_mcc": float(item[1]["cv_mcc"]),
+                    "cv_macro_f1": float(item[1]["cv_macro_f1"]),
+                    "cv_seed_balanced_accuracy_std": float(
+                        item[1].get("cv_seed_balanced_accuracy_std", 0.0)
+                    ),
+                }
+                for item in ranked_candidates
+            ]
+        else:
+            estimator, best_summary, development, splits = max(
+                best_candidates,
+                key=lambda item: (
+                    item[1]["cv_balanced_accuracy"],
+                    item[1]["cv_mcc"],
+                    item[1]["cv_macro_f1"],
+                ),
+            )
         refinement_round = int(best_summary["refinement_round"])
         feature_columns = list(best_summary["feature_columns"])
         input_columns = list(best_summary["input_columns"])
@@ -969,49 +1314,69 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
         test_metrics = calculate_metrics(y_test, predictions, probability_up)
 
         baseline_predictions = build_baseline_predictions(development, test, horizon)
-        evaluated_baselines: List[tuple[str, Dict[str, float]]] = []
-        for baseline_name, baseline_pred in baseline_predictions.items():
-            metrics = calculate_metrics(y_test, baseline_pred)
-            evaluated_baselines.append((baseline_name, metrics))
-            baseline_rows.append(
-                {"horizon_days": horizon, "baseline_name": baseline_name, **metrics}
+        development_baselines = build_baseline_predictions(development, development, horizon)
+        development_baseline_metrics = [
+            (
+                baseline_name,
+                calculate_metrics(
+                    development[f"Target_{horizon}D"].astype(int),
+                    baseline_pred,
+                ),
             )
-        strongest_baseline_name, strongest_baseline_metrics = max(
-            evaluated_baselines,
+            for baseline_name, baseline_pred in development_baselines.items()
+        ]
+        strongest_baseline_name, strongest_development_baseline_metrics = max(
+            development_baseline_metrics,
             key=lambda item: (
                 item[1]["balanced_accuracy"],
                 item[1]["mcc"],
                 item[1]["macro_f1"],
             ),
         )
+        strongest_baseline_predictions = baseline_predictions[strongest_baseline_name]
+        strongest_baseline_metrics = calculate_metrics(y_test, strongest_baseline_predictions)
+        for baseline_name, baseline_pred in baseline_predictions.items():
+            baseline_metrics = calculate_metrics(y_test, baseline_pred)
+            baseline_rows.append(
+                {"horizon_days": horizon, "baseline_name": baseline_name, **baseline_metrics}
+            )
 
-        stability_passed = bool(best_summary.get("cv_positive_mcc_folds", 0) >= 4)
+        acceptance = evaluate_acceptance(
+            horizon=horizon,
+            y_true=y_test,
+            predictions=predictions,
+            probability_up=probability_up,
+            baseline_predictions=strongest_baseline_predictions,
+            dates=test["Date"].to_numpy(),
+            metrics=test_metrics,
+            baseline_metrics=strongest_baseline_metrics,
+            oof_metrics=oof_metrics,
+            cv_positive_mcc_folds=int(best_summary.get("cv_positive_mcc_folds", 0)),
+            phase="observed",
+        )
+        stability_passed = bool(acceptance["accepted_checks"]["development_stability"])
         threshold_constraints_passed = bool(
-            oof_metrics.get("threshold_constraints_passed", False)
+            acceptance["accepted_checks"]["threshold_constraints"]
         )
         test_directional_balance_passed = bool(
-            test_metrics["recall"] >= MIN_DIRECTION_RECALL
-            and test_metrics["specificity"] >= MIN_DIRECTION_RECALL
-            and MIN_PREDICTED_CLASS_SHARE
-            <= test_metrics["predicted_up_rate"]
-            <= MAX_PREDICTED_CLASS_SHARE
+            acceptance["accepted_checks"]["directional_recall"]
+            and acceptance["accepted_checks"]["predicted_class_share"]
         )
-        threshold_passed = bool(
-            test_metrics["balanced_accuracy"]
-            >= strongest_baseline_metrics["balanced_accuracy"] + MIN_BALANCED_ACCURACY_GAIN
-            and test_metrics["mcc"] > 0
-            and test_metrics["macro_f1"] >= strongest_baseline_metrics["macro_f1"]
-            and stability_passed
-            and threshold_constraints_passed
-            and test_directional_balance_passed
-        )
-        status = "accepted" if threshold_passed else "experimental"
+        threshold_passed = acceptance["status"] == "accepted"
+        status = str(acceptance["status"])
 
-        model_path = MODELS_DIR / f"stock-trend-{horizon}d-{run_id}.joblib"
+        model_path = artifact_dir / f"stock-trend-{horizon}d-{run_id}.joblib"
         _atomic_joblib(artifact, model_path)
+        artifact_sha256 = hash_file(model_path)
         report_path, matrix_path = _save_horizon_reports(horizon, y_test, predictions)
 
-        for ticker, ticker_frame in test.assign(_prediction=predictions, _probability=probability_up).groupby(
+        ticker_acceptance: Dict[str, Dict[str, Any]] = {}
+        evaluated_test = test.assign(
+            _prediction=predictions,
+            _probability=probability_up,
+            _baseline=strongest_baseline_predictions,
+        )
+        for ticker, ticker_frame in evaluated_test.groupby(
             "Ticker"
         ):
             ticker_metrics = calculate_metrics(
@@ -1019,8 +1384,37 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
                 ticker_frame["_prediction"].to_numpy(),
                 ticker_frame["_probability"].to_numpy(),
             )
+            ticker_baseline = ticker_frame["_baseline"].to_numpy()
+            ticker_acceptance_result = evaluate_acceptance(
+                horizon=horizon,
+                y_true=ticker_frame[target_column].astype(int).to_numpy(),
+                predictions=ticker_frame["_prediction"].to_numpy(),
+                probability_up=ticker_frame["_probability"].to_numpy(),
+                baseline_predictions=ticker_baseline,
+                dates=ticker_frame["Date"].to_numpy(),
+                metrics=ticker_metrics,
+                baseline_metrics=calculate_metrics(
+                    ticker_frame[target_column].astype(int).to_numpy(), ticker_baseline
+                ),
+                oof_metrics=oof_metrics,
+                cv_positive_mcc_folds=int(best_summary.get("cv_positive_mcc_folds", 0)),
+                phase="observed",
+                ticker=str(ticker),
+            )
+            ticker_status = weaker_status(status, str(ticker_acceptance_result["status"]))
+            ticker_acceptance_result["status"] = ticker_status
+            ticker_acceptance[str(ticker)] = ticker_acceptance_result
             per_ticker_rows.append(
-                {"horizon_days": horizon, "ticker": ticker, "rows": len(ticker_frame), **ticker_metrics}
+                {
+                    "horizon_days": horizon,
+                    "ticker": ticker,
+                    "rows": len(ticker_frame),
+                    "status": ticker_status,
+                    **ticker_metrics,
+                    "bootstrap_gain_lower": ticker_acceptance_result["bootstrap"]["lower"],
+                    "bootstrap_gain_upper": ticker_acceptance_result["bootstrap"]["upper"],
+                    "failed_checks": ";".join(ticker_acceptance_result["failed_checks"]),
+                }
             )
 
         summary = {
@@ -1037,6 +1431,16 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
             "cv_fold_balanced_accuracy": best_summary["cv_fold_balanced_accuracy"],
             "cv_fold_mcc": best_summary["cv_fold_mcc"],
             "cv_positive_mcc_folds": best_summary["cv_positive_mcc_folds"],
+            "cv_seed_balanced_accuracy": best_summary.get("cv_seed_balanced_accuracy"),
+            "cv_seed_mcc": best_summary.get("cv_seed_mcc"),
+            "cv_seed_macro_f1": best_summary.get("cv_seed_macro_f1"),
+            "cv_seed_balanced_accuracy_std": best_summary.get("cv_seed_balanced_accuracy_std"),
+            "official_confidence_set": best_summary.get("official_confidence_set"),
+            "official_ranked_candidates": best_summary.get("official_ranked_candidates"),
+            "positive_mcc_seed_fraction": best_summary.get("positive_mcc_seed_fraction"),
+            "official_seeds": best_summary.get("official_seeds"),
+            "fixed_hyperparameters": best_summary.get("fixed_hyperparameters", False),
+            "search_seed": best_summary.get("search_seed", RANDOM_STATE),
             "locked_threshold": artifact.threshold,
             "strongest_baseline": strongest_baseline_name,
             "baseline_balanced_accuracy": strongest_baseline_metrics["balanced_accuracy"],
@@ -1047,6 +1451,8 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
             "stability_passed": stability_passed,
             "threshold_constraints_passed": threshold_constraints_passed,
             "test_directional_balance_passed": test_directional_balance_passed,
+            "acceptance_policy_version": HORIZON_ACCEPTANCE_POLICY["policy_version"],
+            "acceptance": acceptance,
             "status": status,
             "model_path": str(model_path.relative_to(PROJECT_ROOT)),
             "report_path": str(report_path.relative_to(PROJECT_ROOT)),
@@ -1055,6 +1461,8 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
         summary_rows.append(summary)
         registry["horizons"][str(horizon)] = {
             "artifact_path": str(model_path.relative_to(PROJECT_ROOT)),
+            "artifact_sha256": artifact_sha256,
+            "training_run_id": run_id,
             "model_name": best_summary["model_name"],
             "refinement_round": refinement_round,
             "input_columns": input_columns,
@@ -1062,6 +1470,10 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
             "calibrated": True,
             "decision_threshold": artifact.threshold,
             "threshold_passed": threshold_passed,
+            "global_status": status,
+            "observed_acceptance": acceptance,
+            "shadow_acceptance": None,
+            "ticker_acceptance": ticker_acceptance,
             "stability_passed": stability_passed,
             "threshold_constraints_passed": threshold_constraints_passed,
             "test_directional_balance_passed": test_directional_balance_passed,
@@ -1072,9 +1484,20 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
             "cv_positive_mcc_folds": best_summary["cv_positive_mcc_folds"],
             "status": status,
             "strongest_baseline": strongest_baseline_name,
+            "baseline_majority_class": int(
+                development[f"Target_{horizon}D"].astype(int).mean() >= 0.5
+            ),
             "metrics": test_metrics,
             "baseline_metrics": strongest_baseline_metrics,
             "oof_metrics": oof_metrics,
+            "official_selection": {
+                "confidence_set": best_summary.get("official_confidence_set"),
+                "ranked_candidates": best_summary.get("official_ranked_candidates"),
+                "positive_mcc_seed_fraction": best_summary.get("positive_mcc_seed_fraction"),
+                "seed_balanced_accuracy_std": best_summary.get("cv_seed_balanced_accuracy_std"),
+                "fixed_hyperparameters": best_summary.get("fixed_hyperparameters", False),
+                "manual_promotion_required": bool(profile == OFFICIAL_PROFILE),
+            }
         }
         print(
             f"{horizon}D champion: {best_summary['model_name']} round {refinement_round}; "
@@ -1085,8 +1508,143 @@ def run_training_pipeline(search_profile: str | None = None) -> None:
     _atomic_csv(pd.DataFrame(baseline_rows), BASELINE_FILE)
     _atomic_csv(pd.DataFrame(per_ticker_rows), PER_TICKER_FILE)
     _atomic_csv(pd.DataFrame(summary_rows), SUMMARY_FILE)
-    _atomic_json(registry, REGISTRY_FILE)
-    print(f"\nModel registry saved to: {REGISTRY_FILE}")
+    bundle_dir = RESULTS_DIR / "training-runs" / run_id
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    bundle_files = [SUMMARY_FILE, CANDIDATE_FILE, BASELINE_FILE, PER_TICKER_FILE]
+    for source in bundle_files:
+        shutil.copy2(source, bundle_dir / source.name)
+    registry["report_bundle_path"] = str(bundle_dir.relative_to(PROJECT_ROOT))
+    registry["provenance"] = {
+        "dataset_sha256": dataset_hash,
+        "artifact_sha256": {str(h): value.get("artifact_sha256") for h, value in registry["horizons"].items()},
+        "report_sha256": {source.name: hash_file(bundle_dir / source.name) for source in bundle_files},
+        "publication_status": registry["publication_status"],
+        "training_code_sha256": hash_file(Path(__file__).resolve()),
+        "python_version": os.sys.version,
+        "package_versions": {
+            package: _installed_version(package)
+            for package in ("numpy", "pandas", "scikit-learn", "xgboost", "lightgbm", "catboost")
+        },
+    }
+    _atomic_json(registry, registry_target)
+    (bundle_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "registry_signature": hash_file(registry_target),
+                "dataset_sha256": dataset_hash,
+                "artifacts": registry["provenance"]["artifact_sha256"],
+                "reports": registry["provenance"]["report_sha256"],
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    print(f"\nModel registry saved to: {registry_target}")
+    return registry_target
+
+
+def _staged_registry_path(run_id: str) -> Path:
+    path = STAGED_RUNS_DIR / run_id / "model-registry.json"
+    if not path.exists():
+        raise FileNotFoundError(f"No staged official run found for run id: {run_id}")
+    return path
+
+
+def promote_stock_models(run_id: str, horizons: Sequence[int] | None = None, *, approve: bool = False) -> Path:
+    """Promote a reviewed staged official run and retain rollback metadata."""
+    if not approve:
+        raise PermissionError("Promotion is manual: pass --approve after reviewing the shadow report")
+    staged_path = _staged_registry_path(run_id)
+    staged = json.loads(staged_path.read_text(encoding="utf-8"))
+    if staged.get("search_profile") != OFFICIAL_PROFILE:
+        raise ValueError("Only official profile runs may be promoted")
+    selected_horizons = [str(value) for value in (horizons or TARGET_HORIZONS)]
+    missing = [horizon for horizon in selected_horizons if horizon not in staged.get("horizons", {})]
+    if missing:
+        raise ValueError(f"Staged run has no horizon entries for: {', '.join(missing)}")
+    shadow = staged.get("shadow_evaluation", {})
+    policy = staged.get("selection_policy", {})
+    if policy.get("requires_prospective_shadow", True):
+        if shadow.get("phase") != "prospective_shadow":
+            raise ValueError("Official promotion requires a prospective shadow evaluation")
+        minimum_sessions = int(policy.get("minimum_matured_shadow_sessions", 100))
+        for horizon in selected_horizons:
+            shadow_result = staged["horizons"][horizon].get("shadow_acceptance") or {}
+            if int(shadow_result.get("rows", 0)) < minimum_sessions:
+                raise ValueError(
+                    f"{horizon}D has only {shadow_result.get('rows', 0)} matured shadow sessions; "
+                    f"{minimum_sessions} are required before promotion"
+                )
+
+    backup_dir = MODELS_DIR / "registry-backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    if REGISTRY_FILE.exists():
+        shutil.copy2(REGISTRY_FILE, backup_dir / f"model-registry-{datetime.now().strftime('%Y%m%dT%H%M%S%f')}.json")
+
+    existing = json.loads(REGISTRY_FILE.read_text(encoding="utf-8")) if REGISTRY_FILE.exists() else {}
+    production = dict(staged if len(selected_horizons) == len(TARGET_HORIZONS) else existing)
+    if not production:
+        production = dict(staged)
+    production["publication_status"] = "validated"
+    production["promotion_required"] = False
+    production["promoted_at"] = datetime.now().isoformat(timespec="seconds")
+    production["promoted_from_run_id"] = run_id
+    production["promotion_approval"] = "manual --approve"
+    production_horizons = dict(production.get("horizons", {}))
+    for horizon in selected_horizons:
+        entry = dict(production_horizons[horizon])
+        source = PROJECT_ROOT / entry["artifact_path"]
+        if not source.exists():
+            raise FileNotFoundError(f"Staged artifact is missing: {source}")
+        destination = MODELS_DIR / f"stock-trend-{horizon}d-{run_id}.joblib"
+        shutil.copy2(source, destination)
+        entry["artifact_path"] = str(destination.relative_to(PROJECT_ROOT))
+        entry["artifact_sha256"] = hash_file(destination)
+        entry["training_run_id"] = run_id
+        production_horizons[horizon] = entry
+    production["horizons"] = production_horizons
+    _atomic_json(production, REGISTRY_FILE)
+    return REGISTRY_FILE
+
+
+def verify_stock_reproducibility(run_a: str, run_b: str) -> Dict[str, Any]:
+    """Compare two official manifests without changing production state."""
+    first = json.loads(_staged_registry_path(run_a).read_text(encoding="utf-8"))
+    second = json.loads(_staged_registry_path(run_b).read_text(encoding="utf-8"))
+    fields = (
+        "dataset_sha256",
+        "feature_schema_version",
+        "selection_policy_sha256",
+        "search_profile",
+        "search_plan",
+    )
+    mismatches = {
+        field: {"run_a": first.get(field), "run_b": second.get(field)}
+        for field in fields
+        if first.get(field) != second.get(field)
+    }
+    horizon_comparison: Dict[str, Any] = {}
+    for horizon in sorted(set(first.get("horizons", {})) | set(second.get("horizons", {}))):
+        a = first.get("horizons", {}).get(horizon, {})
+        b = second.get("horizons", {}).get(horizon, {})
+        horizon_comparison[horizon] = {
+            "same_model": a.get("model_name") == b.get("model_name"),
+            "same_features": a.get("numeric_feature_columns") == b.get("numeric_feature_columns"),
+            "same_threshold": a.get("decision_threshold") == b.get("decision_threshold"),
+            "artifact_sha256_equal": a.get("artifact_sha256") == b.get("artifact_sha256"),
+        }
+    return {
+        "run_a": run_a,
+        "run_b": run_b,
+        "specification_equal": not mismatches,
+        "mismatches": mismatches,
+        "horizons": horizon_comparison,
+        "reproducible_artifacts": all(
+            result["artifact_sha256_equal"] for result in horizon_comparison.values()
+        ),
+    }
 
 
 def main() -> None:

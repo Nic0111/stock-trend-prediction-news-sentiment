@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "development": {
+    "start": "2015-01-01",
+    "end": "2024-12-31",
+    "purpose": "model development and validation"
+  },
+  "frozen_observed_test": {
+    "start": "2025-01-01",
+    "end": "2025-12-31",
+    "purpose": "frozen holdout acceptance evaluation"
+  },
+  "consumed_shadow": {
+    "start": "2026-01-01",
+    "end": "2026-06-30",
+    "purpose": "already inspected forward shadow; diagnostic only",
+    "status": "consumed"
+  },
+  "prospective_shadow": {
+    "start": "2026-07-23",
+    "end": "2026-12-31",
+    "purpose": "untouched forward monitoring and final shadow evaluation",
+    "status": "locked"
+  }
+}
