@@ -1,0 +1,26 @@
+[
+  {
+    "id": "baseline",
+    "text_mode": "headline_lead",
+    "sampling_mode": "shuffle",
+    "loss_mode": "inverse_frequency_ce"
+  },
+  {
+    "id": "target-aware",
+    "text_mode": "target_aware",
+    "sampling_mode": "shuffle",
+    "loss_mode": "inverse_frequency_ce"
+  },
+  {
+    "id": "ticker-balanced",
+    "text_mode": "headline_lead",
+    "sampling_mode": "ticker_class_balanced",
+    "loss_mode": "inverse_frequency_ce"
+  },
+  {
+    "id": "balanced-focal",
+    "text_mode": "headline_lead",
+    "sampling_mode": "ticker_class_balanced",
+    "loss_mode": "effective_number_focal"
+  }
+]

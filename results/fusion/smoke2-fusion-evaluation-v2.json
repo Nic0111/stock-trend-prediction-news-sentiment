@@ -1,0 +1,666 @@
+{
+  "schema_version": "stocksense-fusion-evaluation-v2",
+  "created_at": "2026-08-19T13:19:17+00:00",
+  "claim_scope": "Retrospective evidence, 2019-2025",
+  "periods": {
+    "development": [
+      2019,
+      2023
+    ],
+    "calibration": [
+      2024,
+      2024
+    ],
+    "benchmark": [
+      2025,
+      2025
+    ]
+  },
+  "policy_sha256": "e9a3c6c9eb8d843fbb87821c7bd480273161380194f35ad25222b57214904c46",
+  "dataset_sha256": "c86011d5d46b43b9b0920e90bb4038375ee0d02a216522f8456bd754c3f63206",
+  "provenance": {
+    "dataset_sha256": "c86011d5d46b43b9b0920e90bb4038375ee0d02a216522f8456bd754c3f63206",
+    "policy_sha256": "e9a3c6c9eb8d843fbb87821c7bd480273161380194f35ad25222b57214904c46",
+    "active_stock_run_id": "20260813T221736188487",
+    "recorded_stock_run_ids": [],
+    "prediction_roles": [],
+    "stock_dataset_sha256": "838558e8092340a152c135965d0d149a6e20ad8cb056c182598fdd9dda56901f",
+    "recorded_stock_dataset_sha256": [],
+    "stock_feature_schema_sha256": [],
+    "sentiment_variant": "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1",
+    "recorded_sentiment_variants": [],
+    "sentiment_variant_sha256": "7553034e19a1679dc700b38d4de44deeed66186375317cd93fbac1edff403006",
+    "recorded_sentiment_variant_sha256": [],
+    "sentiment_component_artifacts_sha256": "ddd57cfc3d235106163935d6b78da1ffd907b4008ea456f76952110954826c42",
+    "recorded_sentiment_component_artifacts_sha256": [],
+    "sentiment_config_sha256": "b1c8c36966f442888a1d63d6a8be4433f12f8c26f7721f97007bc175c5218531",
+    "recorded_sentiment_config_sha256": [],
+    "article_corpus_sha256": [],
+    "news_aggregation_policy_sha256": [],
+    "feature_schema_versions": [
+      "point-in-time-news-features-v2"
+    ],
+    "checks": {
+      "scientific_nested_oof": false,
+      "scientific_oof_run_recorded": false,
+      "stock_dataset_hash_matches_active": false,
+      "stock_feature_schema_hash_recorded": false,
+      "sentiment_variant_matches_active": false,
+      "sentiment_variant_hash_matches_active": false,
+      "sentiment_component_hash_matches_active": false,
+      "sentiment_config_hash_matches_active": false,
+      "article_corpus_hash_recorded": false,
+      "aggregation_policy_hash_recorded": false,
+      "feature_schema_recorded": true
+    },
+    "strict_identity_passed": false
+  },
+  "arms": [
+    "frozen_stock",
+    "stock_meta",
+    "news_only",
+    "stock_plus_news",
+    "permuted_news_placebo"
+  ],
+  "horizons": {
+    "1": {
+      "benchmark_rows": 2430,
+      "news_present_rows": 358,
+      "ticker_count": 10,
+      "selected_window_days": 7,
+      "selected_half_life_days": 3.5,
+      "window_selection_status": "single_runtime_matched_variant",
+      "window_selection": {
+        "status": "single_runtime_matched_variant",
+        "trials": []
+      },
+      "arms": {
+        "frozen_stock": {
+          "metrics": {
+            "balanced_accuracy": 0.5192315040228819,
+            "macro_f1": 0.3592648970376958,
+            "mcc": 0.017139908473703364,
+            "brier_score": 0.24774061614511442,
+            "log_loss": 0.6886201846101052,
+            "ece": 0.014935414205867841,
+            "down_recall": 0.9946889226100152,
+            "up_recall": 0.008093525179856115,
+            "confusion_matrix": [
+              [
+                1311,
+                7
+              ],
+              [
+                1103,
+                9
+              ]
+            ],
+            "threshold": 0.5
+          }
+        },
+        "stock_meta": {
+          "metrics": {
+            "balanced_accuracy": 0.5269272442440585,
+            "macro_f1": 0.4963586957655711,
+            "mcc": 0.058758094132035414,
+            "brier_score": 0.2482236604422504,
+            "log_loss": 0.6895910297437836,
+            "ece": 0.029155045836364607,
+            "down_recall": 0.3209408194233687,
+            "up_recall": 0.7329136690647482,
+            "confusion_matrix": [
+              [
+                423,
+                895
+              ],
+              [
+                297,
+                815
+              ]
+            ],
+            "threshold": 0.475
+          },
+          "selected_parameters": {
+            "C": 0.01,
+            "l1_ratio": 0.5
+          }
+        },
+        "news_only": {
+          "metrics": {
+            "balanced_accuracy": 0.5,
+            "macro_f1": 0.35165421558164356,
+            "mcc": 0.0,
+            "brier_score": 0.24849067023380958,
+            "log_loss": 0.6901264721468668,
+            "ece": 0.016950330362738297,
+            "down_recall": 1.0,
+            "up_recall": 0.0,
+            "confusion_matrix": [
+              [
+                1318,
+                0
+              ],
+              [
+                1112,
+                0
+              ]
+            ],
+            "threshold": 0.5
+          },
+          "selected_parameters": {
+            "C": 0.01,
+            "l1_ratio": 1.0
+          }
+        },
+        "stock_plus_news": {
+          "metrics": {
+            "balanced_accuracy": 0.5271380770952282,
+            "macro_f1": 0.49594326699261604,
+            "mcc": 0.05936239558181363,
+            "brier_score": 0.24835351288661234,
+            "log_loss": 0.6898508112651315,
+            "ece": 0.02962657552310923,
+            "down_recall": 0.3186646433990895,
+            "up_recall": 0.7356115107913669,
+            "confusion_matrix": [
+              [
+                420,
+                898
+              ],
+              [
+                294,
+                818
+              ]
+            ],
+            "threshold": 0.475
+          },
+          "selected_parameters": {
+            "C": 0.01,
+            "l1_ratio": 0.5
+          }
+        },
+        "permuted_news_placebo": {
+          "summary": {
+            "iterations": 1,
+            "actual_percentile": 0.0,
+            "mean": 7.571514439086435e-06,
+            "p95": 7.571514439086435e-06
+          }
+        }
+      },
+      "brier_improvement": -0.00012985244436194976,
+      "balanced_accuracy_gain": 0.00021083285116973993,
+      "selected_news_log_odds_cap": 0.25,
+      "news_log_odds_cap_trials": [
+        {
+          "cap": 0.25,
+          "mean_development_brier": 0.24887057416777486
+        },
+        {
+          "cap": 0.5,
+          "mean_development_brier": 0.2488739827309165
+        },
+        {
+          "cap": 0.75,
+          "mean_development_brier": 0.2488739827309165
+        },
+        {
+          "cap": 1.0,
+          "mean_development_brier": 0.2488739827309165
+        }
+      ],
+      "bootstrap": {
+        "block_trading_sessions": 5,
+        "iterations": 25,
+        "brier_improvement": {
+          "lower": -0.0003218040462894145,
+          "median": -0.00011255544492796976,
+          "upper": 3.12104489381404e-05
+        },
+        "balanced_accuracy_gain": {
+          "lower": -0.0021804905633588945,
+          "median": 0.0004288104866825293,
+          "upper": 0.0020322304648570317
+        }
+      },
+      "clark_west": {
+        "statistic": -1.7368037205832103,
+        "one_sided_p_value": 0.9587890889391038
+      },
+      "placebo": {
+        "iterations": 1,
+        "actual_percentile": 0.0,
+        "mean": 7.571514439086435e-06,
+        "p95": 7.571514439086435e-06,
+        "distribution": [
+          7.571514439086435e-06
+        ]
+      },
+      "calibration": {
+        "stock_meta": {
+          "curve": [
+            {
+              "predicted": 0.47804421594153035,
+              "observed": 0.45028932140978434,
+              "rows": 1901
+            },
+            {
+              "predicted": 0.5181185385208258,
+              "observed": 0.4839319470699433,
+              "rows": 529
+            }
+          ],
+          "intercept": -0.0993169314298651,
+          "slope": 1.3418048891901386
+        },
+        "stock_plus_news": {
+          "curve": [
+            {
+              "predicted": 0.47808192196397353,
+              "observed": 0.4529505582137161,
+              "rows": 1881
+            },
+            {
+              "predicted": 0.5186165451856488,
+              "observed": 0.47358834244080145,
+              "rows": 549
+            }
+          ],
+          "intercept": -0.10837312500760225,
+          "slope": 1.2129201339554363
+        }
+      },
+      "rolling_origins": [],
+      "news_coefficient_stability": {
+        "folds": 5,
+        "features": {
+          "gated_sentiment": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "gated_positive_share": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "gated_neutral_share": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "gated_negative_share": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "gated_sentiment_dispersion": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "gated_conflict": {
+            "mean": 0.001292687214665732,
+            "standard_deviation": 0.00289053648563744,
+            "nonzero_fold_share": 0.2,
+            "sign_consistency": 1.0
+          },
+          "gated_log_article_count": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "gated_log_event_count": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "gated_log_source_count": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "gated_volume_surprise": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "gated_sentiment_surprise": {
+            "mean": 0.00047268228545983154,
+            "standard_deviation": 0.0010569497220481437,
+            "nonzero_fold_share": 0.2,
+            "sign_consistency": 1.0
+          },
+          "gated_newest_age": {
+            "mean": 0.005866596468784205,
+            "standard_deviation": 0.011129314359973212,
+            "nonzero_fold_share": 0.4,
+            "sign_consistency": 1.0
+          },
+          "gated_mean_age": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "gated_stock_news_agreement": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "reliability_x_stock_uncertainty": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "news_available": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          },
+          "news_reliability": {
+            "mean": 0.0,
+            "standard_deviation": 0.0,
+            "nonzero_fold_share": 0.0,
+            "sign_consistency": 1.0
+          }
+        },
+        "fold_coefficients": [
+          {
+            "fold": 1.0,
+            "gated_sentiment": 0.0,
+            "gated_positive_share": 0.0,
+            "gated_neutral_share": 0.0,
+            "gated_negative_share": 0.0,
+            "gated_sentiment_dispersion": 0.0,
+            "gated_conflict": 0.0,
+            "gated_log_article_count": 0.0,
+            "gated_log_event_count": 0.0,
+            "gated_log_source_count": 0.0,
+            "gated_volume_surprise": 0.0,
+            "gated_sentiment_surprise": 0.0,
+            "gated_newest_age": 0.0,
+            "gated_mean_age": 0.0,
+            "gated_stock_news_agreement": 0.0,
+            "reliability_x_stock_uncertainty": 0.0,
+            "news_available": 0.0,
+            "news_reliability": 0.0
+          },
+          {
+            "fold": 2.0,
+            "gated_sentiment": 0.0,
+            "gated_positive_share": 0.0,
+            "gated_neutral_share": 0.0,
+            "gated_negative_share": 0.0,
+            "gated_sentiment_dispersion": 0.0,
+            "gated_conflict": 0.0,
+            "gated_log_article_count": 0.0,
+            "gated_log_event_count": 0.0,
+            "gated_log_source_count": 0.0,
+            "gated_volume_surprise": 0.0,
+            "gated_sentiment_surprise": 0.0,
+            "gated_newest_age": 0.0,
+            "gated_mean_age": 0.0,
+            "gated_stock_news_agreement": 0.0,
+            "reliability_x_stock_uncertainty": 0.0,
+            "news_available": 0.0,
+            "news_reliability": 0.0
+          },
+          {
+            "fold": 3.0,
+            "gated_sentiment": 0.0,
+            "gated_positive_share": 0.0,
+            "gated_neutral_share": 0.0,
+            "gated_negative_share": 0.0,
+            "gated_sentiment_dispersion": 0.0,
+            "gated_conflict": 0.0,
+            "gated_log_article_count": 0.0,
+            "gated_log_event_count": 0.0,
+            "gated_log_source_count": 0.0,
+            "gated_volume_surprise": 0.0,
+            "gated_sentiment_surprise": 0.0,
+            "gated_newest_age": 0.025559594415200913,
+            "gated_mean_age": 0.0,
+            "gated_stock_news_agreement": 0.0,
+            "reliability_x_stock_uncertainty": 0.0,
+            "news_available": 0.0,
+            "news_reliability": 0.0
+          },
+          {
+            "fold": 4.0,
+            "gated_sentiment": 0.0,
+            "gated_positive_share": 0.0,
+            "gated_neutral_share": 0.0,
+            "gated_negative_share": 0.0,
+            "gated_sentiment_dispersion": 0.0,
+            "gated_conflict": 0.0,
+            "gated_log_article_count": 0.0,
+            "gated_log_event_count": 0.0,
+            "gated_log_source_count": 0.0,
+            "gated_volume_surprise": 0.0,
+            "gated_sentiment_surprise": 0.0,
+            "gated_newest_age": 0.003773387928720111,
+            "gated_mean_age": 0.0,
+            "gated_stock_news_agreement": 0.0,
+            "reliability_x_stock_uncertainty": 0.0,
+            "news_available": 0.0,
+            "news_reliability": 0.0
+          },
+          {
+            "fold": 5.0,
+            "gated_sentiment": 0.0,
+            "gated_positive_share": 0.0,
+            "gated_neutral_share": 0.0,
+            "gated_negative_share": 0.0,
+            "gated_sentiment_dispersion": 0.0,
+            "gated_conflict": 0.00646343607332866,
+            "gated_log_article_count": 0.0,
+            "gated_log_event_count": 0.0,
+            "gated_log_source_count": 0.0,
+            "gated_volume_surprise": 0.0,
+            "gated_sentiment_surprise": 0.0023634114272991576,
+            "gated_newest_age": 0.0,
+            "gated_mean_age": 0.0,
+            "gated_stock_news_agreement": 0.0,
+            "reliability_x_stock_uncertainty": 0.0,
+            "news_available": 0.0,
+            "news_reliability": 0.0
+          }
+        ]
+      },
+      "subgroups": {
+        "coverage": {
+          "High": {
+            "rows": 8,
+            "stock_balanced_accuracy": 0.5,
+            "fusion_balanced_accuracy": 0.5,
+            "gain": 0.0
+          },
+          "Low": {
+            "rows": 275,
+            "stock_balanced_accuracy": 0.5433333333333333,
+            "fusion_balanced_accuracy": 0.5386666666666666,
+            "gain": -0.004666666666666708
+          },
+          "Medium": {
+            "rows": 75,
+            "stock_balanced_accuracy": 0.48917748917748916,
+            "fusion_balanced_accuracy": 0.5173160173160174,
+            "gain": 0.02813852813852824
+          },
+          "Unavailable": {
+            "rows": 2072,
+            "stock_balanced_accuracy": 0.5263439347030678,
+            "fusion_balanced_accuracy": 0.5263439347030678,
+            "gain": 0.0
+          }
+        },
+        "agreement": {
+          "Agree": {
+            "rows": 122,
+            "stock_balanced_accuracy": 0.5403050108932461,
+            "fusion_balanced_accuracy": 0.5329520697167756,
+            "gain": -0.007352941176470562
+          },
+          "Balanced": {
+            "rows": 102,
+            "stock_balanced_accuracy": 0.5126923076923077,
+            "fusion_balanced_accuracy": 0.5034615384615384,
+            "gain": -0.009230769230769265
+          },
+          "Conflict": {
+            "rows": 134,
+            "stock_balanced_accuracy": 0.5251831501831502,
+            "fusion_balanced_accuracy": 0.5505952380952381,
+            "gain": 0.025412087912087933
+          },
+          "Unavailable": {
+            "rows": 2072,
+            "stock_balanced_accuracy": 0.5263439347030678,
+            "fusion_balanced_accuracy": 0.5263439347030678,
+            "gain": 0.0
+          }
+        },
+        "news_reliability": {
+          "0-25%": {
+            "rows": 306,
+            "stock_balanced_accuracy": 0.5347676419965577,
+            "fusion_balanced_accuracy": 0.5377796901893288,
+            "gain": 0.003012048192771122
+          },
+          "25-50%": {
+            "rows": 45,
+            "stock_balanced_accuracy": 0.5172064777327935,
+            "fusion_balanced_accuracy": 0.5192307692307693,
+            "gain": 0.002024291497975783
+          },
+          "50-75%": {
+            "rows": 6,
+            "stock_balanced_accuracy": 0.5,
+            "fusion_balanced_accuracy": 0.5,
+            "gain": 0.0
+          },
+          "Unavailable": {
+            "rows": 2072,
+            "stock_balanced_accuracy": 0.5263439347030678,
+            "fusion_balanced_accuracy": 0.5263439347030678,
+            "gain": 0.0
+          }
+        },
+        "stock_confidence": {
+          "0-25%": {
+            "rows": 2430,
+            "stock_balanced_accuracy": 0.5269272442440585,
+            "fusion_balanced_accuracy": 0.5271380770952282,
+            "gain": 0.00021083285116973993
+          }
+        }
+      },
+      "error_transitions": {
+        "news_corrected_stock": 7,
+        "news_harmed_stock": 7,
+        "both_correct": 1231,
+        "both_wrong": 1185
+      },
+      "per_company": {
+        "1023.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5194633152173913,
+          "fusion_balanced_accuracy": 0.5242527173913043,
+          "gain": 0.004789402173912993
+        },
+        "1155.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5341051314142679,
+          "fusion_balanced_accuracy": 0.5376512307050479,
+          "gain": 0.0035460992907800915
+        },
+        "1295.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5404068169323804,
+          "fusion_balanced_accuracy": 0.5330538757559098,
+          "gain": -0.007352941176470562
+        },
+        "3816.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5547651463580667,
+          "fusion_balanced_accuracy": 0.5553437712729749,
+          "gain": 0.0005786249149081213
+        },
+        "4677.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5140464798359535,
+          "fusion_balanced_accuracy": 0.5140464798359535,
+          "gain": 0.0
+        },
+        "5183.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.4794405594405594,
+          "fusion_balanced_accuracy": 0.4794405594405594,
+          "gain": 0.0
+        },
+        "5225.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5092128437881046,
+          "fusion_balanced_accuracy": 0.5092128437881046,
+          "gain": 0.0
+        },
+        "5347.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.550492948103519,
+          "fusion_balanced_accuracy": 0.550492948103519,
+          "gain": 0.0
+        },
+        "6947.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5388001638001638,
+          "fusion_balanced_accuracy": 0.5388001638001638,
+          "gain": 0.0
+        },
+        "8869.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5131097560975609,
+          "fusion_balanced_accuracy": 0.5131097560975609,
+          "gain": 0.0
+        }
+      },
+      "acceptance_checks": {
+        "minimum_rows": true,
+        "all_tickers": true,
+        "brier_improves": false,
+        "brier_bootstrap_lower_above_zero": false,
+        "balanced_accuracy_gain": false,
+        "balanced_accuracy_lower_non_negative": false,
+        "macro_f1_not_materially_worse": true,
+        "ece_not_materially_worse": true,
+        "placebo_percentile": false,
+        "rolling_year_consistency": false,
+        "rolling_origin_evaluation_complete": false,
+        "median_company_gain_non_negative": true,
+        "company_non_deterioration": true,
+        "no_large_company_loss": true,
+        "strict_artifact_identity": false,
+        "holm_adjusted_significance": false
+      },
+      "artifact_path": "models\\fusion\\staged-v2\\smoke2-fusion-evaluation-v2-c86011d5d46b-e9a3c6c9eb8d\\fusion-v2-1d.joblib",
+      "holm_adjusted_clark_west_p_value": 0.9587890889391038,
+      "accepted": false,
+      "artifact_sha256": "be10e6d79ed58758b01a435d06532d92e474e2131e4957115e384a3bbf005548"
+    }
+  },
+  "overall_all_horizon_accepted": false,
+  "complete_horizon_set": false,
+  "runtime_action": "retain_stock_led_runtime"
+}

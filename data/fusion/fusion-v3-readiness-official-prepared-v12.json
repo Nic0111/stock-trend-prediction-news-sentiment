@@ -1,0 +1,350 @@
+{
+  "schema_version": "fusion-v3-readiness-preflight-v1",
+  "created_at": "2026-08-22T15:38:45+00:00",
+  "claim_scope": "Retrospective evidence, 2019-2025",
+  "policy_sha256": "678363d07d00bbf88b48cb062ef48469484dfd726860f95be97f1c3a27b7f348",
+  "dataset_sha256": "963473220e7d7e484d38243dceb9e4310297a141438bec557d8b60eb660ede04",
+  "provenance": {
+    "dataset_sha256": "963473220e7d7e484d38243dceb9e4310297a141438bec557d8b60eb660ede04",
+    "policy_sha256": "678363d07d00bbf88b48cb062ef48469484dfd726860f95be97f1c3a27b7f348",
+    "active_stock_run_id": "20260813T221736188487",
+    "stock_dataset_sha256": "838558e8092340a152c135965d0d149a6e20ad8cb056c182598fdd9dda56901f",
+    "scientific_stock_oof_run_ids": [
+      "scientific-oof-25d0e43cc50f-838558e80923"
+    ],
+    "stock_feature_schema_sha256": [
+      "b2f8ed2354d6da3cd08f0e2ed580ec007301ba8e20bf77b7799bedc686fdc782",
+      "efb9746ca4ba6e1c5346718dc67b8a8d6d39eced322348089fb61af66dddbaf1"
+    ],
+    "sentiment_variant": "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1",
+    "sentiment_config_sha256": "b1c8c36966f442888a1d63d6a8be4433f12f8c26f7721f97007bc175c5218531",
+    "checks": {
+      "feature_schema_v4": true,
+      "scientific_nested_oof": true,
+      "stock_run_recorded": true,
+      "stock_feature_schema_recorded": true,
+      "stock_dataset_matches_active": true,
+      "sentiment_variant_matches_active": true,
+      "sentiment_config_matches_active": true,
+      "article_level_sentiment_identity_verified": true,
+      "article_corpus_hash_recorded": true,
+      "aggregation_policy_hash_recorded": true
+    },
+    "strict_identity_passed": true
+  },
+  "horizons": {
+    "1": {
+      "selected_window_days": 5.0,
+      "selected_half_life_days": 1.25,
+      "selected_configuration": {
+        "family": "ridge",
+        "penalty_strength": 10.0,
+        "l1_ratio": 0.0,
+        "adjustment_cap": 0.1,
+        "development_brier_improvement": -5.316289772849814e-05,
+        "development_brier": 0.2458036286062281,
+        "fold_brier_improvements": [
+          6.54267185572488e-05,
+          -0.00031585488131091743,
+          2.930607090667614e-06,
+          -5.51293822264598e-05,
+          3.7125208739163806e-05
+        ],
+        "development_improvement_standard_error": 6.869237449646835e-05,
+        "validation_rows": 10134,
+        "news_present_validation_rows": 5009,
+        "selection_rule": "purged-development-one-standard-error-ridge-preference",
+        "best_development_brier_improvement": -4.28869162085177e-05
+      },
+      "development_rows": 12172,
+      "calibration_rows": 2457,
+      "benchmark_rows": 2430,
+      "window_trial_count": 7,
+      "readiness": {
+        "checks": {
+          "minimum_news_present_benchmark_rows": true,
+          "minimum_news_present_per_company_horizon": true,
+          "minimum_unique_material_events_per_company": true,
+          "development_power": true
+        },
+        "passed": true,
+        "news_present_benchmark_rows": 1427,
+        "news_present_by_company": {
+          "1023.KL": 95,
+          "1155.KL": 243,
+          "1295.KL": 50,
+          "3816.KL": 240,
+          "4677.KL": 69,
+          "5183.KL": 33,
+          "5225.KL": 243,
+          "5347.KL": 63,
+          "6947.KL": 166,
+          "8869.KL": 225
+        },
+        "unique_material_events_by_company": {
+          "1023.KL": 157,
+          "1155.KL": 2318,
+          "1295.KL": 107,
+          "3816.KL": 941,
+          "4677.KL": 108,
+          "5183.KL": 152,
+          "5225.KL": 860,
+          "5347.KL": 104,
+          "6947.KL": 719,
+          "8869.KL": 523
+        },
+        "requirements": {
+          "news_present_benchmark_rows": 300,
+          "news_present_per_company_horizon": 20,
+          "unique_material_events_per_company": 100,
+          "minimum_power": 0.8
+        },
+        "evidence_gaps": {
+          "news_present_benchmark_rows": 0,
+          "news_present_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 0,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          },
+          "unique_material_events_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 0,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          }
+        },
+        "power_analysis": {
+          "power": 1.0,
+          "rows": 5009,
+          "minimum_effect": 0.0025,
+          "standard_error": 9.696888071992183e-05,
+          "estimated_rows_for_80_percent_power": 60
+        }
+      }
+    },
+    "5": {
+      "selected_window_days": 7.0,
+      "selected_half_life_days": 3.5,
+      "selected_configuration": {
+        "family": "ridge",
+        "penalty_strength": 10.0,
+        "l1_ratio": 0.0,
+        "adjustment_cap": 0.1,
+        "development_brier_improvement": -4.4617485804532286e-05,
+        "development_brier": 0.24975327833859284,
+        "fold_brier_improvements": [
+          0.0017373775452547424,
+          0.00029231016077432836,
+          -0.0012726441544312073,
+          -0.0003143040931451735,
+          -0.0006606523318560265
+        ],
+        "development_improvement_standard_error": 0.0005123134036471652,
+        "validation_rows": 10104,
+        "news_present_validation_rows": 5464,
+        "selection_rule": "purged-development-one-standard-error-ridge-preference",
+        "best_development_brier_improvement": 5.7751248539461564e-05
+      },
+      "development_rows": 12132,
+      "calibration_rows": 2417,
+      "benchmark_rows": 2390,
+      "window_trial_count": 6,
+      "readiness": {
+        "checks": {
+          "minimum_news_present_benchmark_rows": true,
+          "minimum_news_present_per_company_horizon": true,
+          "minimum_unique_material_events_per_company": true,
+          "development_power": true
+        },
+        "passed": true,
+        "news_present_benchmark_rows": 1512,
+        "news_present_by_company": {
+          "1023.KL": 110,
+          "1155.KL": 239,
+          "1295.KL": 62,
+          "3816.KL": 238,
+          "4677.KL": 91,
+          "5183.KL": 46,
+          "5225.KL": 239,
+          "5347.KL": 76,
+          "6947.KL": 181,
+          "8869.KL": 230
+        },
+        "unique_material_events_by_company": {
+          "1023.KL": 157,
+          "1155.KL": 2309,
+          "1295.KL": 107,
+          "3816.KL": 938,
+          "4677.KL": 108,
+          "5183.KL": 152,
+          "5225.KL": 856,
+          "5347.KL": 104,
+          "6947.KL": 717,
+          "8869.KL": 523
+        },
+        "requirements": {
+          "news_present_benchmark_rows": 300,
+          "news_present_per_company_horizon": 20,
+          "unique_material_events_per_company": 100,
+          "minimum_power": 0.8
+        },
+        "evidence_gaps": {
+          "news_present_benchmark_rows": 0,
+          "news_present_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 0,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          },
+          "unique_material_events_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 0,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          }
+        },
+        "power_analysis": {
+          "power": 0.9999999933821874,
+          "rows": 5464,
+          "minimum_effect": 0.0025,
+          "standard_error": 0.00032709845129940974,
+          "estimated_rows_for_80_percent_power": 735
+        }
+      }
+    },
+    "10": {
+      "selected_window_days": 7.0,
+      "selected_half_life_days": 1.75,
+      "selected_configuration": {
+        "family": "ridge",
+        "penalty_strength": 10.0,
+        "l1_ratio": 0.0,
+        "adjustment_cap": 0.1,
+        "development_brier_improvement": 4.709599066665682e-05,
+        "development_brier": 0.25133997878354325,
+        "fold_brier_improvements": [
+          0.0021289323904480906,
+          -0.0003791936069398316,
+          -0.0014371617684010296,
+          0.00032181258925381706,
+          -0.00039088841485251935
+        ],
+        "development_improvement_standard_error": 0.0005910191787415355,
+        "validation_rows": 10064,
+        "news_present_validation_rows": 5451,
+        "selection_rule": "purged-development-one-standard-error-ridge-preference",
+        "best_development_brier_improvement": 5.218172856458203e-05
+      },
+      "development_rows": 12082,
+      "calibration_rows": 2367,
+      "benchmark_rows": 2340,
+      "window_trial_count": 8,
+      "readiness": {
+        "checks": {
+          "minimum_news_present_benchmark_rows": true,
+          "minimum_news_present_per_company_horizon": true,
+          "minimum_unique_material_events_per_company": true,
+          "development_power": true
+        },
+        "passed": true,
+        "news_present_benchmark_rows": 1486,
+        "news_present_by_company": {
+          "1023.KL": 110,
+          "1155.KL": 234,
+          "1295.KL": 62,
+          "3816.KL": 233,
+          "4677.KL": 91,
+          "5183.KL": 46,
+          "5225.KL": 234,
+          "5347.KL": 74,
+          "6947.KL": 177,
+          "8869.KL": 225
+        },
+        "unique_material_events_by_company": {
+          "1023.KL": 157,
+          "1155.KL": 2288,
+          "1295.KL": 106,
+          "3816.KL": 934,
+          "4677.KL": 108,
+          "5183.KL": 152,
+          "5225.KL": 852,
+          "5347.KL": 103,
+          "6947.KL": 715,
+          "8869.KL": 521
+        },
+        "requirements": {
+          "news_present_benchmark_rows": 300,
+          "news_present_per_company_horizon": 20,
+          "unique_material_events_per_company": 100,
+          "minimum_power": 0.8
+        },
+        "evidence_gaps": {
+          "news_present_benchmark_rows": 0,
+          "news_present_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 0,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          },
+          "unique_material_events_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 0,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          }
+        },
+        "power_analysis": {
+          "power": 0.9999999978685352,
+          "rows": 5451,
+          "minimum_effect": 0.0025,
+          "standard_error": 0.0003191373439738764,
+          "estimated_rows_for_80_percent_power": 698
+        }
+      }
+    }
+  },
+  "passed_horizons": [
+    1,
+    5,
+    10
+  ],
+  "overall_ready": true,
+  "scientific_result_sha256": "9b8d74e6e14af6b89cf2812acfa3944b71977a2d13b0288ef2905690edc8fea1"
+}

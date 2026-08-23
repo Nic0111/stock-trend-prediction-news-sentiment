@@ -1,0 +1,258 @@
+{
+  "policy_version": "bursa-news-dataset-v8-llm-assisted-label-chronological-ensemble",
+  "dataset_path": "data/news-evidence-benchmark/bursa-news-llm-assisted-label.jsonl",
+  "experimental_only": false,
+  "production_promotion_allowed": true,
+  "labeling": {
+    "mode": "llm_assisted_label",
+    "label_source": "llm_assisted_label",
+    "model_a": "nvidia/nemotron-3-super-120b-a12b:free",
+    "model_b": "google/gemma-4-26b-a4b-it:free",
+    "minimum_confidence": 0.7,
+    "minimum_parse_success_rate": 0.95,
+    "minimum_consensus_coverage": 0.8,
+    "require_independent_double_labels": false,
+    "require_llm_assisted_label": true,
+    "force_labels": false
+  },
+  "recommended_collection_start": "2019-01-01",
+  "collection_end": "2025-12-31",
+  "optional_backfill_start": "2015-01-01",
+  "acquisition": {
+    "pilot_year": 2023,
+    "shard": "monthly",
+    "free_only": true,
+    "bigquery_billing_enabled": true,
+    "bigquery_monthly_query_budget_gib": 900,
+    "bigquery_max_shard_gib": 75,
+    "pilot_candidates_per_ticker": 150,
+    "commoncrawl_capture_lag_days": 30,
+    "commoncrawl_min_request_interval_seconds": 1.0,
+    "commoncrawl_max_retries": 5,
+    "commoncrawl_sequential_only": true,
+    "commoncrawl_resume_required": true,
+    "notes": [
+      "This project currently has billing enabled. Keep aggregate monthly query plans below the first 1 TiB free allowance and retain a safety margin; never execute a bundle that exceeds the configured ceiling.",
+      "Every generated monthly query must be dry-run first, capped with maximum_bytes_billed, and downloaded locally only after the complete pending bundle fits the free-only ceiling.",
+      "Use Common Crawl sequentially with checkpoints and backoff; do not use paid proxies."
+    ]
+  },
+  "split_periods": {
+    "training": ["2015-01-01", "2023-12-31"],
+    "validation": ["2024-01-01", "2024-12-31"],
+    "test": ["2025-01-01", "2025-12-31"]
+  },
+  "readiness_gates": {
+    "enforce_dataset_size": false,
+    "require_nonempty_splits": true,
+    "require_all_tickers": true,
+    "enforce_independent_agreement": false,
+    "notes": [
+      "Dataset size is reported descriptively rather than used as a frozen readiness gate.",
+      "A company may have fewer than 300 rows and a split may have fewer than 2,000/500/500 rows.",
+      "Independent double-labelling and kappa/agreement measurement are optional and are not required for readiness.",
+      "Codex-reviewed labels are weak supervision and must not be described as independent human ground truth."
+    ]
+  },
+  "required_tickers": [
+    "1023.KL",
+    "1155.KL",
+    "1295.KL",
+    "3816.KL",
+    "4677.KL",
+    "5183.KL",
+    "5225.KL",
+    "5347.KL",
+    "6947.KL",
+    "8869.KL"
+  ],
+  "required_columns": [
+    "article_id",
+    "ticker",
+    "company_name",
+    "published_at",
+    "source_name",
+    "source_domain",
+    "url",
+    "title",
+    "description",
+    "model_text",
+    "language",
+    "automatic_entity_relevant",
+    "entity_relevant",
+    "sentiment_label",
+    "event_category",
+    "event_id",
+    "annotation_agreement",
+    "split",
+    "content_sha256",
+    "label_source",
+    "labelled_at"
+  ],
+  "optional_columns": [
+    "labeler_a_model",
+    "labeler_a_entity_relevant",
+    "labeler_a_sentiment",
+    "labeler_a_confidence",
+    "labeler_b_model",
+    "labeler_b_entity_relevant",
+    "labeler_b_sentiment",
+    "labeler_b_confidence",
+    "consensus_status",
+    "consensus_reason",
+    "prompt_version",
+    "prompt_sha256",
+    "annotator_1_label",
+    "annotator_2_label",
+    "adjudicated_label",
+    "label_source_original",
+    "label_provenance",
+    "provenance",
+    "validation_status",
+    "llm_assisted_label",
+    "llm_assisted_label_at"
+  ],
+  "allowed_sentiment_labels": ["negative", "neutral", "positive"],
+  "minimum_double_label_fraction": {},
+  "minimum_inter_annotator_kappa": null,
+  "year_quality_gates": {
+    "minimum_indexed_urls_per_ticker": 50,
+    "minimum_indexed_urls_by_ticker": {
+      "8869.KL": 30
+    },
+    "minimum_indexed_domains_per_ticker": 2,
+    "minimum_indexed_months_per_ticker": 6,
+    "minimum_text_recovery_rate": 0.60,
+    "minimum_entity_precision": 0.90,
+    "minimum_entity_recall": 0.75,
+    "minimum_timestamp_completeness": 0.95,
+    "minimum_source_domains_per_ticker": 2,
+    "minimum_accepted_articles": 200,
+    "minimum_accepted_per_ticker": 15
+  },
+  "sentiment_promotion_gates": {
+    "minimum_macro_f1": 0.70,
+    "minimum_balanced_accuracy": 0.70,
+    "maximum_ece": 0.10,
+    "minimum_macro_f1_uplift": 0.02,
+    "maximum_phrasebank_macro_f1_degradation": 0.02,
+    "maximum_seed_macro_f1_std": 0.02,
+    "minimum_bootstrap_ci_lower": 0.0
+  },
+  "sentiment_ensemble": {
+    "active_variant": "finbert_phrasebank_v1",
+    "candidate_variant": "bursa_phrasebank_soft_vote_v2",
+    "weight_search": {
+      "step": 0.05,
+      "selection_metric_order": [
+        "macro_f1",
+        "balanced_accuracy",
+        "ece",
+        "log_loss"
+      ],
+      "minimum_fold_macro_f1_delta": -0.02
+    },
+    "chronological_evaluation": {
+      "publication_date_range": [
+        "2015-01-01",
+        "2025-12-31"
+      ],
+      "outer_folds": [
+        {
+          "training_through_year": 2019,
+          "calibration_year": 2020,
+          "evaluation_year": 2021
+        },
+        {
+          "training_through_year": 2020,
+          "calibration_year": 2021,
+          "evaluation_year": 2022
+        },
+        {
+          "training_through_year": 2021,
+          "calibration_year": 2022,
+          "evaluation_year": 2023
+        },
+        {
+          "training_through_year": 2022,
+          "calibration_year": 2023,
+          "evaluation_year": 2024
+        },
+        {
+          "training_through_year": 2023,
+          "calibration_year": 2024,
+          "evaluation_year": 2025
+        }
+      ],
+      "event_embargo_days": 7,
+      "bursa_seed_average": {
+        "enabled": true,
+        "seeds": [42, 52, 62]
+      },
+      "weight_selection": {
+        "primary_metric": "multiclass_log_loss",
+        "secondary_metrics": ["brier_score", "ece"],
+        "coarse_weight_step": 0.05,
+        "fine_weight_step": 0.01,
+        "bootstrap_iterations": 2000,
+        "selection_rule": "closest_to_50_50_within_one_standard_error_plateau"
+      },
+      "evaluation_status": "retrospective_only",
+      "notes": [
+        "All inclusion and split decisions use article publication date only.",
+        "The inspected 2025 evidence is retrospective and cannot serve as an untouched promotion holdout.",
+        "Chronological ensemble reports do not activate a runtime challenger."
+      ]
+    },
+    "prospective_holdout": {
+      "year": 2026,
+      "enabled": false,
+      "scope_status": "out_of_scope",
+      "scope_note": "The project evaluation scope is locked to publication dates from 2015-01-01 through 2025-12-31. The small Codex-reviewed 2026 cohort is retained as diagnostic evidence only and is not required for promotion.",
+      "target_candidates_per_ticker": 30,
+      "shadow_fraction": 0.2,
+      "minimum_final_rows": 200,
+      "minimum_final_rows_per_ticker": 15,
+      "minimum_final_class_rows": 30,
+      "notes": [
+        "The 2026 prospective holdout is disabled and out of scope for the locked 2015-2025 evaluation protocol.",
+        "Any existing 2026 files remain diagnostic evidence only and must not be used for training, tuning or acceptance claims."
+      ]
+    },
+      "promotion_gates": {
+      "minimum_validation_macro_f1_uplift": 0.02,
+      "minimum_validation_balanced_accuracy_uplift": 0.02,
+      "minimum_macro_f1": 0.70,
+      "minimum_balanced_accuracy": 0.70,
+      "maximum_ece": 0.10,
+      "minimum_class_f1": 0.60,
+      "minimum_bootstrap_ci_lower": 0.0,
+      "maximum_phrasebank_macro_f1_degradation": 0.02,
+      "maximum_seed_macro_f1_std": 0.02,
+      "maximum_company_macro_f1_loss": 0.05,
+      "minimum_holdout_rows": 200,
+      "minimum_holdout_rows_per_ticker": 15,
+      "require_independent_holdout": true,
+      "require_retrospective_test_disclosure": true,
+      "allow_retrospective_manual_promotion": true,
+      "require_prospective_holdout": false,
+      "minimum_component_weight": 0.2,
+      "maximum_component_weight": 0.8,
+      "minimum_matching_fold_count": 3
+    },
+    "notes": [
+      "A candidate is selected on chronological validation data only.",
+      "The 2025 test result is retrospective because it has already been inspected.",
+      "The locked 2025 test is retrospective because it was inspected before this protocol; it is the final evaluation evidence for the locked scope.",
+      "The 2015-2025 defensible ensemble runner selects all recipe choices using 2015-2024 only and rejects a blend where either component has less than 20% weight. Promotion is manual and must disclose failed gates."
+    ]
+  },
+  "annotation_notes": [
+    "Sentiment is labelled from the selected company's financial and operating perspective.",
+    "Sentiment is not a future stock-price direction label.",
+    "Existing FinBERT predictions must never be included in LLM labelling prompts.",
+    "All accepted sentiment labels are recorded as LLM-assisted labels under the active dataset policy; they are not independent human ground truth.",
+    "The former external_single_weak and external_consensus values are migration-only audit values.",
+    "Independent double-labelling is optional and is reported separately when available."
+  ]
+}

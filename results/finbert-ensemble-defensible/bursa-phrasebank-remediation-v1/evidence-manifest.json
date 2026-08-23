@@ -1,0 +1,48 @@
+{
+  "schema_version": "defensible-finbert-evidence-manifest-v1",
+  "created_at": "2026-08-07T09:53:15Z",
+  "dataset_path": "data/news-evidence-benchmark/bursa-news-human-validated.jsonl",
+  "policy_path": "config/bursa_news_dataset_policy.json",
+  "phrasebank_model_directory": "models/experimental/finbert-sentiment",
+  "dataset_file_sha256": "ced28b87464ce6b04b5365c65980e3a62dc1bac6531c3f12803c814d4118aa2a",
+  "policy_file_sha256": "2c7974ba7f6802b6879016ac799c26b7fef3759ce31e1366f7af52c7da8799fe",
+  "phrasebank_artifact_hashes": {
+    "models\\experimental\\finbert-sentiment\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+    "models\\experimental\\finbert-sentiment\\metadata.json": "ea9a7e40662c8c93ee6639cb396e122d2a17b84bd565c300b8ebd3869cb445e0",
+    "models\\experimental\\finbert-sentiment\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+    "models\\experimental\\finbert-sentiment\\tokenizer_config.json": "00bd5b2d9a46e60d32549452fac5d9b15d8f9ac1945681dfcbc03e3e068090ab",
+    "models\\experimental\\finbert-sentiment\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+    "models\\experimental\\finbert-sentiment\\model.safetensors": "7670c9c9d1435527a66eb88119a3aaa1360aaffdc9efec65f8b56d364a1e6e76"
+  },
+  "eligible_evidence_sha256": "e292d9c570f035e4a1e215e209e60036d00a35861d62b22be5463c37fc80b319",
+  "eligible_rows": 1167,
+  "eligible_article_ids": 1167,
+  "dataset_diagnostics": {
+    "eligible_rows": 1167,
+    "dropped_duplicate_content_rows": 0,
+    "year_counts": {
+      "2015": 99,
+      "2016": 37,
+      "2017": 44,
+      "2018": 49,
+      "2019": 117,
+      "2020": 86,
+      "2021": 141,
+      "2022": 71,
+      "2023": 105,
+      "2024": 208,
+      "2025": 210
+    },
+    "class_counts": {
+      "positive": 697,
+      "neutral": 285,
+      "negative": 185
+    }
+  },
+  "date_protocol": {
+    "development_through": 2024,
+    "retrospective_final_test_year": 2025,
+    "final_test_previously_inspected": true,
+    "test_tuning_prohibited_after_manifest": true
+  }
+}

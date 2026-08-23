@@ -1,0 +1,99 @@
+{
+  "policy_version": "bursa-news-dataset-v8-llm-assisted-label-compatibility",
+  "experimental_only": false,
+  "production_promotion_allowed": true,
+  "labeling": {
+    "mode": "llm_assisted_label",
+    "label_source": "llm_assisted_label",
+    "require_independent_double_labels": false,
+    "require_llm_assisted_label": true,
+    "enforce_entity_filter_metrics": false,
+    "notes": [
+      "Compatibility profile: legacy external labels are recorded as LLM-assisted labels; they are not independent human ground truth.",
+      "The legacy filename is retained only so older commands continue to resolve.",
+      "No independent agreement claim is made unless a separate double-label report is supplied."
+    ]
+  },
+  "readiness_gates": {
+    "enforce_dataset_size": false,
+    "require_nonempty_splits": true,
+    "require_all_tickers": true,
+    "enforce_independent_agreement": false,
+    "notes": [
+      "This experimental profile reports available volume without requiring a fixed corpus size.",
+      "Independent double-labelling and agreement measurement are not required."
+    ]
+  },
+  "split_periods": {
+    "training": ["2015-01-01", "2023-12-31"],
+    "validation": ["2024-01-01", "2024-12-31"],
+    "test": ["2025-01-01", "2025-12-31"]
+  },
+  "minimum_rows": 0,
+  "minimum_split_rows": {},
+  "minimum_rows_per_ticker": 0,
+  "minimum_test_rows_per_ticker": 0,
+  "required_tickers": [
+    "1023.KL",
+    "1155.KL",
+    "1295.KL",
+    "3816.KL",
+    "4677.KL",
+    "5183.KL",
+    "5225.KL",
+    "5347.KL",
+    "6947.KL",
+    "8869.KL"
+  ],
+  "required_columns": [
+    "article_id",
+    "ticker",
+    "company_name",
+    "published_at",
+    "source_name",
+    "source_domain",
+    "url",
+    "title",
+    "description",
+    "model_text",
+    "language",
+    "automatic_entity_relevant",
+    "entity_relevant",
+    "sentiment_label",
+    "event_category",
+    "event_id",
+    "annotation_agreement",
+    "split",
+    "content_sha256",
+    "label_source",
+    "labeler_a_model",
+    "labeler_a_entity_relevant",
+    "labeler_a_sentiment",
+    "labeler_a_confidence",
+    "labeler_b_model",
+    "labeler_b_entity_relevant",
+    "labeler_b_sentiment",
+    "labeler_b_confidence",
+    "consensus_status",
+    "consensus_reason",
+    "prompt_version",
+    "prompt_sha256",
+    "labelled_at"
+  ],
+  "allowed_sentiment_labels": ["negative", "neutral", "positive"],
+  "minimum_double_label_fraction": {},
+  "minimum_inter_annotator_kappa": 0.0,
+  "year_quality_gates": {
+    "minimum_entity_precision": 0.0,
+    "minimum_entity_recall": 0.0
+  },
+  "sentiment_promotion_gates": {
+    "minimum_macro_f1": 0.70,
+    "minimum_balanced_accuracy": 0.70,
+    "maximum_ece": 0.10,
+    "minimum_macro_f1_uplift": 0.02,
+    "maximum_phrasebank_macro_f1_degradation": 0.02,
+    "maximum_seed_macro_f1_std": 0.02,
+    "minimum_bootstrap_ci_lower": 0.0
+  }
+}

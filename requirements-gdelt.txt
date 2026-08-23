@@ -1,0 +1,4 @@
+# Optional dependencies for authenticated GDELT BigQuery export.
+# Keep this separate from the production runtime requirements.
+google-cloud-bigquery>=3.34,<4
+trafilatura>=1.12,<3

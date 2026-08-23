@@ -1,0 +1,268 @@
+{
+  "created_at": "2026-07-31T21:09:47+00:00",
+  "dataset_path": "data\\fusion\\fusion-features.parquet",
+  "dataset_sha256": "c86011d5d46b43b9b0920e90bb4038375ee0d02a216522f8456bd754c3f63206",
+  "horizons": {
+    "1": {
+      "coverage_tiers": {
+        "all_news_available": {
+          "mean_news_sentiment": 0.3159685905626367,
+          "rows": 1940,
+          "sentiment_roc_auc": 0.5132223199981949,
+          "sentiment_target_correlation": 0.030677900892990766,
+          "stock_probability_roc_auc": 0.5258456278560523,
+          "target_up_rate": 0.4479381443298969
+        },
+        "low": {
+          "mean_news_sentiment": 0.29486231565432935,
+          "rows": 1665,
+          "sentiment_roc_auc": 0.5142613234718497,
+          "sentiment_target_correlation": 0.028788428056042974,
+          "stock_probability_roc_auc": 0.5221591274222853,
+          "target_up_rate": 0.44504504504504505
+        },
+        "medium_high": {
+          "mean_news_sentiment": 0.443757491371116,
+          "rows": 275,
+          "sentiment_roc_auc": 0.521843112244898,
+          "sentiment_target_correlation": 0.03899219774920538,
+          "stock_probability_roc_auc": 0.5459715136054422,
+          "target_up_rate": 0.46545454545454545
+        }
+      },
+      "years": {
+        "2019": {
+          "mean_news_sentiment": 0.36259408181111513,
+          "rows": 266,
+          "sentiment_roc_auc": 0.4862302875695733,
+          "sentiment_target_correlation": -0.025289127195756222,
+          "stock_probability_roc_auc": 0.5266117810760669,
+          "target_up_rate": 0.42105263157894735
+        },
+        "2020": {
+          "mean_news_sentiment": 0.10854649691045458,
+          "rows": 264,
+          "sentiment_roc_auc": 0.5259203168685928,
+          "sentiment_target_correlation": 0.052607852025510195,
+          "stock_probability_roc_auc": 0.502737651444548,
+          "target_up_rate": 0.4393939393939394
+        },
+        "2021": {
+          "mean_news_sentiment": 0.23771895953490302,
+          "rows": 355,
+          "sentiment_roc_auc": 0.48149747329367365,
+          "sentiment_target_correlation": -0.022857711114533302,
+          "stock_probability_roc_auc": 0.5408750719631548,
+          "target_up_rate": 0.4563380281690141
+        },
+        "2022": {
+          "mean_news_sentiment": 0.28683320971174997,
+          "rows": 186,
+          "sentiment_roc_auc": 0.5370370370370371,
+          "sentiment_target_correlation": 0.05018747191192762,
+          "stock_probability_roc_auc": 0.5397673314339982,
+          "target_up_rate": 0.41935483870967744
+        },
+        "2023": {
+          "mean_news_sentiment": 0.3700274526883084,
+          "rows": 258,
+          "sentiment_roc_auc": 0.5515049140049141,
+          "sentiment_target_correlation": 0.1213952383547648,
+          "stock_probability_roc_auc": 0.5568796068796068,
+          "target_up_rate": 0.4263565891472868
+        },
+        "2024": {
+          "mean_news_sentiment": 0.4636370741081957,
+          "rows": 253,
+          "sentiment_roc_auc": 0.5310390097524381,
+          "sentiment_target_correlation": 0.09104400197836474,
+          "stock_probability_roc_auc": 0.48918479619904975,
+          "target_up_rate": 0.5098814229249012
+        },
+        "2025": {
+          "mean_news_sentiment": 0.383699146818898,
+          "rows": 358,
+          "sentiment_roc_auc": 0.4770250692869741,
+          "sentiment_target_correlation": -0.030840177706428804,
+          "stock_probability_roc_auc": 0.5531305114638447,
+          "target_up_rate": 0.45251396648044695
+        }
+      }
+    },
+    "10": {
+      "coverage_tiers": {
+        "all_news_available": {
+          "mean_news_sentiment": 0.28213733121695805,
+          "rows": 5062,
+          "sentiment_roc_auc": 0.5143591496853208,
+          "sentiment_target_correlation": 0.018102946489184913,
+          "stock_probability_roc_auc": 0.4819879451082604,
+          "target_up_rate": 0.5112603713947057
+        },
+        "low": {
+          "mean_news_sentiment": 0.22887436430306085,
+          "rows": 3328,
+          "sentiment_roc_auc": 0.5003112700359751,
+          "sentiment_target_correlation": -0.0006122480913963048,
+          "stock_probability_roc_auc": 0.46578903700425905,
+          "target_up_rate": 0.5159254807692307
+        },
+        "medium_high": {
+          "mean_news_sentiment": 0.38436291016127755,
+          "rows": 1734,
+          "sentiment_roc_auc": 0.5519580988009414,
+          "sentiment_target_correlation": 0.08944087414735692,
+          "stock_probability_roc_auc": 0.5117251783687854,
+          "target_up_rate": 0.5023068050749712
+        }
+      },
+      "years": {
+        "2019": {
+          "mean_news_sentiment": 0.30887116481239885,
+          "rows": 637,
+          "sentiment_roc_auc": 0.5261304192755806,
+          "sentiment_target_correlation": 0.03564782474260008,
+          "stock_probability_roc_auc": 0.58562851708013,
+          "target_up_rate": 0.46467817896389324
+        },
+        "2020": {
+          "mean_news_sentiment": 0.06529144650565877,
+          "rows": 761,
+          "sentiment_roc_auc": 0.4500617573150475,
+          "sentiment_target_correlation": -0.10235670303177288,
+          "stock_probability_roc_auc": 0.33384442835441597,
+          "target_up_rate": 0.4178712220762155
+        },
+        "2021": {
+          "mean_news_sentiment": 0.2458986169465935,
+          "rows": 863,
+          "sentiment_roc_auc": 0.5599280305064719,
+          "sentiment_target_correlation": 0.1213291280230302,
+          "stock_probability_roc_auc": 0.5144314947097052,
+          "target_up_rate": 0.5017381228273464
+        },
+        "2022": {
+          "mean_news_sentiment": 0.2822014731314795,
+          "rows": 523,
+          "sentiment_roc_auc": 0.531348973607038,
+          "sentiment_target_correlation": 0.038222572524103146,
+          "stock_probability_roc_auc": 0.5198973607038123,
+          "target_up_rate": 0.47418738049713194
+        },
+        "2023": {
+          "mean_news_sentiment": 0.35381739652641214,
+          "rows": 777,
+          "sentiment_roc_auc": 0.4419381787802841,
+          "sentiment_target_correlation": -0.09264919404579047,
+          "stock_probability_roc_auc": 0.48068584158809724,
+          "target_up_rate": 0.5135135135135135
+        },
+        "2024": {
+          "mean_news_sentiment": 0.44002487936916374,
+          "rows": 602,
+          "sentiment_roc_auc": 0.47286603660366033,
+          "sentiment_target_correlation": -0.02074946484516504,
+          "stock_probability_roc_auc": 0.6004225422542255,
+          "target_up_rate": 0.6710963455149501
+        },
+        "2025": {
+          "mean_news_sentiment": 0.31382477918799173,
+          "rows": 899,
+          "sentiment_roc_auc": 0.49984531709994506,
+          "sentiment_target_correlation": 0.006710503354419933,
+          "stock_probability_roc_auc": 0.6312708946659349,
+          "target_up_rate": 0.5450500556173526
+        }
+      }
+    },
+    "5": {
+      "coverage_tiers": {
+        "all_news_available": {
+          "mean_news_sentiment": 0.29991277006555156,
+          "rows": 3162,
+          "sentiment_roc_auc": 0.5111388948848266,
+          "sentiment_target_correlation": 0.02027632615323227,
+          "stock_probability_roc_auc": 0.5202824440412148,
+          "target_up_rate": 0.48418722327640734
+        },
+        "low": {
+          "mean_news_sentiment": 0.2699208843580863,
+          "rows": 2430,
+          "sentiment_roc_auc": 0.5141412969037723,
+          "sentiment_target_correlation": 0.024938548372560435,
+          "stock_probability_roc_auc": 0.5279883581787663,
+          "target_up_rate": 0.4777777777777778
+        },
+        "medium_high": {
+          "mean_news_sentiment": 0.3994759972091862,
+          "rows": 732,
+          "sentiment_roc_auc": 0.4999253397043452,
+          "sentiment_target_correlation": -0.015021859891934823,
+          "stock_probability_roc_auc": 0.49357174854412417,
+          "target_up_rate": 0.505464480874317
+        }
+      },
+      "years": {
+        "2019": {
+          "mean_news_sentiment": 0.3285086939597464,
+          "rows": 415,
+          "sentiment_roc_auc": 0.5238348207961468,
+          "sentiment_target_correlation": 0.037559352741461334,
+          "stock_probability_roc_auc": 0.597936440477877,
+          "target_up_rate": 0.43614457831325304
+        },
+        "2020": {
+          "mean_news_sentiment": 0.10106182336203873,
+          "rows": 461,
+          "sentiment_roc_auc": 0.47512437810945274,
+          "sentiment_target_correlation": -0.018815342328482993,
+          "stock_probability_roc_auc": 0.5359165709911978,
+          "target_up_rate": 0.4360086767895879
+        },
+        "2021": {
+          "mean_news_sentiment": 0.23695740115210726,
+          "rows": 551,
+          "sentiment_roc_auc": 0.4992287028910344,
+          "sentiment_target_correlation": 0.027325817637052937,
+          "stock_probability_roc_auc": 0.5321152158302083,
+          "target_up_rate": 0.4519056261343013
+        },
+        "2022": {
+          "mean_news_sentiment": 0.29336742685087935,
+          "rows": 319,
+          "sentiment_roc_auc": 0.5181228614625607,
+          "sentiment_target_correlation": 0.04982685115230716,
+          "stock_probability_roc_auc": 0.46705657674862733,
+          "target_up_rate": 0.445141065830721
+        },
+        "2023": {
+          "mean_news_sentiment": 0.3456925413374678,
+          "rows": 457,
+          "sentiment_roc_auc": 0.46126369416992263,
+          "sentiment_target_correlation": -0.059347489973207976,
+          "stock_probability_roc_auc": 0.5109553359380985,
+          "target_up_rate": 0.5010940919037199
+        },
+        "2024": {
+          "mean_news_sentiment": 0.45750268393502347,
+          "rows": 389,
+          "sentiment_roc_auc": 0.5026473799126638,
+          "sentiment_target_correlation": 0.009924108490409353,
+          "stock_probability_roc_auc": 0.6274836244541485,
+          "target_up_rate": 0.5886889460154242
+        },
+        "2025": {
+          "mean_news_sentiment": 0.3601856100734928,
+          "rows": 570,
+          "sentiment_roc_auc": 0.5157222222222222,
+          "sentiment_target_correlation": 0.01456804463807918,
+          "stock_probability_roc_auc": 0.5901358024691359,
+          "target_up_rate": 0.5263157894736842
+        }
+      }
+    }
+  },
+  "interpretation": "AUC near 0.50 means the signed news tone alone does not rank future Up outcomes better than chance. This diagnostic is not a model gate.",
+  "mode": "research_diagnostic_only",
+  "production_promotion_allowed": false
+}

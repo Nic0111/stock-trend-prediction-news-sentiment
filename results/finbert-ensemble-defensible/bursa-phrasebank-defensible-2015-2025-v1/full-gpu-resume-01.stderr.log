@@ -1,0 +1,34 @@
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\.venv\Lib\site-packages\sklearn\metrics\_classification.py:2924: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+C:\stock-investment-analytics\.venv\Lib\site-packages\sklearn\metrics\_classification.py:2924: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+C:\stock-investment-analytics\pipeline\chronological_finbert_ensemble.py:274: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+  + frame["published_at"].dt.to_period("M").astype(str)
+C:\stock-investment-analytics\.venv\Lib\site-packages\sklearn\metrics\_classification.py:2924: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+C:\stock-investment-analytics\.venv\Lib\site-packages\sklearn\metrics\_classification.py:2924: UserWarning: y_pred contains classes not in y_true
+  warnings.warn("y_pred contains classes not in y_true")
+C:\stock-investment-analytics\.venv\Lib\site-packages\sklearn\metrics\_classification.py:310: UserWarning: The y_prob values do not sum to one. Make sure to pass probabilities.
+  warnings.warn(

@@ -1,0 +1,400 @@
+{
+  "schema_version": "stocksense-fusion-evaluation-v2",
+  "created_at": "2026-08-19T12:44:35+00:00",
+  "claim_scope": "Retrospective evidence, 2019-2025",
+  "periods": {
+    "development": [
+      2019,
+      2023
+    ],
+    "calibration": [
+      2024,
+      2024
+    ],
+    "benchmark": [
+      2025,
+      2025
+    ]
+  },
+  "policy_sha256": "e9a3c6c9eb8d843fbb87821c7bd480273161380194f35ad25222b57214904c46",
+  "dataset_sha256": "c86011d5d46b43b9b0920e90bb4038375ee0d02a216522f8456bd754c3f63206",
+  "provenance": {
+    "dataset_sha256": "c86011d5d46b43b9b0920e90bb4038375ee0d02a216522f8456bd754c3f63206",
+    "policy_sha256": "e9a3c6c9eb8d843fbb87821c7bd480273161380194f35ad25222b57214904c46",
+    "active_stock_run_id": "20260813T221736188487",
+    "recorded_stock_run_ids": [],
+    "stock_dataset_sha256": "838558e8092340a152c135965d0d149a6e20ad8cb056c182598fdd9dda56901f",
+    "sentiment_variant": "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1",
+    "sentiment_config_sha256": "b1c8c36966f442888a1d63d6a8be4433f12f8c26f7721f97007bc175c5218531",
+    "feature_schema_versions": [
+      "point-in-time-news-features-v2"
+    ],
+    "checks": {
+      "stock_run_recorded": false,
+      "stock_run_matches_active": false,
+      "sentiment_variant_recorded": true,
+      "feature_schema_recorded": true
+    },
+    "strict_identity_passed": false
+  },
+  "arms": [
+    "frozen_stock",
+    "stock_meta",
+    "news_only",
+    "stock_plus_news",
+    "permuted_news_placebo"
+  ],
+  "horizons": {
+    "1": {
+      "benchmark_rows": 2430,
+      "news_present_rows": 1112,
+      "ticker_count": 10,
+      "selected_window_days": 7,
+      "selected_half_life_days": 3.5,
+      "window_selection_status": "existing runtime-matched aggregate; rebuild candidate windows before promotion",
+      "arms": {
+        "frozen_stock": {
+          "metrics": {
+            "balanced_accuracy": 0.5192315040228819,
+            "macro_f1": 0.3592648970376958,
+            "mcc": 0.017139908473703364,
+            "brier_score": 0.24774061614511442,
+            "log_loss": 0.6886201846101052,
+            "ece": 0.014935414205867841,
+            "down_recall": 0.9946889226100152,
+            "up_recall": 0.008093525179856115,
+            "confusion_matrix": [
+              [
+                1311,
+                7
+              ],
+              [
+                1103,
+                9
+              ]
+            ],
+            "threshold": 0.5
+          }
+        },
+        "stock_meta": {
+          "metrics": {
+            "balanced_accuracy": 0.5290062335564022,
+            "macro_f1": 0.5031538012832977,
+            "mcc": 0.06218528475940979,
+            "brier_score": 0.24816617407748423,
+            "log_loss": 0.689475850216014,
+            "ece": 0.028248574202308672,
+            "down_recall": 0.34218512898330805,
+            "up_recall": 0.7158273381294964,
+            "confusion_matrix": [
+              [
+                451,
+                867
+              ],
+              [
+                316,
+                796
+              ]
+            ],
+            "threshold": 0.475
+          },
+          "selected_parameters": {
+            "C": 0.01,
+            "l1_ratio": 0.5
+          }
+        },
+        "news_only": {
+          "metrics": {
+            "balanced_accuracy": 0.5,
+            "macro_f1": 0.35165421558164356,
+            "mcc": 0.0,
+            "brier_score": 0.248454183416403,
+            "log_loss": 0.6900533008299738,
+            "ece": 0.0158375113764449,
+            "down_recall": 1.0,
+            "up_recall": 0.0,
+            "confusion_matrix": [
+              [
+                1318,
+                0
+              ],
+              [
+                1112,
+                0
+              ]
+            ],
+            "threshold": 0.5
+          },
+          "selected_parameters": {
+            "C": 0.01,
+            "l1_ratio": 0.75
+          }
+        },
+        "stock_plus_news": {
+          "metrics": {
+            "balanced_accuracy": 0.5305939618563116,
+            "macro_f1": 0.5049514873296492,
+            "mcc": 0.06554322839615997,
+            "brier_score": 0.2481653425490099,
+            "log_loss": 0.6894742348944835,
+            "ece": 0.028249847518690707,
+            "down_recall": 0.34446130500758726,
+            "up_recall": 0.716726618705036,
+            "confusion_matrix": [
+              [
+                454,
+                864
+              ],
+              [
+                315,
+                797
+              ]
+            ],
+            "threshold": 0.475
+          },
+          "selected_parameters": {
+            "C": 0.01,
+            "l1_ratio": 0.5
+          }
+        },
+        "permuted_news_placebo": {
+          "summary": {
+            "iterations": 1,
+            "actual_percentile": 0.0,
+            "mean": 3.072469501957942e-05,
+            "p95": 3.072469501957942e-05
+          }
+        }
+      },
+      "brier_improvement": 8.315284743265483e-07,
+      "balanced_accuracy_gain": 0.0015877282999093856,
+      "selected_news_log_odds_cap": 0.25,
+      "news_log_odds_cap_trials": [
+        {
+          "cap": 0.25,
+          "mean_development_brier": 0.2488680265027205
+        },
+        {
+          "cap": 0.5,
+          "mean_development_brier": 0.2488701529395394
+        },
+        {
+          "cap": 0.75,
+          "mean_development_brier": 0.2488701529395394
+        },
+        {
+          "cap": 1.0,
+          "mean_development_brier": 0.2488701529395394
+        }
+      ],
+      "bootstrap": {
+        "block_trading_sessions": 5,
+        "iterations": 25,
+        "brier_improvement": {
+          "lower": -2.3435309862129826e-05,
+          "median": -3.701617484197506e-07,
+          "upper": 1.6280823417530446e-05
+        },
+        "balanced_accuracy_gain": {
+          "lower": -0.001453201665576409,
+          "median": 0.001212112137727539,
+          "upper": 0.004907866536658753
+        }
+      },
+      "clark_west": {
+        "statistic": 0.08742375774582635,
+        "one_sided_p_value": 0.4651673428614108
+      },
+      "placebo": {
+        "iterations": 1,
+        "actual_percentile": 0.0,
+        "mean": 3.072469501957942e-05,
+        "p95": 3.072469501957942e-05,
+        "distribution": [
+          3.072469501957942e-05
+        ]
+      },
+      "calibration": {
+        "stock_meta": {
+          "curve": [
+            {
+              "predicted": 0.47726387686448823,
+              "observed": 0.4506237006237006,
+              "rows": 1924
+            },
+            {
+              "predicted": 0.5185540241587642,
+              "observed": 0.4841897233201581,
+              "rows": 506
+            }
+          ],
+          "intercept": -0.09568921821646072,
+          "slope": 1.3197086066017703
+        },
+        "stock_plus_news": {
+          "curve": [
+            {
+              "predicted": 0.4772342476178301,
+              "observed": 0.4501039501039501,
+              "rows": 1924
+            },
+            {
+              "predicted": 0.5186728005014096,
+              "observed": 0.48616600790513836,
+              "rows": 506
+            }
+          ],
+          "intercept": -0.09595182153105138,
+          "slope": 1.315183800671866
+        }
+      },
+      "rolling_origins": [],
+      "subgroups": {
+        "coverage": {
+          "High": {
+            "rows": 8,
+            "stock_balanced_accuracy": 0.5,
+            "fusion_balanced_accuracy": 0.5,
+            "gain": 0.0
+          },
+          "Low": {
+            "rows": 275,
+            "stock_balanced_accuracy": 0.534,
+            "fusion_balanced_accuracy": 0.5373333333333333,
+            "gain": 0.0033333333333332993
+          },
+          "Medium": {
+            "rows": 75,
+            "stock_balanced_accuracy": 0.512987012987013,
+            "fusion_balanced_accuracy": 0.5465367965367965,
+            "gain": 0.03354978354978355
+          },
+          "Unavailable": {
+            "rows": 2072,
+            "stock_balanced_accuracy": 0.5291443850267379,
+            "fusion_balanced_accuracy": 0.5294286518435125,
+            "gain": 0.0002842668167746254
+          }
+        },
+        "agreement": {
+          "Agree": {
+            "rows": 36,
+            "stock_balanced_accuracy": 0.5267558528428093,
+            "fusion_balanced_accuracy": 0.548494983277592,
+            "gain": 0.021739130434782705
+          },
+          "Balanced": {
+            "rows": 1031,
+            "stock_balanced_accuracy": 0.5267525361905847,
+            "fusion_balanced_accuracy": 0.5272521752346214,
+            "gain": 0.0004996390440367149
+          },
+          "Conflict": {
+            "rows": 45,
+            "stock_balanced_accuracy": 0.5773809523809523,
+            "fusion_balanced_accuracy": 0.6279761904761905,
+            "gain": 0.05059523809523814
+          },
+          "Unavailable": {
+            "rows": 1318,
+            "stock_balanced_accuracy": 0.5308759385882706,
+            "fusion_balanced_accuracy": 0.5308759385882706,
+            "gain": 0.0
+          }
+        }
+      },
+      "error_transitions": {
+        "news_corrected_stock": 7,
+        "news_harmed_stock": 3,
+        "both_correct": 1244,
+        "both_wrong": 1176
+      },
+      "per_company": {
+        "1023.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5151154891304348,
+          "fusion_balanced_accuracy": 0.5281589673913043,
+          "gain": 0.01304347826086949
+        },
+        "1155.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5362953692115143,
+          "fusion_balanced_accuracy": 0.5362953692115143,
+          "gain": 0.0
+        },
+        "1295.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5374175371083012,
+          "fusion_balanced_accuracy": 0.5400975810885101,
+          "gain": 0.002680043980208935
+        },
+        "3816.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5613002042205582,
+          "fusion_balanced_accuracy": 0.5613002042205582,
+          "gain": 0.0
+        },
+        "4677.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5215652768284347,
+          "fusion_balanced_accuracy": 0.5215652768284347,
+          "gain": 0.0
+        },
+        "5183.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.48493006993006993,
+          "fusion_balanced_accuracy": 0.48493006993006993,
+          "gain": 0.0
+        },
+        "5225.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5134466874407262,
+          "fusion_balanced_accuracy": 0.5134466874407262,
+          "gain": 0.0
+        },
+        "5347.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5591195399151034,
+          "fusion_balanced_accuracy": 0.5628508831986855,
+          "gain": 0.003731343283582045
+        },
+        "6947.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5359336609336609,
+          "fusion_balanced_accuracy": 0.5314291564291564,
+          "gain": -0.0045045045045044585
+        },
+        "8869.KL": {
+          "rows": 243,
+          "stock_balanced_accuracy": 0.5090447154471545,
+          "fusion_balanced_accuracy": 0.5090447154471545,
+          "gain": 0.0
+        }
+      },
+      "acceptance_checks": {
+        "minimum_rows": true,
+        "all_tickers": true,
+        "brier_improves": true,
+        "brier_bootstrap_lower_above_zero": false,
+        "balanced_accuracy_gain": false,
+        "balanced_accuracy_lower_non_negative": false,
+        "macro_f1_not_materially_worse": true,
+        "ece_not_materially_worse": true,
+        "placebo_percentile": false,
+        "rolling_year_consistency": false,
+        "rolling_origin_evaluation_complete": false,
+        "median_company_gain_non_negative": true,
+        "company_non_deterioration": true,
+        "no_large_company_loss": true,
+        "strict_artifact_identity": false,
+        "holm_adjusted_significance": false
+      },
+      "artifact_path": "models\\fusion\\staged-v2\\fusion-v2-1d.joblib",
+      "holm_adjusted_clark_west_p_value": 0.4651673428614108,
+      "accepted": false
+    }
+  },
+  "overall_all_horizon_accepted": false,
+  "complete_horizon_set": false,
+  "runtime_action": "retain_stock_led_runtime"
+}

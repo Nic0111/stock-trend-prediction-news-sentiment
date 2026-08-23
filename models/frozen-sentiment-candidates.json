@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "candidates": {
+    "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1": {
+      "status": "frozen_candidate_not_active",
+      "frozen_at": "2026-08-09T17:10:13Z",
+      "run_id": "sentiment-remediation-20260809-v1",
+      "reason": "User requested preservation for possible later promotion after the candidate delivered strong retrospective performance.",
+      "production_changed": false,
+      "active_production_variant_at_freeze": "bursa_phrasebank_defensible_soft_vote_production-ready-20260807-v1",
+      "benchmark_report": "results/finbert-ensemble-defensible/sentiment-remediation-20260809-v1/report.json",
+      "benchmark_report_sha256": "904998d0af746c63356fc1e9a41281d66e2aba7b1c5fa535b96442773b7eae85",
+      "artifact_hash_manifest": "results/finbert-ensemble-defensible/sentiment-remediation-20260809-v1/report.json#artifact_hashes",
+      "selection_scope": "2015-2024 chronological folds; 2025 is a locked retrospective test",
+      "recipe": {
+        "training_recipe": "target-aware-neutral-balanced-ce",
+        "text_mode": "target_aware",
+        "phrasebank_replay_fraction": 0.0,
+        "bursa_weight": 0.7,
+        "phrasebank_weight": 0.3,
+        "ensemble_temperature": 0.76,
+        "bursa_seeds": [
+          42,
+          52,
+          62
+        ]
+      },
+      "locked_2025_metrics": {
+        "rows": 216,
+        "accuracy": 0.7777777777777778,
+        "balanced_accuracy": 0.7321550229158925,
+        "macro_f1": 0.707251461988304,
+        "log_loss": 0.5622734389286622,
+        "ece": 0.03618494258013222,
+        "negative_f1": 0.7017543859649122,
+        "neutral_f1": 0.54,
+        "positive_f1": 0.88
+      },
+      "acceptance": {
+        "eligible_for_promotion": false,
+        "passed_checks": [
+          "validation_macro_f1_uplift",
+          "validation_balanced_accuracy_uplift",
+          "final_macro_f1",
+          "final_balanced_accuracy",
+          "final_ece",
+          "test_row_coverage",
+          "component_non_degeneracy",
+          "weight_stable_across_development_folds",
+          "retrospective_test_disclosed"
+        ],
+        "failed_checks": [
+          "minimum_class_f1",
+          "bootstrap_macro_f1_noninferiority",
+          "phrasebank_generalisation_noninferiority",
+          "bursa_seed_stability",
+          "per_company_noninferiority",
+          "manual_retrospective_promotion_allowed",
+          "independent_prospective_holdout"
+        ],
+        "prospective_2026_holdout_completed": false
+      },
+      "retention_paths": [
+        "models/experimental/finbert-ensemble-chronological/sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025/fold-5/seed-42",
+        "models/experimental/finbert-ensemble-chronological/sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025/fold-5/seed-52",
+        "models/experimental/finbert-ensemble-chronological/sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025/fold-5/seed-62",
+        "models/experimental/finbert-sentiment",
+        "results/finbert-ensemble-defensible/sentiment-remediation-20260809-v1"
+      ],
+      "retention_note": "Do not delete or overwrite these paths until this candidate is explicitly retired. Verify the benchmark report and component hashes before any future activation."
+    }
+  }
+}

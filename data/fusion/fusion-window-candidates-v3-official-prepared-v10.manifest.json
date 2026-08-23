@@ -1,0 +1,53 @@
+{
+  "schema_version": "fusion-window-candidates-v3-v10-merged",
+  "output_path": "data\\fusion\\fusion-window-candidates-v3-official-prepared-v10.parquet",
+  "rows": 357699,
+  "horizons": [
+    1,
+    5,
+    10
+  ],
+  "shards": [
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v3-official-prepared-v10-1d.parquet",
+      "rows": 119553,
+      "sha256": "cc5a941559bab9a6f980015bb9f49406d64a9392c87f68c312f5240bba18f0a1"
+    },
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v3-official-prepared-v10-5d.parquet",
+      "rows": 102234,
+      "sha256": "ce30780ab1a70c06764fa2df593801bb2629a147514ee109a5d52ced804dd9a3"
+    },
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v3-official-prepared-v10-10d.parquet",
+      "rows": 135912,
+      "sha256": "8c2b2a8b04289fcb6ff025a7b87d830f52f6a194715dfd9f7f05a90187e0fb00"
+    }
+  ],
+  "output_sha256": "98e41a6a6f6b3d0e6956db16c8946a9691ef774fad5cb1ace0f0504e325a0837",
+  "stock_probability_sha256": "29fcfb1b3b8be4cb0e15c4824fa65f2837375f3690e05e8fc48faa679b94faae",
+  "stock_registry_run_ids": [
+    "scientific-oof-25d0e43cc50f-838558e80923"
+  ],
+  "stock_registry_dataset_sha256": [
+    "838558e8092340a152c135965d0d149a6e20ad8cb056c182598fdd9dda56901f"
+  ],
+  "stock_feature_schema_sha256": [
+    "b2f8ed2354d6da3cd08f0e2ed580ec007301ba8e20bf77b7799bedc686fdc782",
+    "efb9746ca4ba6e1c5346718dc67b8a8d6d39eced322348089fb61af66dddbaf1"
+  ],
+  "article_corpus_sha256": [
+    "be431b9e99e06bb286e5339cfd58bab8a74b9554b7fb6a30773bbf2bb3ae012d"
+  ],
+  "policy_sha256": "23f9c9748ad549f870d519a9b4b3e7a703b1faa552b62f824c44b0b9da3cbc3a",
+  "sentiment_model_variant": [
+    "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1"
+  ],
+  "sentiment_model_variant_sha256": [
+    "7553034e19a1679dc700b38d4de44deeed66186375317cd93fbac1edff403006"
+  ],
+  "sentiment_component_artifacts_sha256": [
+    "ddd57cfc3d235106163935d6b78da1ffd907b4008ea456f76952110954826c42"
+  ],
+  "duplicate_keys": 0
+}

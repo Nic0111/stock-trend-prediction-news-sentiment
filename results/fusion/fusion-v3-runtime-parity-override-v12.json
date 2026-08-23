@@ -1,0 +1,58 @@
+{
+  "schema_version": "fusion-v3-runtime-parity-v1",
+  "created_at": "2026-08-23T05:20:36+00:00",
+  "dataset_sha256": "963473220e7d7e484d38243dceb9e4310297a141438bec557d8b60eb660ede04",
+  "runtime_state_sha256": "8a9e609716726a1af8e489b8db20d2ad3a87cd027879fa6d7952ca3505842ca4",
+  "accepted_horizons": [
+    1,
+    5,
+    10
+  ],
+  "sample_per_ticker": 10,
+  "sampled_rows": 300,
+  "tolerance": 1e-06,
+  "feature_max_error": {
+    "news_log_event_count": 0.0,
+    "news_log_article_count": 0.0,
+    "news_volume_surprise": 0.0,
+    "news_official_disclosure_share": 0.0,
+    "news_positive_impact": 0.0,
+    "news_negative_impact": 0.0,
+    "news_sentiment_surprise": 0.0,
+    "news_sentiment_dispersion": 0.0,
+    "news_conflicting_signal": 0.0,
+    "news_event_category_financial_results_guidance_share": 0.0,
+    "news_event_category_dividends_distributions_share": 0.0,
+    "news_event_category_contracts_order_wins_share": 0.0,
+    "news_event_category_acquisitions_disposals_investments_share": 0.0,
+    "news_event_category_financing_capital_changes_share": 0.0,
+    "news_event_category_regulatory_legal_governance_share": 0.0,
+    "news_event_category_operational_product_strategy_share": 0.0,
+    "news_event_category_management_changes_share": 0.0,
+    "news_newest_age_days": 0.0,
+    "news_independent_event_count": 0.0,
+    "news_source_diversity": 0.0,
+    "news_reliability_x_stock_uncertainty": 0.0
+  },
+  "horizons": {
+    "1": {
+      "rows": 100,
+      "max_feature_error": 0.0
+    },
+    "5": {
+      "rows": 100,
+      "max_feature_error": 0.0
+    },
+    "10": {
+      "rows": 100,
+      "max_feature_error": 0.0
+    }
+  },
+  "checks": {
+    "feature_schema": true,
+    "numeric_feature_parity": true,
+    "no_news_exact_stock_input": true,
+    "runtime_state_structure": true
+  },
+  "passed": true
+}

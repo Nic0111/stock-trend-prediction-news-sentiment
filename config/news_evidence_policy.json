@@ -1,0 +1,48 @@
+{
+  "policy_version": "news-evidence-v5-llm-assisted-label",
+  "benchmark_path": "data/news-evidence-benchmark/bursa-news-llm-assisted-label.jsonl",
+  "dataset_quality_policy_path": "config/bursa_news_dataset_policy.json",
+  "readiness_gates": {
+    "enforce_dataset_size": false,
+    "require_nonempty_splits": true,
+    "require_all_tickers": true,
+    "notes": [
+      "There is no frozen 3,000-row or 300-row-per-company requirement.",
+      "Available labelled volume is reported descriptively; integrity and chronological checks remain active."
+    ]
+  },
+  "minimum_rows": 0,
+  "minimum_rows_per_ticker": 0,
+  "required_tickers": [
+    "1023.KL",
+    "1155.KL",
+    "1295.KL",
+    "3816.KL",
+    "4677.KL",
+    "5183.KL",
+    "5225.KL",
+    "5347.KL",
+    "6947.KL",
+    "8869.KL"
+  ],
+  "required_columns": [
+    "ticker",
+    "published_at",
+    "title",
+    "description",
+    "entity_relevant",
+    "sentiment_label",
+    "split"
+  ],
+  "required_splits": ["training", "validation", "test"],
+  "sentiment_gates": {
+    "minimum_macro_f1": 0.70,
+    "minimum_balanced_accuracy": 0.70,
+    "maximum_ece": 0.10
+  },
+  "entity_gates": {
+    "minimum_precision": 0.90,
+    "minimum_recall": 0.75
+  },
+  "notes": "Promotion evidence uses the chronological 2019-2025 Bursa-labelled dataset: 2019-2023 training, 2024 validation/calibration, and frozen 2025 test. Accepted sentiment labels are recorded as LLM-assisted labels, not independent human ground truth; any independent agreement is reported separately. Financial PhraseBank remains an external-domain non-inferiority benchmark."
+}

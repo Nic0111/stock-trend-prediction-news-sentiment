@@ -1,0 +1,30 @@
+[
+  {
+    "id": "target-aware-neutral-balanced-ce",
+    "text_mode": "target_aware",
+    "sampling_mode": "ticker_class_neutral_balanced",
+    "loss_mode": "inverse_frequency_ce",
+    "calibration_mode": "scalar_temperature"
+  },
+  {
+    "id": "target-aware-neutral-balanced-focal",
+    "text_mode": "target_aware",
+    "sampling_mode": "ticker_class_neutral_balanced",
+    "loss_mode": "effective_number_focal",
+    "calibration_mode": "scalar_temperature"
+  },
+  {
+    "id": "target-aware-ticker-balanced-ce",
+    "text_mode": "target_aware",
+    "sampling_mode": "ticker_class_balanced",
+    "loss_mode": "inverse_frequency_ce",
+    "calibration_mode": "scalar_temperature"
+  },
+  {
+    "id": "target-aware-ticker-balanced-logit-adjusted",
+    "text_mode": "target_aware",
+    "sampling_mode": "ticker_class_balanced",
+    "loss_mode": "logit_adjusted_ce",
+    "calibration_mode": "scalar_temperature"
+  }
+]

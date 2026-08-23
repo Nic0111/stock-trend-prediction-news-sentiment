@@ -1,0 +1,378 @@
+{
+  "created_at": "2026-07-31T21:04:10+00:00",
+  "dataset_path": "data\\fusion\\fusion-features.parquet",
+  "dataset_sha256": "c86011d5d46b43b9b0920e90bb4038375ee0d02a216522f8456bd754c3f63206",
+  "evaluation_scope": {
+    "dataset_tickers": [
+      "1023.KL",
+      "1155.KL",
+      "1295.KL",
+      "3816.KL",
+      "4677.KL",
+      "5183.KL",
+      "5225.KL",
+      "5347.KL",
+      "6947.KL",
+      "8869.KL"
+    ],
+    "production_promotion_allowed": false,
+    "required_tickers": [
+      "1023.KL",
+      "1295.KL",
+      "3816.KL",
+      "6947.KL"
+    ],
+    "research_subset": true
+  },
+  "horizons": {
+    "1": {
+      "benchmark_metrics": {
+        "balanced_accuracy": 0.547993705743509,
+        "brier_score": 0.2521436445794264,
+        "down_recall": 0.9024390243902439,
+        "ece": 0.0950764358696792,
+        "log_loss": 0.6975370191759342,
+        "macro_f1": 0.5055647643855079,
+        "mcc": 0.13743305819982024,
+        "predicted_up_rate": 0.1388888888888889,
+        "up_recall": 0.1935483870967742
+      },
+      "benchmark_rows": 72,
+      "bootstrap_balanced_accuracy_gain_ci": [
+        -0.13552606177606177,
+        0.13504130605822173
+      ],
+      "calibrated_threshold": 0.56,
+      "calibration_rows": 37,
+      "development_rows": 100,
+      "eligible_rows": 209,
+      "late_fusion_development": {
+        "C": 1.0,
+        "fold_mcc": [
+          0.28941438070815306,
+          0.49206349206349204,
+          -0.22084711628963774,
+          -0.3779644730092272,
+          0.13483997249264842
+        ],
+        "metrics": {
+          "balanced_accuracy": 0.5381488430268918,
+          "brier_score": 0.3245586178325712,
+          "down_recall": 0.5641025641025641,
+          "ece": 0.24548892296748848,
+          "log_loss": 1.0051708706322215,
+          "macro_f1": 0.5374277230817315,
+          "mcc": 0.07636936073943776,
+          "predicted_up_rate": 0.475,
+          "up_recall": 0.5121951219512195
+        }
+      },
+      "per_company_balanced_accuracy_gain": {
+        "1023.KL": 0.016908212560386437,
+        "1295.KL": 0.0,
+        "3816.KL": -0.11250000000000004,
+        "6947.KL": 0.0
+      },
+      "promotion": {
+        "accepted": false,
+        "checks": {
+          "balanced_accuracy_gain": false,
+          "bootstrap_gain_ci": false,
+          "brier_improved": false,
+          "company_stability": false,
+          "down_recall": true,
+          "ece_within_tolerance": false,
+          "full_company_universe": false,
+          "log_loss_improved": false,
+          "macro_f1_not_worse": false,
+          "positive_mcc": true,
+          "positive_mcc_folds": false,
+          "prediction_mix": false,
+          "up_recall": false
+        },
+        "reasons": [
+          "promotion gate failed: balanced_accuracy_gain",
+          "promotion gate failed: macro_f1_not_worse",
+          "promotion gate failed: brier_improved",
+          "promotion gate failed: log_loss_improved",
+          "promotion gate failed: ece_within_tolerance",
+          "promotion gate failed: up_recall",
+          "promotion gate failed: prediction_mix",
+          "promotion gate failed: positive_mcc_folds",
+          "promotion gate failed: bootstrap_gain_ci",
+          "promotion gate failed: company_stability",
+          "research subset cannot be promoted to production"
+        ]
+      },
+      "selected_method": "late_fusion_logistic",
+      "selected_parameter": 1.0,
+      "stock_baseline_metrics": {
+        "balanced_accuracy": 0.5546813532651456,
+        "brier_score": 0.2434628277455811,
+        "down_recall": 0.5609756097560976,
+        "ece": 0.016460254639955096,
+        "log_loss": 0.6800280762696893,
+        "macro_f1": 0.5524475524475525,
+        "mcc": 0.10834456762634365,
+        "predicted_up_rate": 0.4861111111111111,
+        "up_recall": 0.5483870967741935
+      },
+      "transparent_development": {
+        "alpha": 0.4,
+        "fold_mcc": [
+          -0.041344911529736156,
+          0.0,
+          0.17407765595569785,
+          0.42857142857142855,
+          0.0
+        ],
+        "metrics": {
+          "balanced_accuracy": 0.5231394621638524,
+          "brier_score": 0.25356412508302684,
+          "down_recall": 0.9487179487179487,
+          "ece": 0.059647658754951254,
+          "log_loss": 0.7002965829546326,
+          "macro_f1": 0.4125400112973075,
+          "mcc": 0.0878245640730284,
+          "predicted_up_rate": 0.075,
+          "up_recall": 0.0975609756097561
+        }
+      }
+    },
+    "10": {
+      "benchmark_metrics": {
+        "balanced_accuracy": 0.5,
+        "brier_score": 0.33862083317559233,
+        "down_recall": 0.0,
+        "ece": 0.2983572697205973,
+        "log_loss": 0.9150358506936824,
+        "macro_f1": 0.3359173126614987,
+        "mcc": 0.0,
+        "predicted_up_rate": 1.0,
+        "up_recall": 1.0
+      },
+      "benchmark_rows": 257,
+      "bootstrap_balanced_accuracy_gain_ci": [
+        -0.07746630999778813,
+        0.038468974546340226
+      ],
+      "calibrated_threshold": 0.5,
+      "calibration_rows": 175,
+      "development_rows": 594,
+      "eligible_rows": 1026,
+      "late_fusion_development": {
+        "C": 0.1,
+        "fold_mcc": [
+          0.40054808159595834,
+          0.0,
+          0.13054783518807392,
+          0.05387382104373786,
+          -0.08989887477585048
+        ],
+        "metrics": {
+          "balanced_accuracy": 0.5548580016908289,
+          "brier_score": 0.28890651396335637,
+          "down_recall": 0.7610921501706485,
+          "ece": 0.18507094058588597,
+          "log_loss": 0.9910188694077083,
+          "macro_f1": 0.5476969838671967,
+          "mcc": 0.12011829970559522,
+          "predicted_up_rate": 0.2857142857142857,
+          "up_recall": 0.3486238532110092
+        }
+      },
+      "per_company_balanced_accuracy_gain": {
+        "1023.KL": -0.019736842105263164,
+        "1295.KL": 0.23095238095238096,
+        "3816.KL": -0.06666666666666665,
+        "6947.KL": -0.2272727272727273
+      },
+      "promotion": {
+        "accepted": false,
+        "checks": {
+          "balanced_accuracy_gain": false,
+          "bootstrap_gain_ci": false,
+          "brier_improved": false,
+          "company_stability": false,
+          "down_recall": false,
+          "ece_within_tolerance": false,
+          "full_company_universe": false,
+          "log_loss_improved": false,
+          "macro_f1_not_worse": false,
+          "positive_mcc": false,
+          "positive_mcc_folds": false,
+          "prediction_mix": false,
+          "up_recall": true
+        },
+        "reasons": [
+          "promotion gate failed: balanced_accuracy_gain",
+          "promotion gate failed: positive_mcc",
+          "promotion gate failed: macro_f1_not_worse",
+          "promotion gate failed: brier_improved",
+          "promotion gate failed: log_loss_improved",
+          "promotion gate failed: ece_within_tolerance",
+          "promotion gate failed: down_recall",
+          "promotion gate failed: prediction_mix",
+          "promotion gate failed: positive_mcc_folds",
+          "promotion gate failed: bootstrap_gain_ci",
+          "promotion gate failed: company_stability",
+          "research subset cannot be promoted to production"
+        ]
+      },
+      "selected_method": "late_fusion_logistic",
+      "selected_parameter": 0.1,
+      "stock_baseline_metrics": {
+        "balanced_accuracy": 0.5197456087219867,
+        "brier_score": 0.24978218829016355,
+        "down_recall": 0.3779527559055118,
+        "ece": 0.005775250934172194,
+        "log_loss": 0.6927112535904745,
+        "macro_f1": 0.5107035059205944,
+        "mcc": 0.04118491493591673,
+        "predicted_up_rate": 0.642023346303502,
+        "up_recall": 0.6615384615384615
+      },
+      "transparent_development": {
+        "alpha": 1.0,
+        "fold_mcc": [
+          0.0,
+          0.06941290575115086,
+          0.0,
+          -0.18744051903851108,
+          -0.10786366320277613
+        ],
+        "metrics": {
+          "balanced_accuracy": 0.4842032751980462,
+          "brier_score": 0.26746807138474954,
+          "down_recall": 0.07849829351535836,
+          "ece": 0.16121493071428178,
+          "log_loss": 0.728689454925822,
+          "macro_f1": 0.3521045368293945,
+          "mcc": -0.054069354604355295,
+          "predicted_up_rate": 0.9080234833659491,
+          "up_recall": 0.8899082568807339
+        }
+      }
+    },
+    "5": {
+      "benchmark_metrics": {
+        "balanced_accuracy": 0.41119766309639727,
+        "brier_score": 0.27524859293153675,
+        "down_recall": 0.5692307692307692,
+        "ece": 0.12651696272169533,
+        "log_loss": 0.7521714356669605,
+        "macro_f1": 0.3872939795569032,
+        "mcc": -0.1874857995271715,
+        "predicted_up_rate": 0.3333333333333333,
+        "up_recall": 0.25316455696202533
+      },
+      "benchmark_rows": 144,
+      "bootstrap_balanced_accuracy_gain_ci": [
+        -0.07046072708386142,
+        0.010378828261290909
+      ],
+      "calibrated_threshold": 0.7,
+      "calibration_rows": 96,
+      "development_rows": 267,
+      "eligible_rows": 507,
+      "late_fusion_development": {
+        "C": 10.0,
+        "fold_mcc": [
+          0.263573811002068,
+          -0.07188851546895894,
+          0.019920476822239894,
+          -0.4403855060505442,
+          0.15920975452522132
+        ],
+        "metrics": {
+          "balanced_accuracy": 0.5264418647503224,
+          "brier_score": 0.3214127732184462,
+          "down_recall": 0.8059701492537313,
+          "ece": 0.29025905722390005,
+          "log_loss": 1.2472800479657846,
+          "macro_f1": 0.5139159585249864,
+          "mcc": 0.06248772530185283,
+          "predicted_up_rate": 0.21395348837209302,
+          "up_recall": 0.24691358024691357
+        }
+      },
+      "per_company_balanced_accuracy_gain": {
+        "1023.KL": -0.018939393939393923,
+        "1295.KL": 0.041666666666666685,
+        "3816.KL": -0.07142857142857145,
+        "6947.KL": -0.0625
+      },
+      "promotion": {
+        "accepted": false,
+        "checks": {
+          "balanced_accuracy_gain": false,
+          "bootstrap_gain_ci": false,
+          "brier_improved": false,
+          "company_stability": false,
+          "down_recall": true,
+          "ece_within_tolerance": false,
+          "full_company_universe": false,
+          "log_loss_improved": false,
+          "macro_f1_not_worse": false,
+          "positive_mcc": false,
+          "positive_mcc_folds": false,
+          "prediction_mix": true,
+          "up_recall": false
+        },
+        "reasons": [
+          "promotion gate failed: balanced_accuracy_gain",
+          "promotion gate failed: positive_mcc",
+          "promotion gate failed: macro_f1_not_worse",
+          "promotion gate failed: brier_improved",
+          "promotion gate failed: log_loss_improved",
+          "promotion gate failed: ece_within_tolerance",
+          "promotion gate failed: up_recall",
+          "promotion gate failed: positive_mcc_folds",
+          "promotion gate failed: bootstrap_gain_ci",
+          "promotion gate failed: company_stability",
+          "research subset cannot be promoted to production"
+        ]
+      },
+      "selected_method": "transparent_log_odds",
+      "selected_parameter": 0.0,
+      "stock_baseline_metrics": {
+        "balanced_accuracy": 0.4401168451801363,
+        "brier_score": 0.2536811303312635,
+        "down_recall": 0.5384615384615384,
+        "ece": 0.0807011054380784,
+        "log_loss": 0.7005196926206096,
+        "macro_f1": 0.4287925696594427,
+        "mcc": -0.12187309426097861,
+        "predicted_up_rate": 0.3958333333333333,
+        "up_recall": 0.34177215189873417
+      },
+      "transparent_development": {
+        "alpha": 0.0,
+        "fold_mcc": [
+          0.41917053566757584,
+          0.0,
+          0.028867513459481284,
+          0.0,
+          -0.14538985997006057
+        ],
+        "metrics": {
+          "balanced_accuracy": 0.5377740925004606,
+          "brier_score": 0.24905060201274118,
+          "down_recall": 0.8656716417910447,
+          "ece": 0.11494111301114815,
+          "log_loss": 0.6912472112401401,
+          "macro_f1": 0.5159784757302877,
+          "mcc": 0.09916277439400707,
+          "predicted_up_rate": 0.16279069767441862,
+          "up_recall": 0.20987654320987653
+        }
+      }
+    }
+  },
+  "periods": {
+    "benchmark": "2025-01-01 through 2025-12-31",
+    "calibration": "2024-01-01 through 2024-12-31",
+    "development": "2019-01-01 through 2023-12-31",
+    "shadow": "2026 onward"
+  }
+}

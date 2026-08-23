@@ -1,0 +1,57 @@
+{
+  "schema_version": "fusion-evaluation-v3",
+  "claim_scope": "retrospective-2019-2025",
+  "periods": {
+    "development": [2019, 2023],
+    "calibration": [2024, 2024],
+    "benchmark": [2025, 2025]
+  },
+  "rolling_origins": [
+    {"train_end": 2020, "calibration": 2021, "evaluation": 2022},
+    {"train_end": 2021, "calibration": 2022, "evaluation": 2023},
+    {"train_end": 2022, "calibration": 2023, "evaluation": 2024},
+    {"train_end": 2023, "calibration": 2024, "evaluation": 2025}
+  ],
+  "supported_horizons": [1, 5, 10],
+  "window_candidates": {
+    "1": [0, 1, 3, 5],
+    "5": [3, 7, 14],
+    "10": [7, 14, 21, 30]
+  },
+  "half_life_fractions": [0.25, 0.5],
+  "anchored_candidates": [
+    {"family": "ridge", "penalty_strength": 0.01, "l1_ratio": 0.0},
+    {"family": "ridge", "penalty_strength": 0.1, "l1_ratio": 0.0},
+    {"family": "ridge", "penalty_strength": 1.0, "l1_ratio": 0.0},
+    {"family": "ridge", "penalty_strength": 10.0, "l1_ratio": 0.0},
+    {"family": "elastic_net", "penalty_strength": 0.01, "l1_ratio": 0.25},
+    {"family": "elastic_net", "penalty_strength": 0.1, "l1_ratio": 0.25},
+    {"family": "elastic_net", "penalty_strength": 1.0, "l1_ratio": 0.25},
+    {"family": "elastic_net", "penalty_strength": 0.1, "l1_ratio": 0.5},
+    {"family": "elastic_net", "penalty_strength": 1.0, "l1_ratio": 0.5}
+  ],
+  "news_log_odds_caps": [0.1, 0.25, 0.5, 0.75],
+  "random_seed": 42,
+  "permutation_iterations": 1000,
+  "bootstrap_iterations": 2000,
+  "bootstrap_blocks": {"1": 5, "5": 5, "10": 10},
+  "readiness_gates": {
+    "minimum_news_present_benchmark_rows": 300,
+    "minimum_news_present_per_company_horizon": 20,
+    "minimum_unique_material_events_per_company": 100,
+    "minimum_power": 0.8,
+    "minimum_detectable_brier_improvement": 0.0025
+  },
+  "acceptance_gates": {
+    "minimum_benchmark_rows": 1000,
+    "minimum_tickers": 10,
+    "minimum_balanced_accuracy_gain": 0.01,
+    "maximum_macro_f1_loss": 0.005,
+    "maximum_ece_increase": 0.01,
+    "minimum_placebo_percentile": 0.95,
+    "minimum_positive_rolling_years": 3,
+    "minimum_non_deteriorating_companies": 7,
+    "maximum_company_balanced_accuracy_loss": 0.05,
+    "holm_alpha": 0.05
+  }
+}

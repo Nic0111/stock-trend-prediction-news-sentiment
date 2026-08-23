@@ -1,0 +1,46 @@
+{
+  "schema_version": "fusion-window-candidates-v3-v9-merged",
+  "output_path": "data\\fusion\\fusion-window-candidates-v3-official-prepared-v9.parquet",
+  "rows": 357699,
+  "horizons": [
+    1,
+    5,
+    10
+  ],
+  "shards": [
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v3-official-prepared-v9-1d.parquet",
+      "rows": 119553,
+      "sha256": "2e2fa42b3b17aba1019e05c592e8a668505cbb0e48ee14e7dfa99493d396bd91"
+    },
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v3-official-prepared-v9-5d.parquet",
+      "rows": 102234,
+      "sha256": "da134d0134b53271f4b83379a7245e0b6d8247d21409cbf80a5efd0d89e6fa9a"
+    },
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v3-official-prepared-v9-10d.parquet",
+      "rows": 135912,
+      "sha256": "b69d063139972adb5a037ee5d91982e28290191f18d0e8aef04b4a06660d3aee"
+    }
+  ],
+  "output_sha256": "f564f6c96c21caccf58df339b7339e37c244ac2077ca437d1e24c898b946ed3f",
+  "stock_probability_sha256": "29fcfb1b3b8be4cb0e15c4824fa65f2837375f3690e05e8fc48faa679b94faae",
+  "stock_registry_run_ids": [
+    "scientific-oof-25d0e43cc50f-838558e80923"
+  ],
+  "article_corpus_sha256": [
+    "4be2c544be86d293c8c4395a5cf0fdf6cf02a03ed6c9ef4fa02fe25e86370b59"
+  ],
+  "policy_sha256": "23f9c9748ad549f870d519a9b4b3e7a703b1faa552b62f824c44b0b9da3cbc3a",
+  "sentiment_model_variant": [
+    "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1"
+  ],
+  "sentiment_model_variant_sha256": [
+    "7553034e19a1679dc700b38d4de44deeed66186375317cd93fbac1edff403006"
+  ],
+  "sentiment_component_artifacts_sha256": [
+    "ddd57cfc3d235106163935d6b78da1ffd907b4008ea456f76952110954826c42"
+  ],
+  "duplicate_keys": 0
+}

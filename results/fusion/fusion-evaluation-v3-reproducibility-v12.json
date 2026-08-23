@@ -1,0 +1,11 @@
+{
+  "schema_version": "fusion-v3-reproducibility-v1",
+  "first_report": "results\\fusion\\fusion-evaluation-v3-run-a-v12.json",
+  "second_report": "results\\fusion\\fusion-evaluation-v3-run-b-v12.json",
+  "first_scientific_result_sha256": "16a065adf948651e193d464153afc7e90640cb8ed2125af96002049ec6c92a35",
+  "second_scientific_result_sha256": "16a065adf948651e193d464153afc7e90640cb8ed2125af96002049ec6c92a35",
+  "passed": true,
+  "dataset_sha256_matches": true,
+  "policy_sha256_matches": true,
+  "accepted_horizons_match": true
+}

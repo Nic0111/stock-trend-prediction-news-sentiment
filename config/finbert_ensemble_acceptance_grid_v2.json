@@ -1,0 +1,20 @@
+[
+  {
+    "id": "target-aware-baseline",
+    "text_mode": "target_aware",
+    "sampling_mode": "shuffle",
+    "loss_mode": "inverse_frequency_ce"
+  },
+  {
+    "id": "target-aware-balanced",
+    "text_mode": "target_aware",
+    "sampling_mode": "ticker_class_balanced",
+    "loss_mode": "inverse_frequency_ce"
+  },
+  {
+    "id": "target-aware-focal",
+    "text_mode": "target_aware",
+    "sampling_mode": "ticker_class_balanced",
+    "loss_mode": "effective_number_focal"
+  }
+]

@@ -1,0 +1,38 @@
+{
+  "checkpoint_status": "stopped_by_user",
+  "checkpointed_at": "2026-08-20T17:25:11+08:00",
+  "pipeline": "fusion-evaluation-v2",
+  "production_changed": false,
+  "completed_stages": [
+    {
+      "stage": "scientific_stock_oof",
+      "status": "complete",
+      "path": "data/fusion/scientific-stock-oof-v2.parquet",
+      "rows": 51267,
+      "output_sha256": "29fcfb1b3b8be4cb0e15c4824fa65f2837375f3690e05e8fc48faa679b94faae"
+    },
+    {
+      "stage": "point_in_time_news_window_features",
+      "status": "complete",
+      "path": "data/fusion/fusion-window-candidates-v2.parquet",
+      "rows": 374778,
+      "window_candidate_count": 22,
+      "policy_sha256": "3eb5e187e3db433d2256aafec7445e71c85c167362860f1f3c987593e86bd056",
+      "article_corpus_sha256": "70201cd2a1fa7ab7367e1424c408383a71501b8fdfbfc412274a8cb694bc523f"
+    }
+  ],
+  "interrupted_stage": {
+    "stage": "full_v2_evaluation",
+    "status": "stopped",
+    "command": "python -m pipeline.fusion_cli evaluate-v2 --dataset data/fusion/fusion-window-candidates-v2.parquet --policy config/fusion_evaluation_v2.json --report results/fusion/fusion-evaluation-v2.json --registry models/fusion/staged-fusion-v2-registry.json",
+    "approximate_cpu_minutes_before_stop": 105.6,
+    "elapsed_wall_minutes_before_stop": 106.6,
+    "resume_attempt": 4,
+    "resume_interpreter": "C:\\Users\\nicho\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe with .venv\\Lib\\site-packages on PYTHONPATH",
+    "stop_reason": "stopped by user at 2026-08-20T17:25:11+08:00; evaluator process terminated before final report write",
+    "report_written": false,
+    "registry_written": false,
+    "metrics_valid": false
+  },
+  "resume_note": "Resume by rerunning the evaluate-v2 command; the completed OOF and feature parquet stages do not need to be rerun."
+}

@@ -1,0 +1,12 @@
+﻿{
+    "stopped_at":  "2026-08-06T20:13:03.9350633Z",
+    "reason":  "C drive free space fell below the configured safety threshold",
+    "free_gib":  19.648,
+    "threshold_gib":  20,
+    "stopped_process_ids":  [
+                                30644,
+                                33192
+                            ],
+    "production_changed":  false,
+    "resume_with_same_run_id":  true
+}

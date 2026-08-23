@@ -1,0 +1,75 @@
+{
+  "schema_version": "stocksense-gdelt-retrieval-v3",
+  "profiles": {
+    "high-recall-v4": {
+      "1023.KL": {
+        "distinctive": ["CIMB", "CIMB Group", "CIMB Bank", "CIMB Group Holdings", "CIMB Group Holdings Berhad"],
+        "ambiguous": [],
+        "anchors": ["Malaysia", "Malaysian", "Bursa", "bank", "banking", "CIMB Niaga"]
+      },
+      "1155.KL": {
+        "distinctive": ["Maybank", "Maybank Group", "Malayan Banking", "Malayan Banking Berhad"],
+        "ambiguous": [],
+        "anchors": ["Malaysia", "Malaysian", "Bursa", "bank", "banking"]
+      },
+      "1295.KL": {
+        "distinctive": ["Public Bank Berhad", "Public Bank Group", "PBBank"],
+        "ambiguous": ["Public Bank"],
+        "anchors": ["Malaysia", "Malaysian", "Bursa", "PBBank", "Public Bank Berhad"]
+      },
+      "3816.KL": {
+        "distinctive": ["MISC Berhad", "Malaysia International Shipping Corporation", "Malaysia Marine and Heavy Engineering"],
+        "ambiguous": ["MISC"],
+        "anchors": ["Malaysia", "Malaysian", "Bursa", "maritime", "shipping", "LNG", "tanker", "offshore", "PETRONAS"]
+      },
+      "4677.KL": {
+        "distinctive": ["YTL Corporation", "YTL Corporation Berhad", "YTL Corp", "YTL Power", "YTL Cement"],
+        "ambiguous": ["YTL"],
+        "anchors": ["Malaysia", "Malaysian", "Bursa", "power", "cement", "property", "utilities", "telecommunications"]
+      },
+      "5183.KL": {
+        "distinctive": ["PETRONAS Chemicals", "PETRONAS Chemicals Group", "PETRONAS Chemicals Group Berhad", "PetChem"],
+        "ambiguous": ["PCG"],
+        "anchors": ["Malaysia", "Malaysian", "Bursa", "PETRONAS", "petrochemical", "chemicals", "polymer"]
+      },
+      "5225.KL": {
+        "distinctive": ["IHH Healthcare", "IHH Healthcare Berhad"],
+        "ambiguous": ["IHH"],
+        "anchors": ["Malaysia", "Malaysian", "Bursa", "healthcare", "hospital", "medical", "Gleneagles", "Parkway"]
+      },
+      "5347.KL": {
+        "distinctive": ["Tenaga Nasional", "Tenaga Nasional Berhad", "Tenaga Nasional Bhd", "TNB Electron", "TNB Energy"],
+        "ambiguous": ["TNB"],
+        "anchors": ["Malaysia", "Malaysian", "Bursa", "electricity", "power", "utility", "grid", "substation", "EV", "charger", "charging"]
+      },
+      "6947.KL": {
+        "distinctive": ["CelcomDigi", "Celcom Digi", "CelcomDigi Berhad", "CelcomDigi Bhd"],
+        "ambiguous": [],
+        "anchors": ["Malaysia", "Malaysian", "Bursa", "telecommunications", "telco", "mobile", "network"]
+      },
+      "8869.KL": {
+        "distinctive": [
+          "Press Metal Aluminium",
+          "Press Metal Aluminium Holdings",
+          "Press Metal Aluminium Holdings Berhad",
+          "Press Metal Aluminium Holdings Bhd",
+          "PMETAL",
+          "KLSE PMETAL",
+          "Bursa 8869"
+        ],
+        "ambiguous": ["Press Metal"],
+        "anchors": [
+          "Malaysia",
+          "Malaysian",
+          "Bursa",
+          "PMETAL",
+          "8869",
+          "aluminium",
+          "aluminum",
+          "smelter",
+          "Sarawak"
+        ]
+      }
+    }
+  }
+}

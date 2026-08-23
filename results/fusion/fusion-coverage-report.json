@@ -1,0 +1,901 @@
+{
+  "complete_all_horizons": [
+    "1023.KL",
+    "1295.KL",
+    "3816.KL",
+    "6947.KL"
+  ],
+  "created_at": "2026-07-31T21:03:29+00:00",
+  "dataset_path": "data\\fusion\\fusion-features.parquet",
+  "dataset_sha256": "c86011d5d46b43b9b0920e90bb4038375ee0d02a216522f8456bd754c3f63206",
+  "dataset_tickers": [
+    "1023.KL",
+    "1155.KL",
+    "1295.KL",
+    "3816.KL",
+    "4677.KL",
+    "5183.KL",
+    "5225.KL",
+    "5347.KL",
+    "6947.KL",
+    "8869.KL"
+  ],
+  "eligible_definition": {
+    "coverage_labels": [
+      "Medium",
+      "High"
+    ],
+    "coverage_scores": [
+      0.5,
+      1.0
+    ],
+    "news_available": 1
+  },
+  "horizons": {
+    "1": {
+      "complete_tickers": [
+        "1023.KL",
+        "1295.KL",
+        "3816.KL",
+        "6947.KL"
+      ],
+      "eligible_rows": 275,
+      "missing_tickers": [
+        "1155.KL",
+        "4677.KL",
+        "5183.KL",
+        "5225.KL",
+        "5347.KL",
+        "8869.KL"
+      ],
+      "tickers": {
+        "1023.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 107,
+              "eligible_medium_high_rows": 41,
+              "target_down_count": 23,
+              "target_up_count": 18,
+              "total_rows": 243
+            },
+            "calibration": {
+              "any_news_rows": 96,
+              "eligible_medium_high_rows": 19,
+              "target_down_count": 5,
+              "target_up_count": 14,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 270,
+              "eligible_medium_high_rows": 74,
+              "target_down_count": 39,
+              "target_up_count": 35,
+              "total_rows": 1219
+            }
+          }
+        },
+        "1155.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 12,
+              "eligible_medium_high_rows": 2,
+              "target_down_count": 1,
+              "target_up_count": 1,
+              "total_rows": 243
+            },
+            "calibration": {
+              "any_news_rows": 10,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 46,
+              "eligible_medium_high_rows": 3,
+              "target_down_count": 3,
+              "target_up_count": 0,
+              "total_rows": 1217
+            }
+          }
+        },
+        "1295.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 20,
+              "eligible_medium_high_rows": 10,
+              "target_down_count": 8,
+              "target_up_count": 2,
+              "total_rows": 243
+            },
+            "calibration": {
+              "any_news_rows": 10,
+              "eligible_medium_high_rows": 4,
+              "target_down_count": 3,
+              "target_up_count": 1,
+              "total_rows": 244
+            },
+            "development": {
+              "any_news_rows": 70,
+              "eligible_medium_high_rows": 10,
+              "target_down_count": 3,
+              "target_up_count": 7,
+              "total_rows": 1219
+            }
+          }
+        },
+        "3816.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 50,
+              "eligible_medium_high_rows": 13,
+              "target_down_count": 8,
+              "target_up_count": 5,
+              "total_rows": 243
+            },
+            "calibration": {
+              "any_news_rows": 18,
+              "eligible_medium_high_rows": 5,
+              "target_down_count": 3,
+              "target_up_count": 2,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 136,
+              "eligible_medium_high_rows": 13,
+              "target_down_count": 6,
+              "target_up_count": 7,
+              "total_rows": 1219
+            }
+          }
+        },
+        "4677.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 40,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 243
+            },
+            "calibration": {
+              "any_news_rows": 30,
+              "eligible_medium_high_rows": 4,
+              "target_down_count": 3,
+              "target_up_count": 1,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 178,
+              "eligible_medium_high_rows": 10,
+              "target_down_count": 7,
+              "target_up_count": 3,
+              "total_rows": 1217
+            }
+          }
+        },
+        "5183.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 11,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 243
+            },
+            "calibration": {
+              "any_news_rows": 5,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 65,
+              "eligible_medium_high_rows": 12,
+              "target_down_count": 5,
+              "target_up_count": 7,
+              "total_rows": 1221
+            }
+          }
+        },
+        "5225.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 24,
+              "eligible_medium_high_rows": 9,
+              "target_down_count": 4,
+              "target_up_count": 5,
+              "total_rows": 243
+            },
+            "calibration": {
+              "any_news_rows": 12,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 135,
+              "eligible_medium_high_rows": 7,
+              "target_down_count": 6,
+              "target_up_count": 1,
+              "total_rows": 1221
+            }
+          }
+        },
+        "5347.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 26,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 243
+            },
+            "calibration": {
+              "any_news_rows": 21,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 160,
+              "eligible_medium_high_rows": 14,
+              "target_down_count": 7,
+              "target_up_count": 7,
+              "total_rows": 1219
+            }
+          }
+        },
+        "6947.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 27,
+              "eligible_medium_high_rows": 8,
+              "target_down_count": 2,
+              "target_up_count": 6,
+              "total_rows": 243
+            },
+            "calibration": {
+              "any_news_rows": 16,
+              "eligible_medium_high_rows": 9,
+              "target_down_count": 6,
+              "target_up_count": 3,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 80,
+              "eligible_medium_high_rows": 3,
+              "target_down_count": 2,
+              "target_up_count": 1,
+              "total_rows": 1211
+            }
+          }
+        },
+        "8869.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 41,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 243
+            },
+            "calibration": {
+              "any_news_rows": 35,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 189,
+              "eligible_medium_high_rows": 5,
+              "target_down_count": 3,
+              "target_up_count": 2,
+              "total_rows": 1219
+            }
+          }
+        }
+      }
+    },
+    "10": {
+      "complete_tickers": [
+        "1023.KL",
+        "1295.KL",
+        "3816.KL",
+        "4677.KL",
+        "5225.KL",
+        "5347.KL",
+        "6947.KL",
+        "8869.KL"
+      ],
+      "eligible_rows": 1734,
+      "missing_tickers": [
+        "1155.KL",
+        "5183.KL"
+      ],
+      "tickers": {
+        "1023.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 182,
+              "eligible_medium_high_rows": 133,
+              "target_down_count": 76,
+              "target_up_count": 57,
+              "total_rows": 234
+            },
+            "calibration": {
+              "any_news_rows": 124,
+              "eligible_medium_high_rows": 110,
+              "target_down_count": 20,
+              "target_up_count": 90,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 472,
+              "eligible_medium_high_rows": 358,
+              "target_down_count": 189,
+              "target_up_count": 169,
+              "total_rows": 1219
+            }
+          }
+        },
+        "1155.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 26,
+              "eligible_medium_high_rows": 18,
+              "target_down_count": 1,
+              "target_up_count": 17,
+              "total_rows": 234
+            },
+            "calibration": {
+              "any_news_rows": 24,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 133,
+              "eligible_medium_high_rows": 38,
+              "target_down_count": 26,
+              "target_up_count": 12,
+              "total_rows": 1217
+            }
+          }
+        },
+        "1295.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 53,
+              "eligible_medium_high_rows": 31,
+              "target_down_count": 10,
+              "target_up_count": 21,
+              "total_rows": 234
+            },
+            "calibration": {
+              "any_news_rows": 32,
+              "eligible_medium_high_rows": 20,
+              "target_down_count": 4,
+              "target_up_count": 16,
+              "total_rows": 244
+            },
+            "development": {
+              "any_news_rows": 198,
+              "eligible_medium_high_rows": 80,
+              "target_down_count": 38,
+              "target_up_count": 42,
+              "total_rows": 1219
+            }
+          }
+        },
+        "3816.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 140,
+              "eligible_medium_high_rows": 60,
+              "target_down_count": 30,
+              "target_up_count": 30,
+              "total_rows": 234
+            },
+            "calibration": {
+              "any_news_rows": 48,
+              "eligible_medium_high_rows": 19,
+              "target_down_count": 0,
+              "target_up_count": 19,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 366,
+              "eligible_medium_high_rows": 105,
+              "target_down_count": 61,
+              "target_up_count": 44,
+              "total_rows": 1219
+            }
+          }
+        },
+        "4677.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 112,
+              "eligible_medium_high_rows": 22,
+              "target_down_count": 9,
+              "target_up_count": 13,
+              "total_rows": 234
+            },
+            "calibration": {
+              "any_news_rows": 92,
+              "eligible_medium_high_rows": 37,
+              "target_down_count": 14,
+              "target_up_count": 23,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 590,
+              "eligible_medium_high_rows": 113,
+              "target_down_count": 73,
+              "target_up_count": 40,
+              "total_rows": 1217
+            }
+          }
+        },
+        "5183.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 42,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 234
+            },
+            "calibration": {
+              "any_news_rows": 22,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 199,
+              "eligible_medium_high_rows": 59,
+              "target_down_count": 27,
+              "target_up_count": 32,
+              "total_rows": 1221
+            }
+          }
+        },
+        "5225.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 85,
+              "eligible_medium_high_rows": 40,
+              "target_down_count": 25,
+              "target_up_count": 15,
+              "total_rows": 234
+            },
+            "calibration": {
+              "any_news_rows": 33,
+              "eligible_medium_high_rows": 8,
+              "target_down_count": 7,
+              "target_up_count": 1,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 399,
+              "eligible_medium_high_rows": 91,
+              "target_down_count": 37,
+              "target_up_count": 54,
+              "total_rows": 1221
+            }
+          }
+        },
+        "5347.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 65,
+              "eligible_medium_high_rows": 34,
+              "target_down_count": 18,
+              "target_up_count": 16,
+              "total_rows": 234
+            },
+            "calibration": {
+              "any_news_rows": 53,
+              "eligible_medium_high_rows": 24,
+              "target_down_count": 6,
+              "target_up_count": 18,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 375,
+              "eligible_medium_high_rows": 142,
+              "target_down_count": 72,
+              "target_up_count": 70,
+              "total_rows": 1219
+            }
+          }
+        },
+        "6947.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 57,
+              "eligible_medium_high_rows": 33,
+              "target_down_count": 11,
+              "target_up_count": 22,
+              "total_rows": 234
+            },
+            "calibration": {
+              "any_news_rows": 46,
+              "eligible_medium_high_rows": 26,
+              "target_down_count": 10,
+              "target_up_count": 16,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 276,
+              "eligible_medium_high_rows": 51,
+              "target_down_count": 39,
+              "target_up_count": 12,
+              "total_rows": 1211
+            }
+          }
+        },
+        "8869.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 137,
+              "eligible_medium_high_rows": 9,
+              "target_down_count": 9,
+              "target_up_count": 0,
+              "total_rows": 234
+            },
+            "calibration": {
+              "any_news_rows": 128,
+              "eligible_medium_high_rows": 2,
+              "target_down_count": 2,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 553,
+              "eligible_medium_high_rows": 71,
+              "target_down_count": 49,
+              "target_up_count": 22,
+              "total_rows": 1219
+            }
+          }
+        }
+      }
+    },
+    "5": {
+      "complete_tickers": [
+        "1023.KL",
+        "1295.KL",
+        "3816.KL",
+        "4677.KL",
+        "5347.KL",
+        "6947.KL"
+      ],
+      "eligible_rows": 732,
+      "missing_tickers": [
+        "1155.KL",
+        "5183.KL",
+        "5225.KL",
+        "8869.KL"
+      ],
+      "tickers": {
+        "1023.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 142,
+              "eligible_medium_high_rows": 77,
+              "target_down_count": 33,
+              "target_up_count": 44,
+              "total_rows": 239
+            },
+            "calibration": {
+              "any_news_rows": 114,
+              "eligible_medium_high_rows": 63,
+              "target_down_count": 20,
+              "target_up_count": 43,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 369,
+              "eligible_medium_high_rows": 196,
+              "target_down_count": 108,
+              "target_up_count": 88,
+              "total_rows": 1219
+            }
+          }
+        },
+        "1155.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 15,
+              "eligible_medium_high_rows": 9,
+              "target_down_count": 5,
+              "target_up_count": 4,
+              "total_rows": 239
+            },
+            "calibration": {
+              "any_news_rows": 14,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 74,
+              "eligible_medium_high_rows": 15,
+              "target_down_count": 9,
+              "target_up_count": 6,
+              "total_rows": 1217
+            }
+          }
+        },
+        "1295.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 32,
+              "eligible_medium_high_rows": 18,
+              "target_down_count": 12,
+              "target_up_count": 6,
+              "total_rows": 239
+            },
+            "calibration": {
+              "any_news_rows": 20,
+              "eligible_medium_high_rows": 9,
+              "target_down_count": 2,
+              "target_up_count": 7,
+              "total_rows": 244
+            },
+            "development": {
+              "any_news_rows": 122,
+              "eligible_medium_high_rows": 30,
+              "target_down_count": 19,
+              "target_up_count": 11,
+              "total_rows": 1219
+            }
+          }
+        },
+        "3816.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 86,
+              "eligible_medium_high_rows": 32,
+              "target_down_count": 11,
+              "target_up_count": 21,
+              "total_rows": 239
+            },
+            "calibration": {
+              "any_news_rows": 27,
+              "eligible_medium_high_rows": 9,
+              "target_down_count": 2,
+              "target_up_count": 7,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 226,
+              "eligible_medium_high_rows": 32,
+              "target_down_count": 16,
+              "target_up_count": 16,
+              "total_rows": 1219
+            }
+          }
+        },
+        "4677.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 69,
+              "eligible_medium_high_rows": 3,
+              "target_down_count": 1,
+              "target_up_count": 2,
+              "total_rows": 239
+            },
+            "calibration": {
+              "any_news_rows": 52,
+              "eligible_medium_high_rows": 12,
+              "target_down_count": 6,
+              "target_up_count": 6,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 332,
+              "eligible_medium_high_rows": 34,
+              "target_down_count": 22,
+              "target_up_count": 12,
+              "total_rows": 1217
+            }
+          }
+        },
+        "5183.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 21,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 239
+            },
+            "calibration": {
+              "any_news_rows": 10,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 106,
+              "eligible_medium_high_rows": 28,
+              "target_down_count": 12,
+              "target_up_count": 16,
+              "total_rows": 1221
+            }
+          }
+        },
+        "5225.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 42,
+              "eligible_medium_high_rows": 18,
+              "target_down_count": 6,
+              "target_up_count": 12,
+              "total_rows": 239
+            },
+            "calibration": {
+              "any_news_rows": 21,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 236,
+              "eligible_medium_high_rows": 27,
+              "target_down_count": 18,
+              "target_up_count": 9,
+              "total_rows": 1221
+            }
+          }
+        },
+        "5347.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 44,
+              "eligible_medium_high_rows": 9,
+              "target_down_count": 4,
+              "target_up_count": 5,
+              "total_rows": 239
+            },
+            "calibration": {
+              "any_news_rows": 37,
+              "eligible_medium_high_rows": 2,
+              "target_down_count": 0,
+              "target_up_count": 2,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 250,
+              "eligible_medium_high_rows": 58,
+              "target_down_count": 26,
+              "target_up_count": 32,
+              "total_rows": 1219
+            }
+          }
+        },
+        "6947.KL": {
+          "complete": true,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 43,
+              "eligible_medium_high_rows": 17,
+              "target_down_count": 9,
+              "target_up_count": 8,
+              "total_rows": 239
+            },
+            "calibration": {
+              "any_news_rows": 26,
+              "eligible_medium_high_rows": 15,
+              "target_down_count": 6,
+              "target_up_count": 9,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 151,
+              "eligible_medium_high_rows": 9,
+              "target_down_count": 8,
+              "target_up_count": 1,
+              "total_rows": 1211
+            }
+          }
+        },
+        "8869.KL": {
+          "complete": false,
+          "periods": {
+            "benchmark": {
+              "any_news_rows": 76,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 239
+            },
+            "calibration": {
+              "any_news_rows": 68,
+              "eligible_medium_high_rows": 0,
+              "target_down_count": 0,
+              "target_up_count": 0,
+              "total_rows": 247
+            },
+            "development": {
+              "any_news_rows": 337,
+              "eligible_medium_high_rows": 10,
+              "target_down_count": 7,
+              "target_up_count": 3,
+              "total_rows": 1219
+            }
+          }
+        }
+      }
+    }
+  },
+  "periods": {
+    "benchmark": {
+      "end": "2025-12-31",
+      "start": "2025-01-01"
+    },
+    "calibration": {
+      "end": "2024-12-31",
+      "start": "2024-01-01"
+    },
+    "development": {
+      "end": "2023-12-31",
+      "start": "2019-01-01"
+    }
+  },
+  "ready_for_requested_universe": false,
+  "required_tickers": [
+    "1023.KL",
+    "1155.KL",
+    "1295.KL",
+    "3816.KL",
+    "4677.KL",
+    "5183.KL",
+    "5225.KL",
+    "5347.KL",
+    "6947.KL",
+    "8869.KL"
+  ],
+  "research_subset": false
+}

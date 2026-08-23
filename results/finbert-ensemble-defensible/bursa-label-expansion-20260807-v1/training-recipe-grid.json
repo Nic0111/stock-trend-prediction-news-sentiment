@@ -1,0 +1,12 @@
+{
+  "schema_version": "defensible-finbert-training-grid-v1",
+  "recipes": [
+    {
+      "id": "requested",
+      "text_mode": "headline_lead",
+      "sampling_mode": "shuffle",
+      "loss_mode": "inverse_frequency_ce",
+      "calibration_mode": "scalar_temperature"
+    }
+  ]
+}

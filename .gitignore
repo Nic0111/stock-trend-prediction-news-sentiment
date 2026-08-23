@@ -259,6 +259,42 @@ catboost_info/
 results/classification-reports/*.txt
 results/confusion-matrices/*.csv
 
+# Local Codex scratch space, caches and generated experiment outputs.  These
+# are reproducible from the tracked pipeline/configuration and should not be
+# committed with source releases.
+/.codex-tmp/
+/.tmp-artifact-tool/
+/logs/
+/outputs/
+/data/fusion/.official-disclosure-cache-*/
+/data/historical-news-fusion/
+/data/news-evidence-benchmark/
+/results/ensemble-artifact-text-archive-*/
+/results/external-news-import/
+/results/system-audit/
+/results/training-runs/
+/models/registry-backups/
+/models/staged-stock-runs/
+/models/fusion/staged-*/
+/models/fusion/research-subset/
+/models/fusion/smoke*-registry.json
+
+# Keep only the small active fusion manifests in source control.  Model
+# weights and staged/research registries are local release artifacts.
+/models/fusion/*
+!/models/fusion/fusion-registry.json
+!/models/fusion/fusion-v3-runtime-surprise-state-override-v12.json
+
+# Keep the presentation/API artifacts used by the local dashboard; all other
+# benchmark grids and fold outputs remain reproducible generated files.
+/results/*
+!/results/model-performance/
+!/results/model-performance/**
+!/results/fusion/
+!/results/fusion/**
+!/results/finbert-ensemble-defensible/
+!/results/finbert-ensemble-defensible/**
+
 # React/Vite build outputs and local dependencies
 /frontend/node_modules/
 /frontend/dist/
