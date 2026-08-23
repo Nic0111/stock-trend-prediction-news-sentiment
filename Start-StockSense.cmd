@@ -1,2 +1,3 @@
 @echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0start_stocksense.ps1"
+start "" wscript.exe "%~dp0Start-StockSense.vbs"
+exit /b 0

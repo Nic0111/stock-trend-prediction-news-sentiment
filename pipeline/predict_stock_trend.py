@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from functools import lru_cache
 from dataclasses import asdict, dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict
 
@@ -12,6 +13,9 @@ import pandas as pd
 import yfinance as yf
 
 from pipeline.model_artifacts import CalibratedStockModel
+from pipeline.market_calendar import completed_sessions_between, latest_completed_session
+from pipeline.runtime_validation import validate_stock_artifact
+from pipeline.runtime_provenance import sha256_file
 from pipeline.horizon_acceptance import weaker_status
 from pipeline.stock_features import FEATURE_SCHEMA_VERSION, build_stock_features
 
@@ -21,7 +25,7 @@ METADATA_FILE = PROJECT_ROOT / "data" / "stock-metadata.csv"
 REGISTRY_FILE = PROJECT_ROOT / "models" / "model-registry.json"
 MARKET_TICKER = "^KLSE"
 SUPPORTED_HORIZONS = (1, 5, 10)
-MINIMUM_HISTORY_ROWS = 60
+MINIMUM_HISTORY_ROWS = 61
 # 420 calendar days provides a buffer for 60-session features, market holidays
 # and provider gaps while keeping runtime requests bounded.
 DOWNLOAD_LOOKBACK_DAYS = 420
@@ -93,6 +97,12 @@ class PredictionResult:
     shadow_evidence_status: str | None = None
     acceptance_policy_version: str = "legacy"
     failed_acceptance_checks: list[str] = field(default_factory=list)
+    forecast_issued_at: str | None = None
+    target_window_start_date: str | None = None
+    target_window_end_date: str | None = None
+    probability_interval: dict[str, float] | None = None
+    directional_margin: float = 0.0
+    abstention_reason: str | None = None
 
     @property
     def evidence_status(self) -> str:
@@ -140,8 +150,35 @@ def _download_daily_data(ticker: str, start: date, end_exclusive: date) -> pd.Da
 
 
 def _resolve_download_end(as_of: date) -> date:
-    today = date.today()
-    return today if as_of >= today else as_of + timedelta(days=1)
+    return latest_completed_session(as_of) + timedelta(days=1)
+
+
+def _minimum_history_rows(required_features: list[str]) -> int:
+    """Derive a safe row floor from the largest rolling feature window."""
+    largest_window = 10
+    for feature in required_features:
+        if "60" in feature:
+            largest_window = max(largest_window, 60)
+        elif "20" in feature:
+            largest_window = max(largest_window, 20)
+        elif "14" in feature:
+            largest_window = max(largest_window, 14)
+    # Returns consume one earlier observation; a small buffer also tolerates
+    # one provider row that is removed during stock/KLCI alignment.
+    return max(MINIMUM_HISTORY_ROWS, largest_window + 5)
+
+
+@lru_cache(maxsize=6)
+def _load_model_cached(path_text: str, size: int, modified_ns: int) -> Any:
+    """Load a deployed model once, invalidating it when the artifact changes."""
+
+    del size, modified_ns
+    return joblib.load(Path(path_text))
+
+
+def _production_model_loader(path: Path) -> Any:
+    stat = path.stat()
+    return _load_model_cached(str(path.resolve()), stat.st_size, stat.st_mtime_ns)
 
 
 def predict_stock_trend(
@@ -152,7 +189,7 @@ def predict_stock_trend(
     stock_df: pd.DataFrame | None = None,
     market_df: pd.DataFrame | None = None,
     registry_path: Path = REGISTRY_FILE,
-    model_loader: Callable[[Path], Any] = joblib.load,
+    model_loader: Callable[[Path], Any] | None = None,
 ) -> PredictionResult:
     normalized_ticker = ticker.strip().upper()
     metadata = _load_metadata()
@@ -188,12 +225,28 @@ def predict_stock_trend(
         shadow_status = None
     effective_global_status = weaker_status(global_status, shadow_status) if shadow_status else global_status
     ticker_entry = (horizon_registry.get("ticker_acceptance") or {}).get(normalized_ticker, {})
-    ticker_status = str(ticker_entry.get("status", "accepted")).lower()
-    if ticker_status not in {"accepted", "limited", "experimental"}:
-        ticker_status = "experimental"
-    effective_status = weaker_status(effective_global_status, ticker_status)
+    ticker_evidence_available = bool(
+        ticker_entry.get("development_evidence_available", bool(ticker_entry))
+    )
+    if ticker_entry and not ticker_evidence_available:
+        ticker_status = "unavailable"
+        # A missing ticker-specific development sample is disclosed but does
+        # not silently override a properly accepted pooled panel model.
+        effective_status = effective_global_status
+    else:
+        ticker_status = str(ticker_entry.get("status", "accepted")).lower()
+        if ticker_status not in {"accepted", "limited", "experimental"}:
+            ticker_status = "experimental"
+        effective_status = weaker_status(effective_global_status, ticker_status)
     observed_acceptance = horizon_registry.get("observed_acceptance") or {}
     failed_checks = list(observed_acceptance.get("failed_checks", []))
+    registry_is_official = (
+        str(registry.get("search_profile", "")).casefold() == "official"
+        and str(registry.get("publication_status", "")).casefold() == "validated"
+    )
+    if not registry_is_official:
+        effective_status = "experimental"
+        failed_checks.append("registry_not_officially_validated")
     if shadow_status and shadow_status != "accepted":
         failed_checks.extend(
             f"shadow:{name}" for name in (shadow_acceptance.get("failed_checks") or [])
@@ -203,8 +256,10 @@ def predict_stock_trend(
     )
 
     effective_date = pd.Timestamp(as_of_date).date() if as_of_date is not None else date.today()
-    start_date = effective_date - timedelta(days=DOWNLOAD_LOOKBACK_DAYS)
+    completed_session = latest_completed_session(effective_date)
+    start_date = completed_session - timedelta(days=DOWNLOAD_LOOKBACK_DAYS)
     end_exclusive = _resolve_download_end(effective_date)
+    required_features = list(horizon_registry["numeric_feature_columns"])
 
     stock_data = stock_df
     if stock_data is None:
@@ -213,11 +268,14 @@ def predict_stock_trend(
         stock_data = stock_data.copy()
         if "Ticker" not in stock_data.columns:
             stock_data["Ticker"] = normalized_ticker
+    stock_data["Date"] = pd.to_datetime(stock_data["Date"], errors="coerce", utc=True).dt.tz_localize(None)
+    stock_data = stock_data[stock_data["Date"] <= pd.Timestamp(completed_session)].copy()
 
-    if len(stock_data) < MINIMUM_HISTORY_ROWS:
+    minimum_history = _minimum_history_rows(required_features)
+    if len(stock_data) < minimum_history:
         raise ValueError(
             f"Insufficient history for {normalized_ticker}: {len(stock_data)} rows; "
-            f"at least {MINIMUM_HISTORY_ROWS} are required"
+            f"at least {minimum_history} are required by the selected feature schema"
         )
 
     refinement_round = int(horizon_registry["refinement_round"])
@@ -231,8 +289,7 @@ def predict_stock_trend(
             ) from exc
 
     features = build_stock_features(stock_data, market_df=market_data if refinement_round >= 3 else None)
-    features = features[features["Date"] <= pd.Timestamp(effective_date)].copy()
-    required_features = list(horizon_registry["numeric_feature_columns"])
+    features = features[features["Date"] <= pd.Timestamp(completed_session)].copy()
     feature_complete = features.dropna(subset=required_features)
     if feature_complete.empty:
         raise ValueError("No feature-complete inference row is available")
@@ -241,11 +298,25 @@ def predict_stock_trend(
     artifact_path = PROJECT_ROOT / horizon_registry["artifact_path"]
     if not artifact_path.exists():
         raise FileNotFoundError(f"Model artifact not found: {artifact_path}")
-    model = model_loader(artifact_path)
-    if not isinstance(model, CalibratedStockModel):
-        raise TypeError("Model artifact is not a calibrated stock model")
-    if list(model.input_columns) != list(horizon_registry["input_columns"]):
-        raise ValueError("Model artifact and registry feature schemas do not match")
+    expected_artifact_hash = str(horizon_registry.get("artifact_sha256") or "").strip()
+    if not expected_artifact_hash:
+        raise RuntimeError(
+            "The stock artifact has no integrity hash in the model registry; "
+            "run an official staged training and promotion."
+        )
+    if sha256_file(artifact_path) != expected_artifact_hash:
+        raise RuntimeError(
+            "The stock artifact integrity check failed; inference was stopped."
+        )
+    model = (model_loader or _production_model_loader)(artifact_path)
+    artifact_errors = validate_stock_artifact(
+        model, horizon_registry, horizon_days=horizon_days
+    )
+    if artifact_errors:
+        raise ValueError(
+            "Model artifact and registry contract do not match: "
+            + "; ".join(artifact_errors)
+        )
 
     probability_up = float(model.predict_proba(latest[list(model.input_columns)])[:, 1][0])
     label = "Up" if probability_up >= float(model.threshold) else "Down"
@@ -272,7 +343,7 @@ def predict_stock_trend(
         if float(item["contribution"]) * direction_sign < 0
     ][:2]
     threshold_margin = abs(probability_up - float(model.threshold))
-    evidence_strength = (
+    margin_tier = (
         "Strong" if threshold_margin >= 0.05 else "Moderate" if threshold_margin >= 0.02 else "Limited"
     )
     latest_date = pd.Timestamp(latest["Date"].iloc[0]).date()
@@ -284,7 +355,7 @@ def predict_stock_trend(
         .sort_values()
     )
     reference_date = aligned_dates.iloc[-1] if len(aligned_dates) else latest_date
-    observation_lag_sessions = int((aligned_dates > latest_date).sum())
+    observation_lag_sessions = completed_sessions_between(latest_date, completed_session)
     age_days = max(0, (effective_date - latest_date).days)
     if observation_lag_sessions == 0 and age_days <= 7:
         freshness_status = "fresh"
@@ -298,6 +369,15 @@ def predict_stock_trend(
             f"Observation is {observation_lag_sessions} aligned session(s) and {age_days} calendar day(s) "
             "behind the latest valid market data."
         )
+    abstention_reasons: list[str] = []
+    if effective_status != "accepted":
+        abstention_reasons.append(
+            f"Validation status is {effective_status}; the directional result is research-only."
+        )
+    if freshness_status == "stale":
+        abstention_reasons.append(freshness_reason)
+    if not bool(model.threshold_constraints_passed):
+        abstention_reasons.append("The frozen threshold did not pass directional-balance constraints.")
     return PredictionResult(
         ticker=normalized_ticker,
         company_name=metadata[normalized_ticker],
@@ -319,7 +399,7 @@ def predict_stock_trend(
                 horizon_registry.get("threshold_passed", False),
             )
         ),
-        evidence_strength=evidence_strength,
+        evidence_strength=margin_tier,
         supporting_factors=supporting_factors,
         opposing_factors=opposing_factors,
         market_reference_date=reference_date.isoformat(),
@@ -332,6 +412,15 @@ def predict_stock_trend(
         shadow_evidence_status=shadow_status,
         acceptance_policy_version=policy_version,
         failed_acceptance_checks=sorted(set(failed_checks)),
+        forecast_issued_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        # Future Bursa sessions are not fabricated from weekday arithmetic;
+        # the exact target window remains unavailable until an exchange
+        # calendar service is part of the runtime contract.
+        target_window_start_date=None,
+        target_window_end_date=None,
+        probability_interval=None,
+        directional_margin=threshold_margin,
+        abstention_reason=" ".join(reason for reason in abstention_reasons if reason) or None,
     )
 
 

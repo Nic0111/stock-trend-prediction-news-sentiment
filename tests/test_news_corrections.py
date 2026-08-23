@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import unittest
+import tempfile
+from pathlib import Path
 
 from pipeline.download_financial_news_data import NewsContextResult, build_news_contexts
 from pipeline.evidence_synthesis import build_stock_led_outlook
 from pipeline.news_corrections import apply_news_override, reset_news_overrides
 from pipeline.predict_stock_trend import PredictionResult
 from pipeline.news_relevance import stable_article_id
+from pipeline.news_correction_audit import correction_audit_summary, record_news_correction
 
 
 class NewsCorrectionTests(unittest.TestCase):
@@ -89,6 +92,24 @@ class NewsCorrectionTests(unittest.TestCase):
         included = apply_news_override(analysis, article_id, "include")
         self.assertEqual(len(included.news.articles), 2)
         self.assertEqual(included.news.user_overrides[article_id], "include")
+
+    def test_correction_audit_records_before_and_after_without_article_text(self) -> None:
+        before = self._analysis()
+        article_id = before.news.articles[0]["article_id"]
+        after = apply_news_override(before, article_id, "exclude")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "audit.sqlite3"
+            record_news_correction(
+                analysis_id="analysis-1",
+                article_id=article_id,
+                action="exclude",
+                before=before,
+                after=after,
+                registry_signature="registry-test",
+                db_path=path,
+            )
+            summary = correction_audit_summary(path)
+        self.assertEqual(summary["event_count"], 1)
 
 
 if __name__ == "__main__":

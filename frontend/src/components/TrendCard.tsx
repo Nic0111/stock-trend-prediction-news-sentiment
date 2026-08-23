@@ -1,4 +1,6 @@
-import { ArrowDownRight, ArrowUpRight, Minus, ShieldCheck } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Check, CircleAlert, Minus, ShieldCheck } from "lucide-react";
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import type { DashboardAnalysis, Prediction, SynthesisRelationship } from "../types";
 
 function directionPresentation(prediction: Prediction) {
@@ -36,6 +38,9 @@ export function TrendCard({ analysis }: { analysis: DashboardAnalysis }) {
       ? "Limited evidence"
       : "Experimental · research only";
   const failedChecks = analysis.stock.failed_acceptance_checks || [];
+  const probabilityPercent = Math.min(100, Math.max(0, analysis.stock.probability_up * 100));
+  const thresholdPercent = Math.min(100, Math.max(0, analysis.stock.decision_threshold * 100));
+  const marginPoints = (analysis.stock.probability_up - analysis.stock.decision_threshold) * 100;
   return (
     <section className={`signal-panel ${presentation.tone}`}>
       <div className="panel-kicker">Model outlook <span className={`live-dot ${freshness !== "fresh" || analysis.stock_source !== "live" ? "stale" : ""}`}>{sourceLabel}</span></div>
@@ -44,7 +49,21 @@ export function TrendCard({ analysis }: { analysis: DashboardAnalysis }) {
       {evidenceStatus === "limited" && <div className="notice warning">This direction has limited evidence. The model shows useful signal, but one or more horizon or company acceptance checks are still below the frozen safety standard.</div>}
       {evidenceStatus === "experimental" && <div className="notice warning">This is an experimental model direction. It has not passed the frozen acceptance benchmark and is for research transparency.</div>}
       {analysis.stock_warning && <div className="notice warning">{analysis.stock_warning}</div>}
-      <details className="details"><summary>Stock model details</summary><div className="detail-copy"><p>Model: {analysis.stock.model_name}</p><p>Probability Up: {(analysis.stock.probability_up * 100).toFixed(1)}% · Probability Down: {((1 - analysis.stock.probability_up) * 100).toFixed(1)}%</p><p>Decision threshold: {(analysis.stock.decision_threshold * 100).toFixed(1)}% Up · Evidence strength: {analysis.stock.evidence_strength}</p><p>Evidence tiers: horizon {analysis.stock.global_evidence_status || "Unavailable"} · company {analysis.stock.ticker_evidence_status || "Unavailable"}{analysis.stock.shadow_evidence_status ? ` · shadow ${analysis.stock.shadow_evidence_status}` : ""}</p><p>Acceptance policy: {analysis.stock.acceptance_policy_version || "legacy"}</p><p>Checks not passed: {failedChecks.length ? failedChecks.join(", ") : "None"}</p><p>Supporting factors: {analysis.stock.supporting_factors.map((factor) => factor.label).join(", ") || "None identified"}</p><p>Opposing factors: {analysis.stock.opposing_factors.map((factor) => factor.label).join(", ") || "None identified"}</p><p>Latest valid market session: {analysis.stock.market_reference_date || "Unavailable"} · Session lag: {analysis.stock.observation_lag_sessions ?? "Unavailable"}</p></div></details>
+      <details className="details stock-detail-ledger"><summary>Stock model details</summary><div className="stock-detail-body">
+        <div className="stock-threshold-visual" aria-label={`Up probability ${probabilityPercent.toFixed(1)} percent, decision threshold ${thresholdPercent.toFixed(1)} percent`}>
+          <div className="stock-detail-heading"><div><span>Probability and locked cutoff</span><strong>{analysis.stock.model_name}</strong></div><b className={marginPoints >= 0 ? "positive-text" : "negative-text"}>{marginPoints >= 0 ? "+" : ""}{marginPoints.toFixed(1)} points from Up</b></div>
+          <div className="probability-ledger-labels"><span>Down {((1 - analysis.stock.probability_up) * 100).toFixed(1)}%</span><span>Up {probabilityPercent.toFixed(1)}%</span></div>
+          <div className="probability-ledger-track"><span className="probability-ledger-fill" style={{ width: `${probabilityPercent}%` }} /><i className="probability-marker" style={{ left: `${probabilityPercent}%` }} /><i className="threshold-marker" style={{ left: `${thresholdPercent}%` }} /></div>
+          <div className="probability-ledger-axis"><span>0%</span><span className="threshold-caption" style={{ left: `${thresholdPercent}%` }}>Cutoff {thresholdPercent.toFixed(1)}%</span><span>100%</span></div>
+        </div>
+        <div className="stock-evidence-checks">
+          <div><span className="detail-section-label">Evidence checks</span><ul><li className={analysis.stock.benchmark_passed ? "passed" : "caution"}>{analysis.stock.benchmark_passed ? <Check size={14} /> : <CircleAlert size={14} />}Frozen horizon benchmark</li><li className={analysis.stock.threshold_constraints_passed ? "passed" : "caution"}>{analysis.stock.threshold_constraints_passed ? <Check size={14} /> : <CircleAlert size={14} />}Decision-threshold constraints</li><li><ShieldCheck size={14} />{analysis.stock.evidence_strength} evidence strength</li></ul></div>
+          <div><span className="detail-section-label">Evidence tiers</span><dl><div><dt>Horizon</dt><dd>{analysis.stock.global_evidence_status || "Unavailable"}</dd></div><div><dt>Company</dt><dd>{analysis.stock.ticker_evidence_status || "Unavailable"}</dd></div>{analysis.stock.shadow_evidence_status && <div><dt>Shadow</dt><dd>{analysis.stock.shadow_evidence_status}</dd></div>}</dl></div>
+        </div>
+        {failedChecks.length > 0 && <div className="stock-failed-checks"><CircleAlert size={15} /><span><strong>Checks not passed</strong>{failedChecks.map((check) => check.replaceAll("_", " ")).join(" · ")}</span></div>}
+        <div className="stock-factor-grid"><div><span className="detail-section-label">Local model sensitivity · higher probability</span>{analysis.stock.supporting_factors.length ? <ul>{analysis.stock.supporting_factors.map((factor) => <li key={factor.feature}><ArrowUpRight size={14} />{factor.label}</li>)}</ul> : <p>None identified</p>}</div><div><span className="detail-section-label">Local model sensitivity · lower probability</span>{analysis.stock.opposing_factors.length ? <ul>{analysis.stock.opposing_factors.map((factor) => <li key={factor.feature}><ArrowDownRight size={14} />{factor.label}</li>)}</ul> : <p>None identified</p>}</div></div><p className="stock-factor-disclosure">These are one-feature-at-a-time probability sensitivities around a reference row, not causal explanations or SHAP values.</p>
+        <div className="stock-detail-footer"><span>Latest valid session <strong>{analysis.stock.market_reference_date || "Unavailable"}</strong> · Session lag <strong>{analysis.stock.observation_lag_sessions ?? "Unavailable"}</strong></span><Link to={`/model-performance?horizon=${analysis.horizon_days}`}>View full model performance</Link></div>
+      </div></details>
     </section>
   );
 }
@@ -63,7 +82,7 @@ const relationshipTone: Record<SynthesisRelationship, string> = {
   news_unavailable: "neutral",
 };
 
-export function CombinedOutlookCard({ analysis }: { analysis: DashboardAnalysis }) {
+export function CombinedOutlookCard({ analysis, children }: { analysis: DashboardAnalysis; children?: ReactNode }) {
   const outlook = analysis.combined_outlook;
   if (!outlook) return null;
   const direction = outlook.direction?.toLowerCase();
@@ -80,13 +99,19 @@ export function CombinedOutlookCard({ analysis }: { analysis: DashboardAnalysis 
     : outlook.probability_kind === "stock_model"
       ? "Stock model probability"
       : "Evidence status";
-  const evidenceLabel = outlook.validation_status === "accepted"
-    ? "Accepted"
-    : outlook.validation_status === "limited"
-      ? "Limited evidence"
-    : outlook.validation_status === "experimental"
-      ? "Experimental · research only"
-      : "Unavailable";
+  // Keep the aggregate status deliberately simple for learners.  The
+  // promotion/audit metadata remains in the registry and API, but the card
+  // communicates only which calculation is being shown.
+  const aggregateLabel = outlook.mode === "validated_fusion" ? "Fusion" : "Stock-Led";
+  const evidenceLabel = aggregateLabel;
+  const newsAdjustment = outlook.component_contributions?.news_adjustment_probability_points;
+  const fusionMethod = outlook.fusion_method === "transparent_log_odds"
+    ? "Transparent log-odds fusion"
+      : outlook.fusion_method === "late_fusion_logistic"
+        ? "Validated late-fusion model"
+        : outlook.fusion_method === "anchored_incremental_news"
+          ? "Anchored news adjustment"
+      : null;
 
   return (
     <section className={`combined-outlook-card ${directionTone}`}>
@@ -95,6 +120,9 @@ export function CombinedOutlookCard({ analysis }: { analysis: DashboardAnalysis 
           <div className="combined-outlook-kicker">
             <span className="panel-kicker">Aggregate Result</span>
             <span className="combined-composition-description">stock trend + news sentiment</span>
+            <span className={`fusion-runtime-label ${outlook.mode === "validated_fusion" ? "supported" : "fallback"}`}>
+              {aggregateLabel}
+            </span>
           </div>
           <h2>{outlook.direction || "Unavailable"}</h2>
         </div>
@@ -115,7 +143,18 @@ export function CombinedOutlookCard({ analysis }: { analysis: DashboardAnalysis 
         <div><span>Horizon</span><strong>{analysis.horizon_days} trading day(s)</strong></div>
         <div><span>Usable articles</span><strong>{outlook.usable_article_count} · {outlook.news_coverage}</strong></div>
       </div>
+      {outlook.probability_kind === "combined" && typeof newsAdjustment === "number" && (
+        <div className="combined-contribution-grid">
+          <div><span>Stock input</span><strong>{((outlook.stock_probability_up ?? 0) * 100).toFixed(1)}% Up</strong></div>
+          <div><span>News adjustment</span><strong>{newsAdjustment >= 0 ? "+" : ""}{newsAdjustment.toFixed(1)} pts</strong></div>
+          <div><span>Fusion method</span><strong>{fusionMethod}</strong></div>
+        </div>
+      )}
       <p className="combined-explanation">{outlook.explanation}</p>
+      {outlook.mode === "stock_led_synthesis" && outlook.fallback_reason && (
+        <p className="combined-fallback-note">Numerical fusion was not applied: {outlook.fallback_reason}.</p>
+      )}
+      {children}
     </section>
   );
 }

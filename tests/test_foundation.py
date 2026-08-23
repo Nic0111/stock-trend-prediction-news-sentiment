@@ -204,6 +204,13 @@ class NewsContextTests(unittest.TestCase):
         self.assertEqual(pcg.status, "unrelated")
         self.assertIn("PG&E", pcg.collision_signals)
 
+        maybank_highway = classify_entity_relevance(
+            "1155.KL",
+            "Construction begins on pedestrian safety project along Maybank Highway",
+            "Road crews will add a sidewalk beside Maybank Highway in South Carolina.",
+        )
+        self.assertEqual(maybank_highway.status, "unrelated")
+
     def test_entity_disambiguation_accepts_distinctive_company_evidence(self) -> None:
         result = classify_entity_relevance(
             "5183.KL",
@@ -410,6 +417,9 @@ class InferenceTests(unittest.TestCase):
                         "horizons": {
                             "5": {
                                 "artifact_path": str(artifact_path.relative_to(PROJECT_ROOT)),
+                                "artifact_sha256": __import__("hashlib").sha256(
+                                    artifact_path.read_bytes()
+                                ).hexdigest(),
                                 "model_name": "constant",
                                 "refinement_round": 1,
                                 "input_columns": input_columns,

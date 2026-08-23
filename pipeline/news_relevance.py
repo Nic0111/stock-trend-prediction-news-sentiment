@@ -43,7 +43,7 @@ COMPANY_ENTITY_PROFILES: Mapping[str, Mapping[str, Sequence[str]]] = {
         "distinctive": ("Maybank", "Malayan Banking", "Maybank Group"),
         "ambiguous": (),
         "anchors": ("Malaysia", "Bursa", "Malaysian banking", "banking group"),
-        "collisions": (),
+        "collisions": ("Maybank Highway",),
     },
     "1295.KL": {
         "distinctive": ("Public Bank Berhad", "PBBank", "Public Bank Group"),
@@ -247,3 +247,37 @@ def stable_article_id(article: Mapping[str, Any]) -> str:
         published = str(article.get("published_at") or "")[:10]
         identity = f"{title}|{domain}|{published}"
     return "sha256:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def stable_event_id(article: Mapping[str, Any]) -> str:
+    """Return a conservative event identity for diversity reporting.
+
+    This is deliberately not used to remove articles.  It groups exact or
+    near-syndicated headlines into an auditable event count so coverage cannot
+    be overstated merely because the same story was republished.
+    """
+
+    import re
+    from datetime import datetime, timezone
+
+    title = re.sub(r"[^\w]+", " ", str(article.get("title") or "").casefold()).strip()
+    # Provider boilerplate and very common words add little identity value.
+    stop = {
+        "a", "an", "and", "at", "by", "for", "from", "in", "of", "on",
+        "the", "to", "with", "says", "said", "update",
+    }
+    tokens = [token for token in title.split() if token not in stop][:14]
+    published = str(article.get("published_at") or "")
+    try:
+        parsed = datetime.fromisoformat(published.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        # A three-day bucket keeps a syndicated event together without merging
+        # recurring company announcements across a long context window.
+        date_bucket = parsed.date().toordinal() // 3
+    except ValueError:
+        date_bucket = published[:10]
+    identity = f"{' '.join(tokens)}|{date_bucket}"
+    if not tokens:
+        return stable_article_id(article)
+    return "event-sha256:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()

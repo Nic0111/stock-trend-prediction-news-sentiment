@@ -94,6 +94,7 @@ OFFICIAL_MODEL_UNIVERSE = (
     "hist-gradient-boosting",
     "xgboost",
     "lightgbm",
+    "catboost",
     "soft-voting-ensemble",
 )
 OFFICIAL_FEATURE_ROUNDS = {1: 3, 5: 4, 10: 4}
@@ -119,7 +120,80 @@ IDENTITY_COLUMNS = ["Date", "Ticker"]
 
 def load_selection_policy() -> Dict[str, Any]:
     """Load the versioned reproducibility contract used by official training."""
-    return json.loads(SELECTION_POLICY_FILE.read_text(encoding="utf-8"))
+    payload = json.loads(SELECTION_POLICY_FILE.read_text(encoding="utf-8"))
+    required = {
+        "policy_version",
+        "official_profile",
+        "official_model_universe",
+        "feature_round_by_horizon",
+        "evaluation_seeds",
+        "search_seed",
+        "parameter_search_version",
+        "official_parameter_search",
+        "validation_folds",
+        "official_n_jobs",
+        "minimum_practical_balanced_accuracy_gain",
+        "minimum_paired_gain_lower_bound",
+        "minimum_positive_mcc_seed_fraction",
+        "minimum_positive_mcc_fold_fraction",
+        "minimum_per_ticker_direction_recall",
+        "minimum_per_ticker_mcc",
+        "requires_prospective_shadow",
+        "minimum_matured_shadow_sessions",
+        "manual_promotion_required",
+    }
+    missing = sorted(required - set(payload))
+    if missing:
+        raise ValueError(f"Stock selection policy is missing required fields: {missing}")
+    if str(payload["official_profile"]) != OFFICIAL_PROFILE:
+        raise ValueError("Stock selection policy official_profile does not match the implementation")
+    if tuple(payload["official_model_universe"]) != OFFICIAL_MODEL_UNIVERSE:
+        raise ValueError("Stock selection policy model universe does not match the implementation")
+    if {int(key): int(value) for key, value in payload["feature_round_by_horizon"].items()} != OFFICIAL_FEATURE_ROUNDS:
+        raise ValueError("Stock selection policy feature rounds do not match the implementation")
+    if tuple(int(value) for value in payload["evaluation_seeds"]) != OFFICIAL_SEEDS:
+        raise ValueError("Stock selection policy seeds do not match the implementation")
+    search_contract = payload["official_parameter_search"]
+    if not isinstance(search_contract, dict):
+        raise ValueError("official_parameter_search must be an object")
+    if set(search_contract) != set(OFFICIAL_MODEL_UNIVERSE):
+        raise ValueError("official_parameter_search must cover the full official model universe")
+    for model_name, contract in search_contract.items():
+        if contract.get("strategy") not in {"grid", "randomized"}:
+            raise ValueError(f"Unsupported official search strategy for {model_name}")
+        if int(contract.get("budget", 0)) < 1 or not isinstance(contract.get("space"), dict):
+            raise ValueError(f"Invalid official search contract for {model_name}")
+    for name in (
+        "minimum_practical_balanced_accuracy_gain",
+        "minimum_positive_mcc_seed_fraction",
+        "minimum_positive_mcc_fold_fraction",
+    ):
+        value = float(payload[name])
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(f"Stock selection policy {name} must be between 0 and 1")
+    if int(payload["minimum_matured_shadow_sessions"]) < 1:
+        raise ValueError("Stock selection policy requires at least one matured shadow session")
+    if not 0.0 <= float(payload["minimum_per_ticker_direction_recall"]) <= 1.0:
+        raise ValueError("minimum_per_ticker_direction_recall must be between zero and one")
+    if not -1.0 <= float(payload["minimum_per_ticker_mcc"]) <= 1.0:
+        raise ValueError("minimum_per_ticker_mcc must be between minus one and one")
+    return payload
+
+
+def official_development_checks(
+    summary: Dict[str, Any],
+    policy: Dict[str, Any],
+    *,
+    fold_count: int = N_SPLITS,
+) -> Dict[str, bool]:
+    """Apply the frozen seed/fold stability rules to one official candidate."""
+    positive_fold_fraction = float(summary.get("cv_positive_mcc_folds", 0)) / max(1, fold_count)
+    return {
+        "positive_mcc_seed_fraction": float(summary.get("positive_mcc_seed_fraction", 0.0))
+        >= float(policy["minimum_positive_mcc_seed_fraction"]),
+        "positive_mcc_fold_fraction": positive_fold_fraction
+        >= float(policy["minimum_positive_mcc_fold_fraction"]),
+    }
 
 
 class SklearnCompatibleCatBoostClassifier(BaseEstimator, ClassifierMixin):
@@ -559,7 +633,13 @@ def build_estimator(
 
 
 def get_parameter_space(model_name: str, profile: str = "full") -> tuple[Dict[str, List[Any]], int]:
-    if profile in {"quick", OFFICIAL_PROFILE}:
+    if profile == OFFICIAL_PROFILE:
+        contract = load_selection_policy()["official_parameter_search"][model_name]
+        space = {key: list(values) for key, values in contract["space"].items()}
+        if model_name == "soft-voting-ensemble":
+            space["classifier__weights"] = [tuple(value) for value in space["classifier__weights"]]
+        return space, int(contract["budget"])
+    if profile == "quick":
         if model_name in {"logistic-regression", "elastic-net-logistic"}:
             return {
                 "classifier__C": [1.0],
@@ -742,6 +822,11 @@ def run_candidate_search(
         model_name, refinement_round, feature_columns, random_state=seed
     )
     parameter_space, budget = get_parameter_space(model_name, profile=profile)
+    search_strategy = "fixed-grid" if fixed_parameters is not None else (
+        str(load_selection_policy()["official_parameter_search"][model_name]["strategy"])
+        if profile == OFFICIAL_PROFILE
+        else ("grid" if model_name == "logistic-regression" and profile in {"full", "focused"} else "randomized")
+    )
     search_jobs = 1 if profile == OFFICIAL_PROFILE else int(os.getenv("MODEL_SEARCH_JOBS", "-1"))
 
     common = dict(
@@ -756,7 +841,7 @@ def run_candidate_search(
     if fixed_parameters is not None:
         fixed_grid = {key: [value] for key, value in fixed_parameters.items()}
         search: Any = GridSearchCV(param_grid=fixed_grid, **common)
-    elif model_name == "logistic-regression" and profile in {"full", "focused", OFFICIAL_PROFILE}:
+    elif search_strategy == "grid":
         search: Any = GridSearchCV(param_grid=parameter_space, **common)
     else:
         search = RandomizedSearchCV(
@@ -768,6 +853,7 @@ def run_candidate_search(
 
     search.fit(X, y)
     best_index = int(search.best_index_)
+    evaluated_configuration_count = int(len(search.cv_results_["params"]))
     fold_balanced_accuracy = [
         float(search.cv_results_[f"split{fold}_test_balanced_accuracy"][best_index])
         for fold in range(len(splits))
@@ -780,6 +866,11 @@ def run_candidate_search(
         "horizon_days": horizon,
         "seed": seed,
         "fixed_parameters": fixed_parameters is not None,
+        "search_profile": profile,
+        "search_strategy": search_strategy,
+        "search_seed": search_seed,
+        "search_budget": budget,
+        "evaluated_configuration_count": evaluated_configuration_count,
         "refinement_round": refinement_round,
         "model_name": model_name,
         "development_rows": len(development_df),
@@ -806,9 +897,19 @@ def run_candidate_search(
                 "candidate_index": index,
                 "seed": seed,
                 "fixed_parameters": fixed_parameters is not None,
+                "search_profile": profile,
+                "search_strategy": search_strategy,
+                "search_seed": search_seed,
+                "search_budget": budget,
+                "evaluated_configuration_count": evaluated_configuration_count,
+                "selected_configuration": index == best_index,
                 "cv_balanced_accuracy": search.cv_results_["mean_test_balanced_accuracy"][index],
+                "cv_balanced_accuracy_std": search.cv_results_["std_test_balanced_accuracy"][index],
+                "cv_balanced_accuracy_rank": int(search.cv_results_["rank_test_balanced_accuracy"][index]),
                 "cv_mcc": search.cv_results_["mean_test_mcc"][index],
+                "cv_mcc_std": search.cv_results_["std_test_mcc"][index],
                 "cv_macro_f1": search.cv_results_["mean_test_macro_f1"][index],
+                "cv_macro_f1_std": search.cv_results_["std_test_macro_f1"][index],
                 "cv_up_recall": search.cv_results_["mean_test_up_recall"][index],
                 "cv_down_recall": search.cv_results_["mean_test_down_recall"][index],
                 "parameters": json.dumps(parameters, sort_keys=True),
@@ -848,7 +949,8 @@ OFFICIAL_MODEL_COMPLEXITY = {
     "extra-trees": 5,
     "xgboost": 6,
     "lightgbm": 6,
-    "soft-voting-ensemble": 7,
+    "catboost": 7,
+    "soft-voting-ensemble": 8,
 }
 
 
@@ -952,6 +1054,10 @@ def run_official_candidate_selection(
         "positive_mcc_seed_fraction": positive_seed_fraction,
         "official_seeds": list(OFFICIAL_SEEDS),
         "search_seed": RANDOM_STATE,
+        "search_profile": OFFICIAL_PROFILE,
+        "search_strategy": anchor_summary["search_strategy"],
+        "search_budget": anchor_summary["search_budget"],
+        "evaluated_configuration_count": anchor_summary["evaluated_configuration_count"],
         "fixed_hyperparameters": True,
         "best_parameters": json.dumps(fixed_parameters, sort_keys=True),
         "input_columns": list(anchor_summary["input_columns"]),
@@ -1035,6 +1141,43 @@ def fit_calibrated_champion(
         )
         oof_labels.append(y.iloc[validation_indexes].to_numpy())
 
+    # Measure calibration/threshold behaviour with expanding cross-fitting.
+    # Each validation fold may use calibration evidence from earlier folds,
+    # never its own labels or a later period.
+    nested_probabilities: List[np.ndarray] = []
+    nested_predictions: List[np.ndarray] = []
+    prior_raw: List[np.ndarray] = []
+    prior_labels: List[np.ndarray] = []
+    prior_calibrated: List[np.ndarray] = []
+    for fold_raw, fold_labels in zip(raw_probabilities, oof_labels):
+        if prior_raw and np.unique(np.concatenate(prior_labels)).size == 2:
+            fold_calibrator = LogisticRegression(
+                C=1_000_000,
+                solver="lbfgs",
+                random_state=RANDOM_STATE,
+            )
+            fold_calibrator.fit(
+                probability_to_logit(np.concatenate(prior_raw)),
+                np.concatenate(prior_labels),
+            )
+            fold_calibrated = fold_calibrator.predict_proba(
+                probability_to_logit(fold_raw)
+            )[:, 1]
+            prior_probability = np.concatenate(prior_calibrated)
+            prior_target = np.concatenate(prior_labels)
+            fold_threshold, _, _ = select_directional_threshold(
+                prior_target,
+                prior_probability,
+            )
+        else:
+            fold_calibrated = np.asarray(fold_raw, dtype=float)
+            fold_threshold = 0.5
+        nested_probabilities.append(fold_calibrated)
+        nested_predictions.append((fold_calibrated >= fold_threshold).astype(int))
+        prior_raw.append(np.asarray(fold_raw, dtype=float))
+        prior_labels.append(np.asarray(fold_labels, dtype=int))
+        prior_calibrated.append(np.asarray(fold_calibrated, dtype=float))
+
     raw_oof = np.concatenate(raw_probabilities)
     y_oof = np.concatenate(oof_labels)
     calibrator = LogisticRegression(C=1_000_000, solver="lbfgs", random_state=RANDOM_STATE)
@@ -1064,10 +1207,23 @@ def fit_calibrated_champion(
         threshold_constraints_passed=threshold_constraints_passed,
         feature_reference_values=feature_reference_values,
     )
+    nested_probability = np.concatenate(nested_probabilities)
+    nested_prediction = np.concatenate(nested_predictions)
+    nested_metrics = calculate_metrics(y_oof, nested_prediction, nested_probability)
+    nested_constraints_passed = bool(
+        nested_metrics["recall"] >= MIN_DIRECTION_RECALL
+        and nested_metrics["specificity"] >= MIN_DIRECTION_RECALL
+        and MIN_PREDICTED_CLASS_SHARE
+        <= nested_metrics["predicted_up_rate"]
+        <= MAX_PREDICTED_CLASS_SHARE
+    )
     return artifact, {
         "threshold": best_threshold,
-        "threshold_constraints_passed": threshold_constraints_passed,
-        **best_metrics,
+        "threshold_constraints_passed": nested_constraints_passed,
+        "deployment_threshold_constraints_passed": threshold_constraints_passed,
+        "evaluation_method": "expanding_cross_fitted_calibration_and_threshold",
+        **nested_metrics,
+        **{f"deployment_oof_{key}": value for key, value in best_metrics.items()},
     }
 
 
@@ -1140,15 +1296,12 @@ def run_training_pipeline(
     profile = search_profile or os.getenv("MODEL_SEARCH_PROFILE", "full").strip().lower()
     if profile not in {"full", "focused", "quick", OFFICIAL_PROFILE}:
         raise ValueError("MODEL_SEARCH_PROFILE must be 'full', 'focused', 'quick', or 'official'")
-    if promote is None:
-        # Official runs are challengers by default. Promotion is an explicit,
-        # reviewed action so a retrain cannot silently replace production.
-        promote = profile != OFFICIAL_PROFILE
-    if profile == OFFICIAL_PROFILE and promote:
+    if promote:
         raise ValueError(
-            "Official runs must be staged first; evaluate prospective shadow evidence, "
-            "then use promote_stock_models --approve"
+            "Training never writes directly to production. Stage the run, evaluate it, "
+            "then use promote_stock_models --approve for an official run."
         )
+    promote = False
 
     files = get_model_input_csv_files()
     dataset_hash = hash_file_set(files)
@@ -1164,11 +1317,9 @@ def run_training_pipeline(
     model_names = available_model_names()
     search_plan = search_plan_for_profile(profile, model_names)
     selection_policy = load_selection_policy()
-    artifact_dir = MODELS_DIR
-    if profile == OFFICIAL_PROFILE and not promote:
-        artifact_dir = STAGED_RUNS_DIR / run_id
-        artifact_dir.mkdir(parents=True, exist_ok=True)
-    registry_target = REGISTRY_FILE if promote else artifact_dir / "model-registry.json"
+    artifact_dir = STAGED_RUNS_DIR / run_id
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    registry_target = artifact_dir / "model-registry.json"
     registry: Dict[str, Any] = {
         "schema_version": 4,
         "feature_schema_version": FEATURE_SCHEMA_VERSION,
@@ -1180,8 +1331,8 @@ def run_training_pipeline(
         "test_start_date": TEST_START_DATE.date().isoformat(),
         "test_end_date": TEST_END_DATE.date().isoformat(),
         "search_profile": profile,
-        "publication_status": "validated" if promote else "staged",
-        "promotion_required": bool(profile == OFFICIAL_PROFILE and not promote),
+        "publication_status": "staged",
+        "promotion_required": True,
         "selection_policy": selection_policy,
         "selection_policy_sha256": hash_file(SELECTION_POLICY_FILE),
         "model_candidates": list(model_names),
@@ -1257,7 +1408,21 @@ def run_training_pipeline(
 
         if profile == OFFICIAL_PROFILE:
             ranked_candidates = sorted(best_candidates, key=lambda item: _official_candidate_sort_key(item[1]))
-            estimator, best_summary, development, splits = ranked_candidates[0]
+            for _, candidate_summary, _, candidate_splits in ranked_candidates:
+                candidate_summary["official_development_checks"] = official_development_checks(
+                    candidate_summary,
+                    selection_policy,
+                    fold_count=len(candidate_splits),
+                )
+            eligible_candidates = [
+                item
+                for item in ranked_candidates
+                if all(item[1]["official_development_checks"].values())
+            ]
+            estimator, best_summary, development, splits = (
+                eligible_candidates[0] if eligible_candidates else ranked_candidates[0]
+            )
+            best_summary["official_development_eligible"] = bool(eligible_candidates)
             top_score = float(best_summary["cv_balanced_accuracy"])
             confidence_set = [
                 str(item[1]["model_name"])
@@ -1352,8 +1517,24 @@ def run_training_pipeline(
             baseline_metrics=strongest_baseline_metrics,
             oof_metrics=oof_metrics,
             cv_positive_mcc_folds=int(best_summary.get("cv_positive_mcc_folds", 0)),
+            baseline_prevalence=float(development[target_column].astype(int).mean()),
             phase="observed",
         )
+        if profile == OFFICIAL_PROFILE:
+            development_checks = dict(best_summary.get("official_development_checks", {}))
+            acceptance["official_development_checks"] = development_checks
+            if not all(development_checks.values()):
+                acceptance["status"] = "experimental"
+                acceptance["failed_checks"] = sorted(
+                    set(
+                        list(acceptance.get("failed_checks", []))
+                        + [
+                            f"official_{name}"
+                            for name, passed in development_checks.items()
+                            if not passed
+                        ]
+                    )
+                )
         stability_passed = bool(acceptance["accepted_checks"]["development_stability"])
         threshold_constraints_passed = bool(
             acceptance["accepted_checks"]["threshold_constraints"]
@@ -1396,8 +1577,14 @@ def run_training_pipeline(
                 baseline_metrics=calculate_metrics(
                     ticker_frame[target_column].astype(int).to_numpy(), ticker_baseline
                 ),
-                oof_metrics=oof_metrics,
-                cv_positive_mcc_folds=int(best_summary.get("cv_positive_mcc_folds", 0)),
+                oof_metrics={},
+                cv_positive_mcc_folds=0,
+                baseline_prevalence=float(
+                    development.loc[
+                        development["Ticker"].eq(str(ticker)), target_column
+                    ].astype(int).mean()
+                ),
+                development_evidence_available=False,
                 phase="observed",
                 ticker=str(ticker),
             )
@@ -1487,6 +1674,9 @@ def run_training_pipeline(
             "baseline_majority_class": int(
                 development[f"Target_{horizon}D"].astype(int).mean() >= 0.5
             ),
+            "baseline_prevalence": float(
+                development[f"Target_{horizon}D"].astype(int).mean()
+            ),
             "metrics": test_metrics,
             "baseline_metrics": strongest_baseline_metrics,
             "oof_metrics": oof_metrics,
@@ -1496,6 +1686,8 @@ def run_training_pipeline(
                 "positive_mcc_seed_fraction": best_summary.get("positive_mcc_seed_fraction"),
                 "seed_balanced_accuracy_std": best_summary.get("cv_seed_balanced_accuracy_std"),
                 "fixed_hyperparameters": best_summary.get("fixed_hyperparameters", False),
+                "development_checks": best_summary.get("official_development_checks"),
+                "development_eligible": best_summary.get("official_development_eligible"),
                 "manual_promotion_required": bool(profile == OFFICIAL_PROFILE),
             }
         }
@@ -1552,46 +1744,205 @@ def _staged_registry_path(run_id: str) -> Path:
     return path
 
 
-def promote_stock_models(run_id: str, horizons: Sequence[int] | None = None, *, approve: bool = False) -> Path:
-    """Promote a reviewed staged official run and retain rollback metadata."""
+def validate_official_horizon_for_promotion(
+    horizon: str,
+    horizon_entry: Dict[str, Any],
+    policy: Dict[str, Any],
+) -> None:
+    """Fail closed unless one staged horizon passes every frozen evidence gate."""
+    observed_result = horizon_entry.get("observed_acceptance") or {}
+    shadow_result = horizon_entry.get("shadow_acceptance") or {}
+    unique_dates = int(
+        shadow_result.get(
+            "unique_dates",
+            (shadow_result.get("bootstrap") or {}).get("unique_dates", 0),
+        )
+    )
+    minimum_sessions = int(policy.get("minimum_matured_shadow_sessions", 100))
+    if unique_dates < minimum_sessions:
+        raise ValueError(
+            f"{horizon}D has only {unique_dates} unique matured shadow sessions; "
+            f"{minimum_sessions} are required before promotion"
+        )
+    if str(observed_result.get("status", "")).casefold() != "accepted":
+        raise ValueError(f"{horizon}D observed benchmark is not accepted")
+    if str(shadow_result.get("status", "")).casefold() != "accepted":
+        raise ValueError(f"{horizon}D prospective shadow evidence is not accepted")
+    development_checks = (
+        horizon_entry.get("official_selection", {}).get("development_checks") or {}
+    )
+    if not development_checks or not all(bool(value) for value in development_checks.values()):
+        raise ValueError(f"{horizon}D official development stability gates did not pass")
+    lower_bound = float(
+        (observed_result.get("bootstrap") or {}).get("lower", float("-inf"))
+    )
+    minimum_lower = float(policy.get("minimum_paired_gain_lower_bound", 0.0))
+    if lower_bound < minimum_lower:
+        raise ValueError(
+            f"{horizon}D paired gain lower bound {lower_bound:.6f} is below "
+            f"the frozen minimum {minimum_lower:.6f}"
+        )
+    ticker_results = horizon_entry.get("ticker_acceptance") or {}
+    minimum_recall = float(policy["minimum_per_ticker_direction_recall"])
+    minimum_mcc = float(policy["minimum_per_ticker_mcc"])
+    catastrophic: list[str] = []
+    for ticker, result in ticker_results.items():
+        metrics = result.get("metrics") or {}
+        if (
+            float(metrics.get("recall", 0.0)) < minimum_recall
+            or float(metrics.get("specificity", 0.0)) < minimum_recall
+            or float(metrics.get("mcc", -1.0)) < minimum_mcc
+        ):
+            catastrophic.append(str(ticker))
+    if not ticker_results:
+        raise ValueError(f"{horizon}D has no per-ticker frozen diagnostics")
+    if catastrophic:
+        raise ValueError(
+            f"{horizon}D failed the per-ticker harm floor for: "
+            f"{', '.join(sorted(catastrophic))}"
+        )
+
+
+def _promotion_override_snapshot(
+    staged: Dict[str, Any],
+    selected_horizons: Sequence[str],
+    policy: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Capture the evidence gates bypassed by an explicit manual override.
+
+    This is diagnostic only: it does not rewrite any staged horizon status or
+    make a failed benchmark look accepted. Keeping the original evidence
+    alongside the override makes the exceptional promotion auditable and keeps
+    the runtime UI honest about its limitations.
+    """
+    minimum_sessions = int(policy.get("minimum_matured_shadow_sessions", 100))
+    minimum_lower = float(policy.get("minimum_paired_gain_lower_bound", 0.0))
+    minimum_recall = float(policy.get("minimum_per_ticker_direction_recall", 0.25))
+    minimum_mcc = float(policy.get("minimum_per_ticker_mcc", -0.05))
+    result: Dict[str, Any] = {}
+    for horizon in selected_horizons:
+        entry = staged["horizons"][horizon]
+        observed = entry.get("observed_acceptance") or {}
+        shadow = entry.get("shadow_acceptance") or {}
+        shadow_bootstrap = shadow.get("bootstrap") or {}
+        unique_dates = int(shadow.get("unique_dates", shadow_bootstrap.get("unique_dates", 0)))
+        development_checks = entry.get("official_selection", {}).get("development_checks") or {}
+        ticker_results = entry.get("ticker_acceptance") or {}
+        catastrophic = []
+        for ticker, diagnostic in ticker_results.items():
+            metrics = diagnostic.get("metrics") or {}
+            if (
+                float(metrics.get("recall", 0.0)) < minimum_recall
+                or float(metrics.get("specificity", 0.0)) < minimum_recall
+                or float(metrics.get("mcc", -1.0)) < minimum_mcc
+            ):
+                catastrophic.append(str(ticker))
+        failed_gates = []
+        if unique_dates < minimum_sessions:
+            failed_gates.append("minimum_matured_shadow_sessions")
+        if str(observed.get("status", "")).casefold() != "accepted":
+            failed_gates.append("observed_benchmark_accepted")
+        if str(shadow.get("status", "")).casefold() != "accepted":
+            failed_gates.append("prospective_shadow_accepted")
+        if not development_checks or not all(bool(value) for value in development_checks.values()):
+            failed_gates.append("official_development_checks")
+        if float(shadow_bootstrap.get("lower", float("-inf"))) < minimum_lower:
+            failed_gates.append("minimum_paired_gain_lower_bound")
+        if not ticker_results:
+            failed_gates.append("per_ticker_diagnostics_present")
+        elif catastrophic:
+            failed_gates.append("per_ticker_harm_floor")
+        result[horizon] = {
+            "failed_gates": failed_gates,
+            "global_status": entry.get("global_status"),
+            "threshold_constraints_passed": bool(entry.get("threshold_constraints_passed", False)),
+            "observed_status": observed.get("status"),
+            "shadow_status": shadow.get("status"),
+            "matured_shadow_sessions": unique_dates,
+            "minimum_matured_shadow_sessions": minimum_sessions,
+            "development_checks": development_checks,
+            "catastrophic_tickers": sorted(catastrophic),
+        }
+    return result
+
+
+def promote_stock_models(
+    run_id: str,
+    horizons: Sequence[int] | None = None,
+    *,
+    approve: bool = False,
+    override_gates: bool = False,
+    override_reason: str | None = None,
+) -> Path:
+    """Promote a staged official run, or explicitly override its evidence gates.
+
+    The override is intentionally separate from ``--approve``. It is for a
+    user-approved early activation only; original limited/experimental evidence
+    status remains in every horizon entry and an audit record explains which
+    gates were bypassed.
+    """
     if not approve:
         raise PermissionError("Promotion is manual: pass --approve after reviewing the shadow report")
+    if override_reason and not override_gates:
+        raise ValueError("--override-reason requires --override-gates")
+    if override_gates and not str(override_reason or "").strip():
+        raise ValueError(
+            "Gate override requires a written reason; pass --override-reason "
+            "to document the user-approved exception"
+        )
     staged_path = _staged_registry_path(run_id)
     staged = json.loads(staged_path.read_text(encoding="utf-8"))
     if staged.get("search_profile") != OFFICIAL_PROFILE:
         raise ValueError("Only official profile runs may be promoted")
     selected_horizons = [str(value) for value in (horizons or TARGET_HORIZONS)]
+    required_horizons = {str(value) for value in TARGET_HORIZONS}
+    if set(selected_horizons) != required_horizons:
+        raise ValueError(
+            "Stock registry promotion is atomic: horizons 1, 5, and 10 must "
+            "all pass and be promoted together."
+        )
     missing = [horizon for horizon in selected_horizons if horizon not in staged.get("horizons", {})]
     if missing:
         raise ValueError(f"Staged run has no horizon entries for: {', '.join(missing)}")
-    shadow = staged.get("shadow_evaluation", {})
     policy = staged.get("selection_policy", {})
-    if policy.get("requires_prospective_shadow", True):
+    override_snapshot = None
+    if override_gates:
+        override_snapshot = _promotion_override_snapshot(staged, selected_horizons, policy)
+    else:
+        shadow = staged.get("shadow_evaluation", {})
+        if not policy.get("requires_prospective_shadow", True):
+            raise ValueError("Official promotion policy must require prospective shadow evidence")
         if shadow.get("phase") != "prospective_shadow":
             raise ValueError("Official promotion requires a prospective shadow evaluation")
-        minimum_sessions = int(policy.get("minimum_matured_shadow_sessions", 100))
         for horizon in selected_horizons:
-            shadow_result = staged["horizons"][horizon].get("shadow_acceptance") or {}
-            if int(shadow_result.get("rows", 0)) < minimum_sessions:
-                raise ValueError(
-                    f"{horizon}D has only {shadow_result.get('rows', 0)} matured shadow sessions; "
-                    f"{minimum_sessions} are required before promotion"
-                )
+            validate_official_horizon_for_promotion(
+                horizon,
+                staged["horizons"][horizon],
+                policy,
+            )
 
     backup_dir = MODELS_DIR / "registry-backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     if REGISTRY_FILE.exists():
         shutil.copy2(REGISTRY_FILE, backup_dir / f"model-registry-{datetime.now().strftime('%Y%m%dT%H%M%S%f')}.json")
 
-    existing = json.loads(REGISTRY_FILE.read_text(encoding="utf-8")) if REGISTRY_FILE.exists() else {}
-    production = dict(staged if len(selected_horizons) == len(TARGET_HORIZONS) else existing)
-    if not production:
-        production = dict(staged)
+    production = dict(staged)
     production["publication_status"] = "validated"
     production["promotion_required"] = False
     production["promoted_at"] = datetime.now().isoformat(timespec="seconds")
     production["promoted_from_run_id"] = run_id
-    production["promotion_approval"] = "manual --approve"
+    production["promotion_approval"] = (
+        "manual --approve --override-gates" if override_gates else "manual --approve"
+    )
+    if override_snapshot is not None:
+        production["manual_override"] = {
+            "active": True,
+            "reason": str(override_reason).strip(),
+            "at": production["promoted_at"],
+            "run_id": run_id,
+            "prospective_shadow_required": bool(policy.get("requires_prospective_shadow", True)),
+            "overridden_checks": override_snapshot,
+        }
     production_horizons = dict(production.get("horizons", {}))
     for horizon in selected_horizons:
         entry = dict(production_horizons[horizon])

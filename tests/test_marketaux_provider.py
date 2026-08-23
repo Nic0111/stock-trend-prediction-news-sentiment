@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
@@ -27,6 +28,7 @@ from pipeline.marketaux_news_provider import (
     retrieve_marketaux_financial_news,
     retrieve_news_with_marketaux_fallback,
 )
+from pipeline import marketaux_news_provider
 
 
 class FakeSentimentModel:
@@ -163,6 +165,24 @@ class MarketauxProviderTests(unittest.TestCase):
         ):
             with self.assertRaises(MarketauxConfigurationError):
                 get_marketaux_api_token()
+
+    def test_concurrent_quota_reservations_never_exceed_the_local_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            marketaux_news_provider, "MARKETAUX_CACHE_DIR", Path(directory)
+        ), patch.object(marketaux_news_provider, "MARKETAUX_DAILY_CAP", 3):
+            def reserve() -> bool:
+                try:
+                    marketaux_news_provider._reserve_marketaux_request()
+                    return True
+                except marketaux_news_provider.MarketauxQuotaError:
+                    return False
+
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                accepted = list(executor.map(lambda _: reserve(), range(12)))
+            state = marketaux_news_provider._read_quota_state()
+
+        self.assertEqual(sum(accepted), 3)
+        self.assertEqual(state["requests_used"], 3)
 
     def test_rows_normalize_entity_metadata_and_deduplicate(self) -> None:
         payload = {

@@ -1,5 +1,6 @@
 {
   "backend": "finbert",
+  "active_variant": "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1",
   "model_directory": "models/experimental/finbert-sentiment",
   "base_model": "yiyanghkust/finbert-pretrain",
   "class_order": [
@@ -25,5 +26,241 @@
     "models\\experimental\\finbert-sentiment\\tokenizer_config.json": "00bd5b2d9a46e60d32549452fac5d9b15d8f9ac1945681dfcbc03e3e068090ab",
     "models\\experimental\\finbert-sentiment\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
     "models\\experimental\\finbert-sentiment\\model.safetensors": "7670c9c9d1435527a66eb88119a3aaa1360aaffdc9efec65f8b56d364a1e6e76"
-  }
+  },
+  "challengers": {
+    "bursa_phrasebank_soft_vote_v1": {
+      "backend": "weighted_finbert_ensemble",
+      "weights": {
+        "bursa": 0.45,
+        "phrasebank": 0.55
+      },
+      "selection_scope": "2024 LLM-assisted-label chronological validation; 2025 remains frozen evaluation",
+      "promotion_status": "opt_in_challenger_only",
+      "benchmark_run_id": "20260802T022301",
+      "validation_macro_f1": 0.5431256296985197,
+      "frozen_test_macro_f1": 0.6763387029485782,
+      "promotion_gates_passed": false,
+      "components": {
+        "bursa": {
+          "model_directory": "models/experimental/bursa-finbert-staging-20260801T040002/seed-42",
+          "temperature": 1.27,
+          "artifact_hashes": {
+            "models\\experimental\\bursa-finbert-staging-20260801T040002\\seed-42\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+            "models\\experimental\\bursa-finbert-staging-20260801T040002\\seed-42\\metadata.json": "51153fb2c26f0f9ed63bb6ad4937e4853ed19ecab4f09dee3caa1880cda45f4b",
+            "models\\experimental\\bursa-finbert-staging-20260801T040002\\seed-42\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+            "models\\experimental\\bursa-finbert-staging-20260801T040002\\seed-42\\tokenizer_config.json": "2faa42b4858100586092e4dff63494c4cd242df22ad659fc6a85c3a153290d8f",
+            "models\\experimental\\bursa-finbert-staging-20260801T040002\\seed-42\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+            "models\\experimental\\bursa-finbert-staging-20260801T040002\\seed-42\\model.safetensors": "ab8a020e90ce30bfaf1e50111efe0ffe520a8217a0b01c5d6db846bfde5ae4c9"
+          }
+        },
+        "phrasebank": {
+          "model_directory": "models/experimental/finbert-sentiment",
+          "temperature": 1.52,
+          "artifact_hashes": {
+            "models\\experimental\\finbert-sentiment\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+            "models\\experimental\\finbert-sentiment\\metadata.json": "ea9a7e40662c8c93ee6639cb396e122d2a17b84bd565c300b8ebd3869cb445e0",
+            "models\\experimental\\finbert-sentiment\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+            "models\\experimental\\finbert-sentiment\\tokenizer_config.json": "00bd5b2d9a46e60d32549452fac5d9b15d8f9ac1945681dfcbc03e3e068090ab",
+            "models\\experimental\\finbert-sentiment\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+            "models\\experimental\\finbert-sentiment\\model.safetensors": "7670c9c9d1435527a66eb88119a3aaa1360aaffdc9efec65f8b56d364a1e6e76"
+          }
+        }
+      }
+    },
+    "bursa_phrasebank_defensible_soft_vote_production-ready-20260807-v1": {
+      "backend": "weighted_finbert_ensemble",
+      "weights": {
+        "bursa": 0.7,
+        "phrasebank": 0.30000000000000004
+      },
+      "ensemble_temperature": 0.77,
+      "selection_scope": "2015-2024 chronological folds; 2025 is a locked retrospective test",
+      "promotion_status": "manual_override_active",
+      "benchmark_run_id": "production-ready-20260807-v1",
+      "text_mode": "target_aware",
+      "components": {
+        "bursa": {
+          "seed_models": [
+            {
+              "seed": 42,
+              "model_directory": "models/experimental/finbert-ensemble-chronological/production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025/fold-5/seed-42",
+              "artifact_hashes": {
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\metadata.json": "58befa2b1a5954ccf6a75c33e1e78cc6e7bd24a164f9c53ece7ca25949e3c38f",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\tokenizer_config.json": "2faa42b4858100586092e4dff63494c4cd242df22ad659fc6a85c3a153290d8f",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\model.safetensors": "5979afd3a2f18e132698c4afb219b617b4dc1916351c164676dcf66ba46f9958"
+              },
+              "temperature": 1.62
+            },
+            {
+              "seed": 52,
+              "model_directory": "models/experimental/finbert-ensemble-chronological/production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025/fold-5/seed-52",
+              "artifact_hashes": {
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\metadata.json": "b2d4c57cc49de13289c948a15dd2f664c29e8b7172171db2b0facd7e63787171",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\tokenizer_config.json": "2faa42b4858100586092e4dff63494c4cd242df22ad659fc6a85c3a153290d8f",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\model.safetensors": "ac0e9856b82036518c20758a6e4f5910b61bb3a7ab6e1f1d1c7182485c794525"
+              },
+              "temperature": 1.19
+            },
+            {
+              "seed": 62,
+              "model_directory": "models/experimental/finbert-ensemble-chronological/production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025/fold-5/seed-62",
+              "artifact_hashes": {
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\metadata.json": "30d674cdab1a0cb151c4bf3723990d3cc7949e131e0b8adacb4cfbc9d0f9ecba",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\tokenizer_config.json": "2faa42b4858100586092e4dff63494c4cd242df22ad659fc6a85c3a153290d8f",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+                "models\\experimental\\finbert-ensemble-chronological\\production-ready-20260807-v1-target-aware-ticker-balanced-logit-adjusted-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\model.safetensors": "6eb8a8149f22c4a57f18334ed6e803adb3aea5aa651a1dcd6df293088cb6e433"
+              },
+              "temperature": 2.0
+            }
+          ]
+        },
+        "phrasebank": {
+          "model_directory": "models/experimental/finbert-sentiment",
+          "temperature": 2.75,
+          "artifact_hashes": {
+            "models\\experimental\\finbert-sentiment\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+            "models\\experimental\\finbert-sentiment\\metadata.json": "ea9a7e40662c8c93ee6639cb396e122d2a17b84bd565c300b8ebd3869cb445e0",
+            "models\\experimental\\finbert-sentiment\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+            "models\\experimental\\finbert-sentiment\\tokenizer_config.json": "00bd5b2d9a46e60d32549452fac5d9b15d8f9ac1945681dfcbc03e3e068090ab",
+            "models\\experimental\\finbert-sentiment\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+            "models\\experimental\\finbert-sentiment\\model.safetensors": "7670c9c9d1435527a66eb88119a3aaa1360aaffdc9efec65f8b56d364a1e6e76"
+          }
+        }
+      },
+      "manual_override": {
+        "active": true,
+        "reason": "User-approved experimental activation before acceptance gates; retain failed-gate evidence for later improvement.",
+        "at": "2026-08-07T19:11:55Z",
+        "benchmark_report": "results\\finbert-ensemble-defensible\\production-ready-20260807-v1\\report.json",
+        "benchmark_sha256": "21aea41f0d2fddbdbd01256a24428a2d429ee8d8f110134097314dad27f7352a",
+        "gates_eligible_for_promotion": false,
+        "failed_gates": [
+          "final_macro_f1",
+          "minimum_class_f1",
+          "bootstrap_macro_f1_noninferiority",
+          "phrasebank_generalisation_noninferiority",
+          "per_company_noninferiority",
+          "manual_retrospective_promotion_allowed",
+          "independent_prospective_holdout"
+        ]
+      }
+    },
+    "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1": {
+      "backend": "weighted_finbert_ensemble",
+      "weights": {
+        "bursa": 0.7,
+        "phrasebank": 0.30000000000000004
+      },
+      "ensemble_temperature": 0.76,
+      "selection_scope": "2015-2024 chronological folds; 2025 is a locked retrospective test",
+      "promotion_status": "manual_override_active",
+      "benchmark_run_id": "sentiment-remediation-20260809-v1",
+      "text_mode": "target_aware",
+      "components": {
+        "bursa": {
+          "seed_models": [
+            {
+              "seed": 42,
+              "model_directory": "models/experimental/finbert-ensemble-chronological/sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025/fold-5/seed-42",
+              "artifact_hashes": {
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\metadata.json": "cdaba791ed972bf29c67984eeb0b41b915330d64743e43ce38c52e7977249b80",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\tokenizer_config.json": "2faa42b4858100586092e4dff63494c4cd242df22ad659fc6a85c3a153290d8f",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-42\\model.safetensors": "c948d54804e24b7d56f22ed760a8b71f865ecfe594a2f7a72e11d3740d253c27"
+              },
+              "temperature": 1.52
+            },
+            {
+              "seed": 52,
+              "model_directory": "models/experimental/finbert-ensemble-chronological/sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025/fold-5/seed-52",
+              "artifact_hashes": {
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\metadata.json": "58ca25ac4d95feecf9f1a5b7e568cdb9f8bd1329745a7c4352a57b3a69517652",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\tokenizer_config.json": "2faa42b4858100586092e4dff63494c4cd242df22ad659fc6a85c3a153290d8f",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-52\\model.safetensors": "c95abcd3c07ac830b3a766c3a4cb932a1bce8e1ef2335189bd6c8fedd69447b6"
+              },
+              "temperature": 1.4100000000000001
+            },
+            {
+              "seed": 62,
+              "model_directory": "models/experimental/finbert-ensemble-chronological/sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025/fold-5/seed-62",
+              "artifact_hashes": {
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\metadata.json": "3668f4129c3be0c636e4a3555a10852add6729c44fa7cc434fdd1af66609c283",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\tokenizer_config.json": "2faa42b4858100586092e4dff63494c4cd242df22ad659fc6a85c3a153290d8f",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+                "models\\experimental\\finbert-ensemble-chronological\\sentiment-remediation-20260809-v1-target-aware-neutral-balanced-ce-phrasebank-replay-00-final-2025\\fold-5\\seed-62\\model.safetensors": "c3591689a9414f439ec4fc74521b55a1554c68fbf0875e486cbfbba0cd0b930f"
+              },
+              "temperature": 1.97
+            }
+          ]
+        },
+        "phrasebank": {
+          "model_directory": "models/experimental/finbert-sentiment",
+          "temperature": 2.69,
+          "artifact_hashes": {
+            "models\\experimental\\finbert-sentiment\\config.json": "a2a37b6ccbba1f87f46acabdd39565fbfb51f16ad64397ede61e1a288fea7e5c",
+            "models\\experimental\\finbert-sentiment\\metadata.json": "ea9a7e40662c8c93ee6639cb396e122d2a17b84bd565c300b8ebd3869cb445e0",
+            "models\\experimental\\finbert-sentiment\\tokenizer.json": "bbca559625ae7348b277b763ec07884355e6c9ba41f3ab5fa81b435bccf7a84d",
+            "models\\experimental\\finbert-sentiment\\tokenizer_config.json": "00bd5b2d9a46e60d32549452fac5d9b15d8f9ac1945681dfcbc03e3e068090ab",
+            "models\\experimental\\finbert-sentiment\\vocab.txt": "85f2481b4e3c25a7ece5e0e4930631a75c1a5fe2d31b0ecd9b5d51136ab98de8",
+            "models\\experimental\\finbert-sentiment\\model.safetensors": "7670c9c9d1435527a66eb88119a3aaa1360aaffdc9efec65f8b56d364a1e6e76"
+          }
+        }
+      },
+      "manual_override": {
+        "active": true,
+        "reason": "User-approved production activation with evaluation scope locked to 2015-2025; 2026 cohort retained as diagnostic only because it is underpowered and out of scope.",
+        "at": "2026-08-11T16:52:23Z",
+        "benchmark_report": "results\\finbert-ensemble-defensible\\sentiment-remediation-20260809-v1\\report.json",
+        "benchmark_sha256": "904998d0af746c63356fc1e9a41281d66e2aba7b1c5fa535b96442773b7eae85",
+        "gates_eligible_for_promotion": false,
+        "failed_gates": [
+          "minimum_class_f1",
+          "bootstrap_macro_f1_noninferiority",
+          "phrasebank_generalisation_noninferiority",
+          "bursa_seed_stability",
+          "per_company_noninferiority",
+          "manual_retrospective_promotion_allowed",
+          "independent_prospective_holdout"
+        ]
+      }
+    }
+  },
+  "previous_active_variant": "bursa_phrasebank_defensible_soft_vote_production-ready-20260807-v1",
+  "promotion_history": [
+    {
+      "at": "2026-08-07T19:11:55Z",
+      "from": "finbert_phrasebank_v1",
+      "to": "bursa_phrasebank_defensible_soft_vote_production-ready-20260807-v1",
+      "benchmark_report": "results\\finbert-ensemble-defensible\\production-ready-20260807-v1\\report.json",
+      "benchmark_sha256": "21aea41f0d2fddbdbd01256a24428a2d429ee8d8f110134097314dad27f7352a",
+      "manual_override": true,
+      "reason": "User-approved experimental activation before acceptance gates; retain failed-gate evidence for later improvement.",
+      "gates_eligible_for_promotion": false
+    },
+    {
+      "at": "2026-08-11T16:52:23Z",
+      "from": "bursa_phrasebank_defensible_soft_vote_production-ready-20260807-v1",
+      "to": "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1",
+      "benchmark_report": "results\\finbert-ensemble-defensible\\sentiment-remediation-20260809-v1\\report.json",
+      "benchmark_sha256": "904998d0af746c63356fc1e9a41281d66e2aba7b1c5fa535b96442773b7eae85",
+      "manual_override": true,
+      "reason": "User-approved production activation with evaluation scope locked to 2015-2025; 2026 cohort retained as diagnostic only because it is underpowered and out of scope.",
+      "gates_eligible_for_promotion": false
+    }
+  ]
 }

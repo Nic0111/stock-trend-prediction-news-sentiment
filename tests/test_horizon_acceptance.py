@@ -60,9 +60,43 @@ class HorizonAcceptanceTests(unittest.TestCase):
             baseline_metrics=baseline_metrics,
             oof_metrics={"threshold_constraints_passed": True},
             cv_positive_mcc_folds=5,
+            baseline_prevalence=0.5,
         )
         self.assertEqual(result["status"], "accepted")
         self.assertEqual(result["failed_checks"], [])
+        self.assertEqual(result["calibration"]["baseline_prevalence"], 0.5)
+
+    def test_ticker_scope_cannot_inherit_pooled_development_evidence(self):
+        dates = np.arange(240)
+        y = np.arange(240) % 2
+        predictions = y.copy()
+        probability = np.where(y == 1, 0.9, 0.1)
+        baseline = 1 - y
+        result = evaluate_acceptance(
+            horizon=1,
+            y_true=y,
+            predictions=predictions,
+            probability_up=probability,
+            baseline_predictions=baseline,
+            dates=dates,
+            metrics={
+                "balanced_accuracy": 1.0,
+                "mcc": 1.0,
+                "macro_f1": 1.0,
+                "recall": 1.0,
+                "specificity": 1.0,
+                "predicted_up_rate": 0.5,
+            },
+            baseline_metrics={"balanced_accuracy": 0.0, "macro_f1": 0.0},
+            oof_metrics={"threshold_constraints_passed": True},
+            cv_positive_mcc_folds=5,
+            baseline_prevalence=0.5,
+            development_evidence_available=False,
+            ticker="TEST.KL",
+        )
+        self.assertEqual(result["status"], "experimental")
+        self.assertFalse(result["accepted_checks"]["development_stability"])
+        self.assertFalse(result["accepted_checks"]["threshold_constraints"])
 
     def test_weaker_status_composition_never_upgrades_evidence(self):
         self.assertEqual(weaker_status("accepted", "limited"), "limited")

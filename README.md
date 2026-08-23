@@ -88,12 +88,13 @@ python main.py all --search-profile full
 `--search-profile focused` applies the full tuning budgets only to the strongest evidence-supported model and feature combinations for each horizon. `--search-profile quick` evaluates the expanded candidate set with one bounded configuration per candidate and is useful for a complete smoke benchmark. It does not satisfy the final modelling search plan.
 
 The `official` profile is the reproducibility-controlled challenger workflow. It
-uses the fixed eight-model universe, one locked feature round per horizon (1D:
-round 3; 5D/10D: round 4), a seed-42 hyperparameter manifest, and five fixed
-evaluation seeds (11, 42, 73, 101, 202). It is staged under
+uses the fixed nine-model universe (including CatBoost), one locked feature round per horizon (1D:
+round 3; 5D/10D: round 4), a bounded development-only hyperparameter search,
+and a fixed-manifest panel over five evaluation seeds (11, 42, 73, 101, 202).
+It is staged under
 `models/staged-stock-runs/<run-id>/` by default and cannot replace the active
 registry accidentally. After reviewing the observed and prospective-shadow
-evidence, promote explicitly:
+evidence for all three horizons, promote the registry atomically:
 
 ```powershell
 python main.py promote_stock_models --run-id <run-id> --approve
@@ -106,6 +107,35 @@ accuracy, MCC, macro-F1, seed variance, model complexity, and model name as
 stable tie-breakers. The run records a candidate confidence set when multiple
 models are within the practical 0.5 percentage-point margin. Promotion remains
 manual and requires prospective shadow evidence.
+
+If an authorised reviewer intentionally activates an official run before the
+100-matured-session shadow gate is complete, the exception must be explicit and
+audited. This does not turn failed evidence gates into accepted results; the
+runtime continues to show the horizon as limited/experimental:
+
+```powershell
+python main.py promote_stock_models --run-id <run-id> --approve `
+  --override-gates `
+  --override-reason "User-approved early activation before prospective shadow evidence"
+```
+
+Generate presentation diagnostics for an active or staged run without changing
+the production registry:
+
+```powershell
+python -m pipeline.generate_model_performance_artifact
+python -m pipeline.generate_model_performance_artifact `
+  --registry models/staged-stock-runs/<run-id>/model-registry.json `
+  --output results/model-performance/runs/<run-id>/model-performance.json
+```
+
+The controlled stock/news comparison is diagnostics-only and uses the same
+matched 2025 rows for stock-only, news-only, stock+news, and a shuffled-news
+placebo arm:
+
+```powershell
+python -m pipeline.fusion_cli ablation
+```
 
 ## Runtime interfaces
 
@@ -183,13 +213,11 @@ Shadow evaluation reuses frozen artifacts and thresholds, never retrains or tune
 
 Stock Outlook shows local supporting and opposing factors for every available signal. Each factor is estimated by replacing one feature with its 2015–2024 development median and measuring the change in calibrated Up probability. This is a model-sensitivity explanation—not a causal claim—and experimental horizons retain the same explanation with an explicit validation warning.
 
-The sentiment classifier uses a fixed stratified 80/20 development/test split and five-fold development tuning. Runtime news retrieval never trains a model implicitly.
-
-The approved runtime sentiment backend is the evaluated FinBERT checkpoint recorded in
-`models/sentiment-runtime-config.json`; its calibrated temperature is applied before
-article confidence weighting. The previous TF-IDF model remains available as an explicit
-offline benchmark and training reference. The promotion is based only on the frozen
-Financial PhraseBank test split, and does not claim Malaysian Bursa-news generalisation.
+Runtime news retrieval never trains a sentiment model implicitly. The approved runtime
+backend and its component hashes, calibration, weights and evaluation scope are recorded
+in `models/sentiment-runtime-config.json`. Historical fusion evidence must be rescored by
+that exact frozen Bursa/PhraseBank ensemble; a feature table carrying a different or
+missing article-level model identity is rejected.
 
 The optional `benchmark_sentiment_models` command evaluates the existing TF-IDF +
 Logistic Regression sentiment baseline against a leakage-safe FinBERT challenger
@@ -198,6 +226,33 @@ the comparison and a manual recommendation under `results/finbert-benchmark/`;
 it never replaces the deployed sentiment artifact automatically. The public
 `ProsusAI/finbert` checkpoint is not used for this benchmark because it was
 already fine-tuned on Financial PhraseBank, the dataset used by this project.
+
+The former TF-IDF classifier and earlier PhraseBank-only/Bursa-only checkpoints remain
+offline benchmark references. They are not silently selected by runtime.
+
+Benchmark the weight grid without changing production or cached production
+artifacts:
+
+```powershell
+python main.py benchmark_finbert_ensemble --bursa-run-id 20260801T040002 --weight-step 0.05
+```
+
+The benchmark selects weights on the chronological 2024 validation split and
+reports one untouched 2025 test evaluation under
+`results/finbert-ensemble-benchmark/latest.json`. Every scored article records
+the variant, component weights and (for the ensemble) Bursa and PhraseBank class
+probabilities. Existing NewsAPI/Marketaux retrieval, entity filtering, recency
+decay and context aggregation are unchanged.
+
+Fusion evaluation v3 is a separate retrospective incremental-value study. It fixes the
+stock log-odds coefficient at one and learns only a capped, reliability-aware news
+correction. Stock-only and fusion use one threshold, and no-news rows must retain the
+exact stock probability and direction. Window, regularisation and cap choices are made
+inside purged 2019–2023 development folds; 2024 selects the shared threshold and 2025 is
+the retrospective benchmark. Promotion is horizon-specific and production remains
+stock-led unless every gate for that horizon passes. Rebuild commands, lawful official-
+disclosure import and the complete safety contract are documented in
+[`docs/fusion-evaluation-v3.md`](docs/fusion-evaluation-v3.md).
 
 ## Tests
 
@@ -286,20 +341,304 @@ The synthesis is anchored to the stock observation date and the Bursa session cu
 so articles published after the completed market session cannot leak into the explanation. A missing news signal
 therefore falls back to the stock-led result instead of inventing a neutral probability.
 
-Stage 2 numerical fusion is intentionally disabled until a lawful, point-in-time historical Bursa news archive is
-available. Provider exports can be prepared with the additive experimental CLI:
+Stage 2 numerical fusion is registry-gated. The live API uses it only when a
+horizon artifact is marked `accepted` and the current news context has Medium
+or High coverage. Otherwise the calibrated stock probability is preserved and
+the response explains why numerical fusion was not applied.
+
+The historical archive workflow uses GDELT only as a URL/entity index and
+Common Crawl to recover article text. GDELT's own tone is never used; recovered
+text passes through StockSense entity disambiguation and the promoted FinBERT
+model. The `high-recall-v4` retrieval profile searches GKG organisation names
+and page titles with company-specific distinctive aliases and carefully
+anchored ambiguous aliases. Every candidate records its match channel, aliases
+and anchors; a retrieval match is provenance only and never bypasses the strict
+downstream entity-disambiguation layer.
+
+This workflow is free-only: use BigQuery Sandbox with billing disabled,
+download results locally, and stop when the free monthly query allowance is
+reached. Before executing any shard, `gdelt-run` dry-runs every unfinished
+shard and compares their combined cost plus the project's current calendar
+month usage with the configured project-wide ceiling. Common Crawl is queried
+sequentially with checkpoints and backoff.
+Start with the 2023 pilot so 2024 remains validation data and 2025 remains the
+frozen test period:
 
 ```powershell
-python -m pipeline.fusion_cli import-news --output-dir data/fusion/raw provider-export.csv
-python -m pipeline.fusion_cli readiness --data-dir data/fusion/raw
-python -m pipeline.fusion_cli features --stock-path data/model-input-stock-dataset/1155-kl-model-input.csv --news-dir data/fusion/raw
-python -m pipeline.fusion_cli train --dataset data/fusion/fusion-features.parquet
+python -m pipeline.fusion_cli gdelt-query `
+  --pilot-year 2023 `
+  --shard monthly `
+  --query-profile high-recall-v4 `
+  --max-candidates-per-ticker-month 500
+# The default workflow is manual: run each generated query in BigQuery Sandbox with
+# billing disabled, perform a dry run, and place the monthly CSV/JSONL/Parquet
+# exports in one local folder.
+# An authenticated local workflow is also available after installing
+# requirements-gdelt.txt and running `gcloud auth application-default login`:
+python -m pipeline.fusion_cli gdelt-run `
+  --project-id <your-google-project-id> `
+  --query-dir data/historical-news-fusion/gdelt/pilot-2023/queries `
+  --export-dir data/historical-news-fusion/gdelt/pilot-2023/exports `
+  --monthly-budget-gib 900 `
+  --dry-run-only
+# Remove --dry-run-only only after reviewing the complete projected-month total.
+python -m pipeline.fusion_cli gdelt-enrich `
+  --export data/historical-news-fusion/gdelt/pilot-2023/exports `
+  --output-dir data/historical-news-fusion/gdelt/pilot-2023 `
+  --pilot-per-ticker 150 `
+  --checkpoint data/historical-news-fusion/gdelt/pilot-2023/raw/recovery-state.jsonl `
+  --heartbeat data/historical-news-fusion/gdelt/pilot-2023/raw/recovery-heartbeat.json `
+  --max-runtime-minutes 45 `
+  --request-interval-seconds 1 `
+  --require-indexed-gate
+# The recovery job is sequential and resumable. Re-run the same command after a
+# runtime pause; checkpointed successful/no-capture URLs are not repeated.
+python -m pipeline.fusion_cli label-bursa-news-llm `
+  --source data/historical-news-fusion/gdelt/pilot-2023/raw/entity-candidates.jsonl `
+  --output data/news-evidence-benchmark/bursa-news-llm-pseudolabelled.jsonl `
+  --checkpoint data/historical-news-fusion/gdelt/pilot-2023/raw/llm-label-checkpoint.jsonl `
+  --heartbeat data/historical-news-fusion/gdelt/pilot-2023/raw/llm-label-heartbeat.json `
+  --approval-queue data/historical-news-fusion/gdelt/pilot-2023/raw/llm-label-approval-queue.jsonl `
+  --max-runtime-minutes 45
+python -m pipeline.fusion_cli gdelt-pilot `
+  --pilot-year 2023 `
+  --indexed data/historical-news-fusion/gdelt/pilot-2023/raw/pilot-indexed.csv `
+  --recovered data/historical-news-fusion/gdelt/pilot-2023/raw/commoncrawl-recovered.jsonl `
+  --accepted data/historical-news-fusion/gdelt/pilot-2023/raw/accepted-scored.jsonl `
+  --llm-labels data/news-evidence-benchmark/bursa-news-llm-pseudolabelled.jsonl
 ```
 
-The trainer refuses incomplete history and writes only experimental, horizon-specific artifacts. It does not change
-`models/model-registry.json` or enable fusion at runtime. Promotion requires the predeclared 2025 benchmark and a
-later untouched 2026 shadow period to pass the balanced-accuracy/MCC, calibration, class-recall, fold-stability and
-per-company gates.
+The historical pilot remains fail-closed and records its model outputs for
+review. The active corpus is populated from labels accepted as LLM-assisted
+labels;
+FinBERT outputs are never included in labelling prompts. Legacy automatic
+source names are retained only as audit metadata after migration.
+Only abstained rows enter the approval queue. After reviewing that small queue,
+rerun the label command with `--approvals <reviewed-queue.jsonl>`; confident
+automatic consensus rows cannot be overwritten through this path.
+
+After the pilot report says `ready_for_full_collection`, plan every remaining
+year together. This command is dry-run only unless `--execute` is supplied:
+
+```powershell
+python -m pipeline.fusion_cli gdelt-remaining-years `
+  --project-id <your-google-project-id> `
+  --pilot-report data/historical-news-fusion/gdelt/pilot-2023/pilot-2023-report.json
+# Add --execute only after reviewing remaining-years-plan.json.
+```
+
+The remaining-year guard blocks 2019–2022 and 2024–2025 unless the complete
+aggregate dry-run plus current-month project usage fits below the configured
+BigQuery ceiling. It never substitutes a paid source when a gate fails.
+
+`--require-indexed-gate` stops before Common Crawl unless every configured
+company meets its declared URL floor, two source domains, six covered months
+and a supported match channel. The default URL floor is 50; Press Metal uses a
+documented 30-URL floor because the 2023 high-recall pilot found materially
+lower publication volume while still covering 19 domains and all 12 months.
+The exception changes only candidate sufficiency—not entity relevance, text
+recovery, source diversity, annotation or final model-quality requirements.
+
+Do not run the full 2019–2025 collection until the pilot reaches at least 90%
+entity precision, 75% entity recall, 60% text recovery, 95% timestamp completeness,
+all-company coverage, two source domains per company, 15 accepted articles per
+company and 200 accepted articles overall. Feature coverage is evaluated
+separately after the archive exists. Raw recovered text remains under
+Git-ignored local storage.
+
+#### 2023 Web NGram pseudo-document usability pilot
+
+The Common Crawl workflow above remains available. A separate, non-production
+pilot tests whether URL-linked GDELT Web NGrams can safely fill some historical
+full-text gaps. It uses the already exported 2023 high-recall candidates and
+never changes the live NewsAPI/Marketaux service, production FinBERT artifact,
+or fusion registry:
+
+```powershell
+python -m pipeline.fusion_cli gdelt-ngram-pilot `
+  --year 2023 `
+  --candidate-dir data/historical-news-fusion/gdelt/pilot-2023-high-recall-v3b/exports `
+  --sample-per-ticker 30 `
+  --paired-per-ticker 10 `
+  --output-dir data/historical-news-fusion/gdelt/pilot-2023-ngram `
+  --max-runtime-minutes 45 `
+  --max-download-gib 5
+```
+
+Recovery order is direct publisher HTML, High-quality Web NGram
+reconstruction, Common Crawl, then Wayback. Medium/Low NGram reconstructions
+remain audit evidence and cannot enter sentiment labelling. Direct publisher
+successes are also reconstructed for a paired full-text versus pseudo-document
+test. The command is checkpointed and can be rerun after a runtime, download,
+provider, or OpenRouter pause.
+
+For a bounded network smoke test that does not call OpenRouter or archives:
+
+```powershell
+python -m pipeline.fusion_cli gdelt-ngram-pilot `
+  --max-articles 5 `
+  --sample-per-ticker 1 `
+  --paired-per-ticker 1 `
+  --output-dir data/historical-news-fusion/gdelt/pilot-2023-ngram-smoke `
+  --max-runtime-minutes 5 `
+  --max-download-gib 0.25 `
+  --request-interval-seconds 0.2 `
+  --skip-labels `
+  --skip-archives
+```
+
+The principal output is
+`pilot-2023-ngram-usability-report.json`. A `usable_for_weak_sentiment_labels`
+decision requires every frozen recovery, reconstruction, entity, sentiment,
+FinBERT-sensitivity and timestamp gate to pass. A weaker
+`entity_filtering_only` decision permits NGrams only for relevance filtering.
+All other results retain archive-only recovery. Only records accepted under the
+LLM-assisted-label policy are eligible for the active Bursa corpus.
+
+### Bursa FinBERT dataset (LLM-assisted labelling workflow)
+
+The live NewsAPI lookback is not used to construct the historical training
+dataset. GDELT/Common Crawl acquisition is offline across complete calendar
+years. The 7/14/30-day sentiment windows are applied later when point-in-time
+features are built.
+
+After the 2023 pilot passes, collect 2019–2022 and 2024–2025 using the guarded
+remaining-year command above. Each year follows the same Common Crawl recovery
+and dual-LLM consensus workflow. The candidate builder locks 2019–2023 to
+`training`, 2024 to `validation`, and 2025 to `test`; removes exact duplicates;
+clusters near-date similar headlines into events; and keeps each event entirely
+in the latest applicable split.
+
+The models label the article's implication for the selected company, not future
+stock direction. Existing FinBERT outputs must never be copied into prompts or
+pseudo-labels.
+
+Validate the completed annotations before any GPU work:
+
+```powershell
+python main.py validate_bursa_news_dataset
+```
+
+The validator no longer uses a frozen corpus-size, per-company, or
+independent-double-labelling minimum as a readiness requirement. The default
+policy accepts single labelled rows while retaining the locked chronological
+splits, required company coverage, text/language checks, entity-quality checks,
+duplicate/event isolation, and other integrity safeguards. Dataset counts and
+any available agreement statistics are reported descriptively. Independent
+double-labelling and Cohen's kappa can be enabled in a stricter policy when
+additional annotation evidence is available; they are not required by the
+default exploratory dataset policy.
+
+Train the Bursa challenger without changing production:
+
+```powershell
+python main.py train_bursa_finbert --profile full --device cuda
+```
+
+The challenger starts from the deployed PhraseBank FinBERT, mixes 70% Bursa
+training examples with 30% PhraseBank replay, uses class-weighted loss, selects
+epochs only from 2024 validation evidence, calibrates on 2024, and evaluates
+three fixed seeds on the frozen 2025 Bursa test plus the unchanged PhraseBank
+test. Results and staged artifacts are written under ignored local directories.
+
+Promotion is separate and fails unless every absolute, uplift, calibration,
+bootstrap, PhraseBank non-inferiority and seed-stability gate passed:
+
+```powershell
+python main.py promote_bursa_finbert --run-id <reviewed-run-id> --approve
+```
+
+Optional 2015–2018 articles are added only after each earlier year passes the
+same recovery, entity, timestamp, source-diversity and volume gates. Supply each
+passing report explicitly with `--backfill-report <year-report.json>`; an older
+year cannot enter the annotation template without that evidence.
+
+After the archive is ready, build features using leakage-safe out-of-fold stock
+probabilities and evaluate both challengers:
+
+```powershell
+python -m pipeline.fusion_cli stock-oof --stock-path <all-stock-feature-rows.csv> --output data/fusion/stock-oof-probabilities.csv
+python -m pipeline.fusion_cli features --stock-path <all-stock-feature-rows.csv> --stock-probabilities <out-of-fold-stock-probabilities.csv> --news-dir data/historical-news-fusion --output data/fusion/fusion-features.parquet
+python -m pipeline.fusion_cli coverage --dataset data/fusion/fusion-features.parquet --report results/fusion/fusion-coverage-report.json
+python -m pipeline.fusion_cli signal-diagnostics --dataset data/fusion/fusion-features.parquet --report results/fusion/fusion-signal-diagnostics.json
+python -m pipeline.fusion_cli evaluate --dataset data/fusion/fusion-features.parquet --ticker 1155.KL --ticker 1295.KL --ticker 1023.KL --ticker 5347.KL --ticker 5225.KL --ticker 6947.KL --ticker 5183.KL --ticker 8869.KL --ticker 3816.KL --ticker 4677.KL
+python -m pipeline.fusion_cli promote --approve
+```
+
+Run `coverage` before evaluation. It writes the exact ticker-by-horizon-by-period
+matrix of Medium/High evidence used by the frozen evaluator and returns a
+non-success status while any requested company is absent from development,
+2024 calibration or the 2025 benchmark. `signal-diagnostics` is explicitly
+non-promotional: it reports whether signed FinBERT tone ranks later Up outcomes
+above chance, including Low-coverage rows as a sensitivity check.
+
+Supplying only a subset of tickers creates a research-only evaluation. The
+training rows are restricted to that subset, the scope is recorded in the
+report, and a `full_company_universe = false` gate prevents promotion even if
+all numerical checks pass. This is useful for diagnosis but cannot replace the
+ten-company benchmark.
+
+The evaluator compares a transparent horizon-weighted log-odds formula with an
+L2 logistic late-fusion model. It uses five expanding purged folds in
+2019–2023, 2024 for calibration and threshold locking, and the frozen 2025
+benchmark for promotion. The registry records accepted or experimental status
+per horizon; no artifact can become live merely because training completed.
+Evaluation writes a staged registry. The explicit `promote --approve` command
+copies only horizons that passed every frozen gate into the active runtime
+registry and leaves failed horizons inactive.
+Passing balanced-accuracy/MCC, calibration, recall, bootstrap, fold-stability
+and per-company gates is mandatory. Results from 2026 onward remain prospective
+shadow monitoring and are not used for tuning.
+
+The active Bursa corpus is
+`data/news-evidence-benchmark/bursa-news-llm-assisted-label.jsonl` and is governed
+by `config/bursa_news_dataset_policy.json`. Every accepted sentiment label is
+recorded as `llm_assisted_label` (displayed as **LLM-assisted label**); the former `external_single_weak` and
+`external_consensus` values are migration-only audit values. Independent
+double-labelling is optional and is not required by the active policy.
+
+`stock-oof` reuses the frozen stock-model architecture but refits it separately
+for every chronological output year. Its calibration and threshold are nested
+inside earlier target-complete data, so a fusion row never receives a stock
+probability trained or calibrated on its own future label.
+
+```powershell
+python -m pipeline.fusion_cli shadow --dataset <fusion-features-with-2026-labels.parquet> --start-date 2026-01-01
+```
+
+### Evidence governance
+
+Stock model training is always staged. `quick`, `focused` and `full` are
+research profiles; only the tracked `official` profile can be considered for
+manual promotion. Official selection uses fixed candidate families, feature
+rounds and seeds, expanding purged validation, cross-fitted calibration and
+threshold evaluation, the frozen 2025 observed benchmark, and a later
+prospective shadow period. Audit commands never repair the registry they
+inspect.
+
+The news score is an article-language context signal, not a probability that a
+stock will rise. It uses the versioned
+`recency_x_finbert_confidence_v1` weighting policy. Coverage additionally counts
+independent events so syndicated copies cannot create false evidence
+diversity. User article corrections are what-if evidence changes and are
+written to a local append-only SQLite audit ledger under `data/audit/`.
+
+FinBERT remains external-domain evidence until the benchmark described by
+`config/news_evidence_policy.json` is supplied. The required dataset is a
+time-split, dual-LLM consensus pseudo-labelled Bursa Malaysia news set covering
+all ten companies;
+the system reports this gate as not ready when the dataset is absent.
+
+Numerical fusion additionally requires:
+
+- an accepted stock horizon with a valid locked threshold;
+- Medium or High news coverage;
+- an accepted, hash-verified horizon-specific fusion artifact;
+- at least 1,000 point-in-time rows per horizon and at least 50 unique
+  observation dates per company/horizon in the historical fusion dataset.
+
+If any condition is missing, StockSense keeps the transparent stock-led
+synthesis and reports why fusion was not applied.
 
 ### Verification gates
 

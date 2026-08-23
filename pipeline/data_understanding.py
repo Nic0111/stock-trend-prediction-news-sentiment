@@ -725,11 +725,36 @@ def write_eda_summary(df: pd.DataFrame) -> None:
     return_rows = build_return_rows(df)
     correlation_rows = build_correlation_rows(df)
     chart_rows = generate_eda_charts(df)
+    valid_dates = pd.to_datetime(df.get("Date"), errors="coerce").dropna()
+    coverage_start = str(valid_dates.min().date()) if not valid_dates.empty else "N/A"
+    coverage_end = str(valid_dates.max().date()) if not valid_dates.empty else "N/A"
+    split_rows = []
+    if not valid_dates.empty:
+        for label, start, end, purpose in (
+            ("Development + purged validation", "2015-01-01", "2024-12-31", "Model and threshold selection"),
+            ("Frozen observed test", "2025-01-01", "2025-12-31", "One-time acceptance evaluation"),
+            ("Forward shadow", "2026-01-01", "2026-12-31", "Post-selection monitoring only"),
+        ):
+            count = int(valid_dates.between(pd.Timestamp(start), pd.Timestamp(end)).sum())
+            split_rows.append([label, start, end, count, purpose])
 
     content = f"""# 3.4.2.3 Exploratory Data Analysis (EDA) Summary
 
 ## Purpose
 This section summarizes the numerical behavior of the preprocessed stock dataset.
+
+## Evidence Coverage And Evaluation Boundaries
+- Observed dataset coverage: **{coverage_start} to {coverage_end}**
+- The ten supported companies and KLCI context should cover at least 2015–2025
+  before an official model run is considered complete.
+
+{markdown_table(
+        ["Period", "Start", "End", "Rows", "Permitted use"],
+        split_rows,
+    )}
+
+The 2025 rows are frozen test evidence and must not be used for feature,
+hyperparameter, calibration, or decision-threshold selection.
 
 ## EDA Visualizations
 The following charts are generated from the preprocessed dataset and saved under `summary/data-understanding/eda-charts/`.

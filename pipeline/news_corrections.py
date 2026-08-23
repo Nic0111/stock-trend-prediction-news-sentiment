@@ -14,7 +14,7 @@ from pipeline.download_financial_news_data import (
     load_sentiment_model,
     prediction_cutoff_at,
 )
-from pipeline.evidence_synthesis import build_stock_led_outlook
+from pipeline.fusion_runtime import build_aggregate_outlook
 from pipeline.news_relevance import stable_article_id
 
 
@@ -140,7 +140,7 @@ def apply_news_override(
     updated_news = _recalculate_news(analysis.news, included, review, overrides)
     updated = deepcopy(analysis)
     updated.news = updated_news
-    updated.combined_outlook = build_stock_led_outlook(
+    updated.combined_outlook = build_aggregate_outlook(
         updated.stock,
         updated_news,
         ticker=updated.ticker,
@@ -158,7 +158,7 @@ def reset_news_overrides(analysis):
     included, review = _baseline_news(analysis.news)
     updated = deepcopy(analysis)
     updated.news = _recalculate_news(analysis.news, included, review, {})
-    updated.combined_outlook = build_stock_led_outlook(
+    updated.combined_outlook = build_aggregate_outlook(
         updated.stock,
         updated.news,
         ticker=updated.ticker,

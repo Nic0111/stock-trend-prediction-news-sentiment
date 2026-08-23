@@ -124,3 +124,73 @@ export const OVERVIEW_WORLD = {
 } as const;
 
 export const OVERVIEW_SCENES = OVERVIEW_WORLD.scenes as readonly OverviewScene[];
+
+export interface CinematicOverviewScene {
+  id: OverviewSceneId;
+  label: string;
+  eyebrow: string;
+  title: string;
+  body: string;
+  tags: readonly string[];
+  accent: string;
+  posterDesktop: string;
+  /** Optional 4K poster used only on very wide/high-DPI displays. */
+  posterDesktop4k?: string;
+  /** Required motion-interpolated 1080p/60 master used by the scroll scrubber. */
+  clipDesktop60: string;
+  /** Source frame rate used to document the master. */
+  sourceFps: number;
+  duration: number;
+  scrollWeight: number;
+  linger: number;
+  /** Transition used at this scene's outgoing seam. */
+  transitionToNext?: "crossfade" | "veil";
+  route?: string;
+  ctaLabel?: string;
+}
+
+const MEDIA_ROOT = "/media/overview-world/v2";
+
+/**
+ * Versioned media manifest for the video-led Overview. Keeping the paths and
+ * durations in data means the 1080p/60 masters can be replaced without
+ * changing the scroll engine or page composition.
+ */
+export const CINEMATIC_OVERVIEW_SCENES: readonly CinematicOverviewScene[] = OVERVIEW_SCENES.map((scene, index) => {
+  const mediaName: Record<OverviewSceneId, string> = {
+    exchange: "welcome-exchange",
+    observatory: "market-observatory",
+    forecast: "prediction-workshop",
+    newsroom: "newsroom-garden",
+    compare: "comparison-bridge",
+    learn: "learning-pavilion",
+  };
+  const name = mediaName[scene.id];
+  const pacing = [
+    { scrollWeight: 1.2, linger: 0.18 },
+    { scrollWeight: 1.08, linger: 0.1 },
+    { scrollWeight: 1.16, linger: 0.16 },
+    { scrollWeight: 1.12, linger: 0.12 },
+    { scrollWeight: 1.04, linger: 0.08 },
+    { scrollWeight: 1.3, linger: 0.24 },
+  ][index];
+  return {
+    id: scene.id,
+    label: scene.label,
+    eyebrow: scene.eyebrow,
+    title: scene.title,
+    body: scene.body,
+    tags: scene.tags,
+    accent: scene.accent,
+    posterDesktop: `${MEDIA_ROOT}/poster/${name}.webp`,
+    posterDesktop4k: `${MEDIA_ROOT}/poster-4k/${name}.webp`,
+    clipDesktop60: `${MEDIA_ROOT}/video-1080-60/${name}.mp4`,
+    sourceFps: 24,
+    duration: 10.005,
+    scrollWeight: pacing.scrollWeight,
+    linger: pacing.linger,
+    transitionToNext: index === 2 ? "crossfade" : "veil",
+    route: scene.route,
+    ctaLabel: scene.ctaLabel,
+  };
+});

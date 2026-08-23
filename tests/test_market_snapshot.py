@@ -38,6 +38,34 @@ class MarketSnapshotTests(unittest.TestCase):
                 market_snapshot.fetch_market_snapshot("UNKNOWN.KL")
         download.assert_not_called()
 
+    def test_preloaded_stock_and_market_frames_avoid_provider_downloads(self) -> None:
+        dates = pd.to_datetime([date.today() - timedelta(days=2), date.today() - timedelta(days=1)])
+        base = pd.DataFrame(
+            {
+                "Date": dates,
+                "Open": [10.0, 10.2],
+                "High": [10.2, 10.7],
+                "Low": [9.8, 10.1],
+                "Close": [10.0, 10.5],
+                "Adj Close": [10.0, 10.5],
+                "Volume": [1000, 1500],
+                "Dividends": [0.0, 0.0],
+                "Stock Splits": [0.0, 0.0],
+                "Ticker": ["1155.KL", "1155.KL"],
+            }
+        )
+        market = base.assign(Ticker="^KLSE", **{"Close": [1600.0, 1605.0], "Adj Close": [1600.0, 1605.0]})
+
+        with patch.object(market_snapshot.yf, "download") as download:
+            result = market_snapshot.fetch_market_snapshot(
+                "1155.KL",
+                stock_df=base,
+                market_df=market,
+            )
+
+        self.assertEqual(result.price, 10.5)
+        download.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

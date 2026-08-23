@@ -1,18 +1,20 @@
 import { useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createAnalysis, getCompanies, resetNewsOverrides, updateNewsOverride } from "../api/client";
+import { AggregateExplanationPanel } from "../components/AggregateExplanationPanel";
 import { LoadingState, ErrorState } from "../components/AsyncState";
 import { CompanyLogo } from "../components/CompanyLogo";
 import { CompanySelector } from "../components/CompanySelector";
+import { HorizonSelector } from "../components/HorizonSelector";
 import { isArticleContributingToContext, NewsCard } from "../components/NewsCard";
 import { CombinedOutlookCard, NewsSummaryCard, TrendCard } from "../components/TrendCard";
 import { PageHeader } from "../components/PageHeader";
+import { StockModelEvidence } from "../components/ModelDiagnostics";
 import { useAppState } from "../state/AppState";
-import type { Horizon } from "../types";
 
 export function StockOutlookPage() {
   const companies = useQuery({ queryKey: ["companies"], queryFn: ({ signal }) => getCompanies(signal), staleTime: 86400000 });
-  const { outlookTicker, setOutlookTicker, outlookHorizon, setOutlookHorizon, analysis, setAnalysis } = useAppState();
+  const { outlookTicker, setOutlookTicker, outlookHorizon, setOutlookHorizon, analysis, setAnalysis, clearAggregateTutorThread } = useAppState();
 
   useEffect(() => {
     if (companies.data?.length && !companies.data.some((company) => company.ticker === outlookTicker)) {
@@ -22,17 +24,17 @@ export function StockOutlookPage() {
 
   const analysisMutation = useMutation({
     mutationFn: () => createAnalysis({ ticker: outlookTicker, horizon: outlookHorizon }),
-    onSuccess: setAnalysis,
+    onSuccess: (nextAnalysis) => { setAnalysis(nextAnalysis); clearAggregateTutorThread(); },
   });
   const matchingAnalysis = analysis?.ticker === outlookTicker && analysis.horizon_days === outlookHorizon ? analysis : null;
   const correctionMutation = useMutation({
     mutationFn: ({ articleId, action }: { articleId: string; action: "include" | "exclude" }) =>
       updateNewsOverride(matchingAnalysis!.analysis_id, articleId, action),
-    onSuccess: setAnalysis,
+    onSuccess: (nextAnalysis) => { setAnalysis(nextAnalysis); clearAggregateTutorThread(); },
   });
   const resetMutation = useMutation({
     mutationFn: () => resetNewsOverrides(matchingAnalysis!.analysis_id),
-    onSuccess: setAnalysis,
+    onSuccess: (nextAnalysis) => { setAnalysis(nextAnalysis); clearAggregateTutorThread(); },
   });
 
   if (companies.isLoading) {
@@ -49,22 +51,21 @@ export function StockOutlookPage() {
 
   return <>
     <PageHeader eyebrow="Analyze" title="Stock Outlook" description="See the modelled direction and recent news evidence for one Bursa Malaysia company." />
-    <section className="selector-panel">
-      <CompanyLogo company={company} className="selector-logo" />
-      <CompanySelector label="Company" companies={companies.data} value={outlookTicker} onChange={setOutlookTicker} />
-      <fieldset>
-        <legend>Prediction horizon</legend>
-        <div className="radio-row">
-          {([1, 5, 10] as Horizon[]).map((value) => <label key={value}><input type="radio" checked={outlookHorizon === value} onChange={() => setOutlookHorizon(value)} />{value} trading day(s)</label>)}
-        </div>
-      </fieldset>
-      <button className="primary-button" onClick={() => analysisMutation.mutate()} disabled={analysisMutation.isPending}>
-        {analysisMutation.isPending ? "Analyzing..." : "Analyze"}
-      </button>
+    <section className="selector-panel stacked-selector">
+      <div className="selector-primary-row">
+        <CompanyLogo company={company} className="selector-logo" />
+        <CompanySelector label="Company" companies={companies.data} value={outlookTicker} onChange={setOutlookTicker} />
+        <button className="primary-button" onClick={() => analysisMutation.mutate()} disabled={analysisMutation.isPending}>
+          {analysisMutation.isPending ? "Analyzing..." : "Analyze"}
+        </button>
+      </div>
+      <HorizonSelector value={outlookHorizon} onChange={setOutlookHorizon} />
     </section>
     {analysisMutation.isError && <ErrorState message={analysisMutation.error.message} />}
     {matchingAnalysis && <section className="synthesis-branch">
-      <CombinedOutlookCard analysis={matchingAnalysis} />
+      <CombinedOutlookCard analysis={matchingAnalysis}>
+        <AggregateExplanationPanel analysis={matchingAnalysis} />
+      </CombinedOutlookCard>
       <div className="synthesis-connectors" aria-hidden="true">
         <span className="connector-stem" />
         <span className="connector-junction" />
@@ -75,6 +76,7 @@ export function StockOutlookPage() {
         <div className="synthesis-child"><div className="synthesis-child-label">Stock trend</div><TrendCard analysis={matchingAnalysis} /></div>
         <div className="synthesis-child"><div className="synthesis-child-label">News sentiment</div><NewsSummaryCard analysis={matchingAnalysis} /></div>
       </div>
+      <StockModelEvidence horizon={outlookHorizon} compact />
       <section className="article-section">
         <div className="section-heading-row"><h2 className="section-heading">Relevant News Articles</h2>{Object.keys(matchingAnalysis.news?.user_overrides || {}).length > 0 && <button className="secondary-button" type="button" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending}>Reset</button>}</div>
         {articles.length ? <div className="article-grid">{articles.map((article, index) => <NewsCard article={article} contributingHorizon={article.contributes_to_horizons?.includes(outlookHorizon) ? outlookHorizon : (isArticleContributingToContext(article, newsContext, matchingAnalysis.news?.as_of_date || "") ? outlookHorizon : undefined)} onExclude={article.article_id ? () => correctionMutation.mutate({ articleId: article.article_id!, action: "exclude" }) : undefined} busy={correctionMutation.isPending} key={`${article.article_id || article.url || article.title}-${index}`} />)}</div> : <div className="notice">No articles are currently included in the sentiment result.</div>}

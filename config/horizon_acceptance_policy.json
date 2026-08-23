@@ -1,5 +1,5 @@
 {
-  "policy_version": "horizon-acceptance-v2",
+  "policy_version": "horizon-acceptance-v3",
   "random_seed": 42,
   "bootstrap_repetitions": 2000,
   "significance_level": 0.05,

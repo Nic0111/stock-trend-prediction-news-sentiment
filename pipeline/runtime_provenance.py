@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -12,14 +13,34 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REGISTRY_FILE = PROJECT_ROOT / "models" / "model-registry.json"
 SENTIMENT_RUNTIME_CONFIG_FILE = PROJECT_ROOT / "models" / "sentiment-runtime-config.json"
 FINBERT_MODEL_DIR = PROJECT_ROOT / "models" / "experimental" / "finbert-sentiment"
+FINBERT_ARTIFACT_FILENAMES = (
+    "config.json",
+    "metadata.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "vocab.txt",
+    "model.safetensors",
+)
 
 
-def sha256_file(path: Path) -> str:
+@lru_cache(maxsize=128)
+def _sha256_for_file_state(
+    path_text: str,
+    size: int,
+    modified_ns: int,
+) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as stream:
+    with Path(path_text).open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    """Hash a file once per stable size/mtime state within this process."""
+    resolved = path.resolve()
+    stat = resolved.stat()
+    return _sha256_for_file_state(str(resolved), stat.st_size, stat.st_mtime_ns)
 
 
 def registry_payload() -> dict[str, Any]:
@@ -43,20 +64,21 @@ def stock_artifact_hashes(registry: dict[str, Any] | None = None) -> dict[str, s
     return hashes
 
 
-def sentiment_artifact_hashes() -> dict[str, str]:
-    paths = [
-        FINBERT_MODEL_DIR / "config.json",
-        FINBERT_MODEL_DIR / "metadata.json",
-        FINBERT_MODEL_DIR / "tokenizer.json",
-        FINBERT_MODEL_DIR / "tokenizer_config.json",
-        FINBERT_MODEL_DIR / "vocab.txt",
-        FINBERT_MODEL_DIR / "model.safetensors",
-    ]
+def sentiment_artifact_hashes_for_directory(model_dir: str | Path) -> dict[str, str]:
+    """Return deployment-relative hashes for one local FinBERT directory."""
+    directory = Path(model_dir)
+    if not directory.is_absolute():
+        directory = PROJECT_ROOT / directory
     return {
         str(path.relative_to(PROJECT_ROOT)): sha256_file(path)
-        for path in paths
+        for path in (directory / name for name in FINBERT_ARTIFACT_FILENAMES)
         if path.exists()
     }
+
+
+def sentiment_artifact_hashes() -> dict[str, str]:
+    """Hashes for the unchanged PhraseBank production artifact."""
+    return sentiment_artifact_hashes_for_directory(FINBERT_MODEL_DIR)
 
 
 def runtime_manifest() -> dict[str, Any]:

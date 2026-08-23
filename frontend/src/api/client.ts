@@ -6,7 +6,10 @@ import type {
   ComparisonResult,
   DashboardAnalysis,
   Horizon,
+  LearningContext,
   MarketSnapshot,
+  ModelDiagnostics,
+  ModelPerformance,
   NewsContext,
   Prediction,
   SystemStatus,
@@ -56,6 +59,15 @@ export function getCompanies(signal?: AbortSignal): Promise<Company[]> {
 
 export function getSystemStatus(signal?: AbortSignal): Promise<SystemStatus> {
   return request<SystemStatus>("/system/status", { signal });
+}
+
+export function getModelDiagnostics(signal?: AbortSignal): Promise<ModelDiagnostics> {
+  return request<ModelDiagnostics>("/system/model-diagnostics", { signal });
+}
+
+export function getModelPerformance(signal?: AbortSignal, runId?: string): Promise<ModelPerformance> {
+  const query = runId ? `?run_id=${encodeURIComponent(runId)}` : "";
+  return request<ModelPerformance>(`/system/model-performance${query}`, { signal });
 }
 
 export function getMarketSnapshot(ticker: string, signal?: AbortSignal): Promise<MarketSnapshot> {
@@ -113,13 +125,52 @@ export function resetNewsOverrides(analysisId: string, signal?: AbortSignal): Pr
 export function askStockSense(
   ticker: string,
   horizon: Horizon,
+  contextId: string | null,
   analysisId: string | null,
   messages: ChatMessage[],
   signal?: AbortSignal,
 ): Promise<ChatResponse> {
   return request<ChatResponse>("/chat", {
     method: "POST",
-    body: JSON.stringify({ ticker, horizon, analysis_id: analysisId, messages }),
+    body: JSON.stringify({ ticker, horizon, context_id: contextId, analysis_id: analysisId, messages }),
+    signal,
+  });
+}
+
+/**
+ * Uses the same guarded chat endpoint as Ask & Learn, but binds the prompt to
+ * the exact Stock Outlook analysis currently displayed. Keeping this helper
+ * separate prevents the two UI conversations from sharing state accidentally.
+ */
+export function askAggregateExplanation(
+  ticker: string,
+  horizon: Horizon,
+  analysisId: string,
+  messages: ChatMessage[],
+  signal?: AbortSignal,
+): Promise<ChatResponse> {
+  return request<ChatResponse>("/chat", {
+    method: "POST",
+    body: JSON.stringify({
+      ticker,
+      horizon,
+      analysis_id: analysisId,
+      intent: "aggregate_explanation",
+      messages,
+    }),
+    signal,
+  });
+}
+
+export function prepareLearningContext(
+  ticker: string,
+  horizon: Horizon,
+  analysisId: string | null,
+  signal?: AbortSignal,
+): Promise<LearningContext> {
+  return request<LearningContext>("/learning-contexts", {
+    method: "POST",
+    body: JSON.stringify({ ticker, horizon, analysis_id: analysisId }),
     signal,
   });
 }

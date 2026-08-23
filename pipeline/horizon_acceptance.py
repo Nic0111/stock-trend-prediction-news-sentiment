@@ -154,11 +154,18 @@ def date_block_bootstrap_gain(
     }
 
 
-def _calibration_metrics(y_true: np.ndarray, probability_up: np.ndarray) -> dict[str, float]:
+def _calibration_metrics(
+    y_true: np.ndarray,
+    probability_up: np.ndarray,
+    *,
+    baseline_prevalence: float,
+) -> dict[str, float]:
     y = np.asarray(y_true, dtype=int)
     probability = np.clip(np.asarray(probability_up, dtype=float), 1e-6, 1 - 1e-6)
-    prevalence = float(np.mean(y))
-    baseline_probability = np.full(len(y), prevalence, dtype=float)
+    locked_prevalence = float(baseline_prevalence)
+    if not 0.0 <= locked_prevalence <= 1.0:
+        raise ValueError("Locked baseline prevalence must be between zero and one")
+    baseline_probability = np.full(len(y), locked_prevalence, dtype=float)
     brier = float(brier_score_loss(y, probability))
     baseline_brier = float(brier_score_loss(y, baseline_probability))
     skill = float(1.0 - brier / baseline_brier) if baseline_brier > 0 else 0.0
@@ -166,6 +173,8 @@ def _calibration_metrics(y_true: np.ndarray, probability_up: np.ndarray) -> dict
         "brier_score": brier,
         "brier_baseline": baseline_brier,
         "brier_skill": skill,
+        "baseline_prevalence": locked_prevalence,
+        "evaluation_prevalence": float(np.mean(y)),
         "log_loss": float(log_loss(y, probability, labels=[0, 1])),
     }
     order = np.argsort(probability)
@@ -223,6 +232,8 @@ def evaluate_acceptance(
     baseline_metrics: dict[str, float],
     oof_metrics: dict[str, float],
     cv_positive_mcc_folds: int,
+    baseline_prevalence: float,
+    development_evidence_available: bool = True,
     phase: str = "observed",
     ticker: str | None = None,
 ) -> dict[str, Any]:
@@ -241,16 +252,29 @@ def evaluate_acceptance(
         observed_dates,
         block_size=int(horizon_config["bootstrap_block_sessions"]),
     )
-    calibration = _calibration_metrics(y, probabilities)
-    development_stability = cv_positive_mcc_folds >= int(COMMON_POLICY["minimum_positive_mcc_folds"])
-    limited_stability = cv_positive_mcc_folds >= int(COMMON_POLICY["limited_minimum_positive_mcc_folds"])
+    calibration = _calibration_metrics(
+        y,
+        probabilities,
+        baseline_prevalence=float(baseline_prevalence),
+    )
+    development_stability = bool(
+        development_evidence_available
+        and cv_positive_mcc_folds >= int(COMMON_POLICY["minimum_positive_mcc_folds"])
+    )
+    limited_stability = bool(
+        development_evidence_available
+        and cv_positive_mcc_folds >= int(COMMON_POLICY["limited_minimum_positive_mcc_folds"])
+    )
     balanced_gain = float(metrics.get("balanced_accuracy", 0.0) - baseline_metrics.get("balanced_accuracy", 0.0))
     accepted_checks = {
         "balanced_accuracy_gain": balanced_gain >= float(COMMON_POLICY["minimum_balanced_accuracy_gain"]),
         "positive_mcc": metrics.get("mcc", 0.0) > 0,
         "macro_f1_not_worse": metrics.get("macro_f1", 0.0) >= baseline_metrics.get("macro_f1", 0.0),
         "development_stability": development_stability,
-        "threshold_constraints": bool(oof_metrics.get("threshold_constraints_passed", False)),
+        "threshold_constraints": bool(
+            development_evidence_available
+            and oof_metrics.get("threshold_constraints_passed", False)
+        ),
         "directional_recall": _directional_checks(metrics)["directional_recall"],
         "predicted_class_share": _directional_checks(metrics)["predicted_class_share"],
         "brier_skill": calibration["brier_skill"] >= float(COMMON_POLICY["minimum_brier_skill"]),
@@ -289,4 +313,5 @@ def evaluate_acceptance(
         "bootstrap": bootstrap,
         "calibration": calibration,
         "unique_dates": int(bootstrap["unique_dates"]),
+        "development_evidence_available": bool(development_evidence_available),
     }

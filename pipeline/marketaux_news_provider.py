@@ -12,6 +12,9 @@ import csv
 import json
 import os
 import re
+import sqlite3
+import tempfile
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from difflib import SequenceMatcher
@@ -162,14 +165,27 @@ def _marketaux_cache_path(
 
 
 def _marketaux_quota_path() -> Path:
-    return MARKETAUX_CACHE_DIR / "quota" / f"{_marketaux_local_date().isoformat()}.json"
+    return MARKETAUX_CACHE_DIR / "quota" / "marketaux-quota.sqlite3"
 
 
 def _atomic_json_write(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(f"{path.suffix}.tmp")
-    temporary.write_text(json.dumps(dict(payload), indent=2, ensure_ascii=False), encoding="utf-8")
-    os.replace(temporary, path)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            json.dump(dict(payload), temporary, indent=2, ensure_ascii=False)
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
 
 def _read_json(path: Path) -> Dict[str, Any] | None:
@@ -182,44 +198,124 @@ def _read_json(path: Path) -> Dict[str, Any] | None:
 
 def _read_quota_state() -> Dict[str, Any]:
     path = _marketaux_quota_path()
-    state = _read_json(path) or {}
-    if state.get("date") != _marketaux_local_date().isoformat():
-        state = {}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    today = _marketaux_local_date().isoformat()
+    with closing(sqlite3.connect(path, timeout=5.0)) as connection:
+        connection.execute("PRAGMA busy_timeout = 5000")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS marketaux_daily_quota (
+                date TEXT PRIMARY KEY,
+                requests_used INTEGER NOT NULL,
+                last_remaining TEXT,
+                last_status TEXT,
+                last_request_at TEXT
+            )
+            """
+        )
+        row = connection.execute(
+            "SELECT requests_used, last_remaining, last_status, last_request_at "
+            "FROM marketaux_daily_quota WHERE date = ?",
+            (today,),
+        ).fetchone()
     return {
-        "date": _marketaux_local_date().isoformat(),
-        "requests_used": max(0, int(state.get("requests_used", 0) or 0)),
+        "date": today,
+        "requests_used": max(0, int(row[0] if row else 0)),
         "daily_cap": MARKETAUX_DAILY_CAP,
-        "last_remaining": state.get("last_remaining"),
-        "last_status": clean_text(state.get("last_status")),
-        "last_request_at": clean_text(state.get("last_request_at")),
+        "last_remaining": row[1] if row else None,
+        "last_status": clean_text(row[2] if row else None),
+        "last_request_at": clean_text(row[3] if row else None),
     }
 
 
 def _reserve_marketaux_request() -> Dict[str, Any]:
-    state = _read_quota_state()
-    if state["requests_used"] >= MARKETAUX_DAILY_CAP:
-        raise MarketauxQuotaError(
-            f"Marketaux local daily cap ({MARKETAUX_DAILY_CAP}) has been reached."
+    path = _marketaux_quota_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    today = _marketaux_local_date().isoformat()
+    captured_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with closing(sqlite3.connect(path, timeout=5.0)) as connection:
+        connection.execute("PRAGMA busy_timeout = 5000")
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS marketaux_daily_quota (
+                date TEXT PRIMARY KEY,
+                requests_used INTEGER NOT NULL,
+                last_remaining TEXT,
+                last_status TEXT,
+                last_request_at TEXT
+            )
+            """
         )
-    state["requests_used"] += 1
-    state["last_request_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    _atomic_json_write(_marketaux_quota_path(), state)
-    return state
+        row = connection.execute(
+            "SELECT requests_used FROM marketaux_daily_quota WHERE date = ?", (today,)
+        ).fetchone()
+        used = int(row[0] if row else 0)
+        if used >= MARKETAUX_DAILY_CAP:
+            connection.rollback()
+            raise MarketauxQuotaError(
+                f"Marketaux local daily cap ({MARKETAUX_DAILY_CAP}) has been reached."
+            )
+        used += 1
+        connection.execute(
+            """
+            INSERT INTO marketaux_daily_quota(date, requests_used, last_request_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(date) DO UPDATE SET
+                requests_used = excluded.requests_used,
+                last_request_at = excluded.last_request_at
+            """,
+            (today, used, captured_at),
+        )
+        connection.commit()
+    return {
+        "date": today,
+        "requests_used": used,
+        "daily_cap": MARKETAUX_DAILY_CAP,
+        "last_remaining": None,
+        "last_status": "",
+        "last_request_at": captured_at,
+    }
 
 
 def _record_marketaux_response(headers: Mapping[str, Any] | None, status: str) -> Dict[str, Any]:
-    state = _read_quota_state()
     safe = _safe_headers(headers)
     remaining = safe.get("x-usagelimit-remaining") or safe.get("x-ratelimit-remaining")
-    state["last_remaining"] = remaining
-    state["last_status"] = status
-    _atomic_json_write(_marketaux_quota_path(), state)
+    path = _marketaux_quota_path()
+    today = _marketaux_local_date().isoformat()
+    with closing(sqlite3.connect(path, timeout=5.0)) as connection:
+        connection.execute("PRAGMA busy_timeout = 5000")
+        with connection:
+            connection.execute(
+                """
+                UPDATE marketaux_daily_quota
+                SET last_remaining = ?, last_status = ?
+                WHERE date = ?
+                """,
+                (remaining, status, today),
+            )
+    state = _read_quota_state()
     return {
         "requests_used": state["requests_used"],
         "daily_cap": MARKETAUX_DAILY_CAP,
         "last_remaining": remaining,
         "headers": safe,
     }
+
+
+def _latest_retrieval_timestamp(*values: str) -> str:
+    parsed: list[datetime] = []
+    for value in values:
+        try:
+            timestamp = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        parsed.append(timestamp.astimezone(timezone.utc))
+    return max(parsed).isoformat(timespec="seconds") if parsed else datetime.now(
+        timezone.utc
+    ).isoformat(timespec="seconds")
 
 
 def _read_marketaux_cache(
@@ -722,12 +818,13 @@ def retrieve_marketaux_financial_news(
             ) <= NEWS_HISTORICAL_CONTEXT_END_DAYS
         ]
         contexts = build_news_contexts([], effective_date)
+        enriched_rows = enrich_output_rows(normalized_ticker, company_name, query_text, rows)
     else:
         add_sentiment_scores(rows, model or load_sentiment_model())
+        enriched_rows = enrich_output_rows(normalized_ticker, company_name, query_text, rows)
         cutoff_at = prediction_cutoff_at(effective_date)
-        annotate_contribution_horizons(rows, effective_date, cutoff_at)
-        contexts = build_news_contexts(rows, effective_date, cutoff_at)
-    enriched_rows = enrich_output_rows(normalized_ticker, company_name, query_text, rows)
+        annotate_contribution_horizons(enriched_rows, effective_date, cutoff_at)
+        contexts = build_news_contexts(enriched_rows, effective_date, cutoff_at)
     enriched_review_rows = enrich_output_rows(
         normalized_ticker,
         company_name,
@@ -936,7 +1033,9 @@ def _merge_news_results(
         company_name=newsapi_result.company_name,
         query_text=newsapi_result.query_text,
         as_of_date=newsapi_result.as_of_date,
-        retrieved_at=max(newsapi_result.retrieved_at, marketaux_result.retrieved_at),
+        retrieved_at=_latest_retrieval_timestamp(
+            newsapi_result.retrieved_at, marketaux_result.retrieved_at
+        ),
         raw_article_count=newsapi_result.raw_article_count + marketaux_result.raw_article_count,
         relevant_article_count=len(merged),
         results_truncated=newsapi_result.results_truncated or marketaux_result.results_truncated,
@@ -1075,7 +1174,9 @@ def _with_historical_context(
         company_name=base_result.company_name,
         query_text=base_result.query_text,
         as_of_date=base_result.as_of_date,
-        retrieved_at=max(base_result.retrieved_at, historical_result.retrieved_at),
+        retrieved_at=_latest_retrieval_timestamp(
+            base_result.retrieved_at, historical_result.retrieved_at
+        ),
         raw_article_count=base_result.raw_article_count,
         relevant_article_count=base_result.relevant_article_count,
         results_truncated=base_result.results_truncated,

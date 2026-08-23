@@ -219,6 +219,18 @@ __marimo__/
 /data/preprocessed-financial-news-sentiment-dataset/
 /data/sample-only/
 /data/financial-news-dataset/
+/data/historical-news-fusion/**/raw/
+/data/historical-news-fusion/gdelt/*.csv
+/data/historical-news-fusion/gdelt/*.jsonl
+/data/historical-news-fusion/gdelt/*.parquet
+/data/historical-news-fusion/gdelt/pilot-*/
+/data/historical-news-fusion/gdelt/quota-dryrun/
+/data/bursa-news-dataset/**/raw/
+/data/news-evidence-benchmark/*.csv
+/data/news-evidence-benchmark/*.parquet
+/data/fusion/*.parquet
+/data/audit/*.sqlite3
+/data/audit/*.sqlite3-*
 /data/preprocessing-summary.csv
 /data/model-input-summary.csv
 
@@ -229,8 +241,13 @@ __marimo__/
 models/*.joblib
 models/experimental/
 results/finbert-benchmark/
+/results/bursa-finbert-benchmark/
+/results/bursa-news-dataset/
 /results/news-provider-marketaux-benchmark/
 results/news-provider-benchmark/
+/results/fusion/*.json
+/models/fusion/*.joblib
+/models/fusion/staged-fusion-registry.json
 
 # Generated evaluation artifacts
 /results/model-comparison-summary.csv
@@ -248,3 +265,6 @@ results/confusion-matrices/*.csv
 /frontend/*.tsbuildinfo
 /frontend/*.d.ts
 /frontend/*.js
+
+# Local media tooling (the generated 1080p web assets remain tracked)
+/tools/ffmpeg/

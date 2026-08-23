@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import tempfile
 import time
 from dataclasses import asdict, dataclass, field
@@ -72,9 +73,18 @@ def get_sentiment_runtime_descriptor() -> Dict[str, str]:
                 loaded = payload
         except (OSError, json.JSONDecodeError):
             loaded = {}
+    variant = os.getenv("STOCKSENSE_SENTIMENT_VARIANT", "").strip()
+    challenger = (loaded.get("challengers") or {}).get(variant) if variant else None
+    if isinstance(challenger, dict):
+        return {
+            "backend": clean_text(challenger.get("backend")) or "unknown",
+            "model": variant,
+            "variant": variant,
+        }
     return {
         "backend": clean_text(loaded.get("backend")) or "unknown",
         "model": clean_text(loaded.get("model_directory")) or "unknown",
+        "variant": "finbert_phrasebank_v1",
     }
 
 

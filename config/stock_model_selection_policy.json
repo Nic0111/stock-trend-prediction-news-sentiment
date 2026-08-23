@@ -1,5 +1,5 @@
 {
-  "policy_version": "stock-selection-v1",
+  "policy_version": "stock-selection-v3",
   "official_profile": "official",
   "official_model_universe": [
     "logistic-regression",
@@ -9,6 +9,7 @@
     "hist-gradient-boosting",
     "xgboost",
     "lightgbm",
+    "catboost",
     "soft-voting-ensemble"
   ],
   "feature_round_by_horizon": {
@@ -18,15 +19,109 @@
   },
   "evaluation_seeds": [11, 42, 73, 101, 202],
   "search_seed": 42,
-  "parameter_search": "bounded deterministic configuration per candidate",
+  "parameter_search": "bounded deterministic development-only search per candidate, then fixed-manifest seed panel",
+  "parameter_search_version": "official-search-v3",
+  "official_parameter_search": {
+    "logistic-regression": {
+      "strategy": "grid",
+      "budget": 8,
+      "space": {
+        "classifier__C": [0.01, 0.1, 1.0, 10.0],
+        "classifier__class_weight": [null, "balanced"]
+      }
+    },
+    "elastic-net-logistic": {
+      "strategy": "randomized",
+      "budget": 12,
+      "space": {
+        "classifier__C": [0.01, 0.1, 1.0, 10.0],
+        "classifier__l1_ratio": [0.1, 0.5, 0.9],
+        "classifier__class_weight": [null, "balanced"]
+      }
+    },
+    "random-forest": {
+      "strategy": "randomized",
+      "budget": 12,
+      "space": {
+        "classifier__n_estimators": [150, 300],
+        "classifier__max_depth": [5, 10, null],
+        "classifier__min_samples_leaf": [1, 5, 20],
+        "classifier__max_features": ["sqrt", 0.5]
+      }
+    },
+    "extra-trees": {
+      "strategy": "randomized",
+      "budget": 20,
+      "space": {
+        "classifier__n_estimators": [200, 400],
+        "classifier__max_depth": [5, 10, null],
+        "classifier__min_samples_leaf": [1, 5, 20],
+        "classifier__max_features": ["sqrt", 0.5, 1.0],
+        "classifier__class_weight": [null, "balanced"]
+      }
+    },
+    "hist-gradient-boosting": {
+      "strategy": "randomized",
+      "budget": 24,
+      "space": {
+        "classifier__max_iter": [100, 200, 400],
+        "classifier__learning_rate": [0.03, 0.05, 0.1],
+        "classifier__max_leaf_nodes": [7, 15, 31],
+        "classifier__l2_regularization": [0.0, 0.1, 1.0],
+        "classifier__min_samples_leaf": [10, 25, 50]
+      }
+    },
+    "xgboost": {
+      "strategy": "randomized",
+      "budget": 16,
+      "space": {
+        "classifier__n_estimators": [150, 300],
+        "classifier__max_depth": [3, 5, 7],
+        "classifier__learning_rate": [0.03, 0.05, 0.1],
+        "classifier__min_child_weight": [1, 5],
+        "classifier__subsample": [0.8, 1.0],
+        "classifier__colsample_bytree": [0.8, 1.0]
+      }
+    },
+    "lightgbm": {
+      "strategy": "randomized",
+      "budget": 24,
+      "space": {
+        "classifier__n_estimators": [150, 300],
+        "classifier__num_leaves": [7, 15, 31],
+        "classifier__learning_rate": [0.03, 0.05, 0.1],
+        "classifier__min_child_samples": [10, 25, 50],
+        "classifier__reg_lambda": [0.0, 0.1, 1.0]
+      }
+    },
+    "catboost": {
+      "strategy": "randomized",
+      "budget": 24,
+      "space": {
+        "classifier__iterations": [150, 300],
+        "classifier__depth": [3, 5, 7],
+        "classifier__learning_rate": [0.03, 0.05, 0.1],
+        "classifier__l2_leaf_reg": [1.0, 3.0, 10.0]
+      }
+    },
+    "soft-voting-ensemble": {
+      "strategy": "grid",
+      "budget": 6,
+      "space": {
+        "classifier__weights": [[1, 1, 1], [2, 1, 1], [3, 1, 1], [2, 2, 1], [1, 2, 2], [1, 1, 2]]
+      }
+    }
+  },
   "validation_folds": 5,
   "official_n_jobs": 1,
   "minimum_practical_balanced_accuracy_gain": 0.005,
   "minimum_paired_gain_lower_bound": 0.0,
   "minimum_positive_mcc_seed_fraction": 0.8,
   "minimum_positive_mcc_fold_fraction": 0.8,
+  "minimum_per_ticker_direction_recall": 0.25,
+  "minimum_per_ticker_mcc": -0.05,
   "requires_prospective_shadow": true,
   "minimum_matured_shadow_sessions": 100,
   "manual_promotion_required": true,
-  "notes": "Official selection is a staged, horizon-specific challenger process. Quick, focused, and full profiles remain exploratory."
+  "notes": "Every profile is staged. Hyperparameters are selected only inside purged 2015-2024 development folds; the frozen 2025 retrospective set is evaluated once after selection. Only an accepted official run with prospective shadow evidence can be promoted explicitly."
 }

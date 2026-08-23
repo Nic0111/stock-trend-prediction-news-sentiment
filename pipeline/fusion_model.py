@@ -25,9 +25,12 @@ from sklearn.preprocessing import StandardScaler
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FUSION_SUPPORTED_HORIZONS = (1, 5, 10)
-FUSION_REGISTRY_SCHEMA_VERSION = "fusion-registry-v1"
+FUSION_REGISTRY_SCHEMA_VERSION = "fusion-registry-v3"
 DEFAULT_FUSION_DATASET = PROJECT_ROOT / "data" / "fusion" / "fusion-features.parquet"
 DEFAULT_FUSION_REGISTRY = PROJECT_ROOT / "models" / "fusion" / "fusion-registry.json"
+DEFAULT_STAGED_FUSION_REGISTRY = (
+    PROJECT_ROOT / "models" / "fusion" / "staged-fusion-registry.json"
+)
 
 # Keep this list stable: it is part of the persisted artifact contract and is
 # intentionally limited to leakage-safe, point-in-time features.
@@ -43,6 +46,7 @@ FUSION_FEATURE_NAMES = (
     "news_max_confidence",
     "news_usable_article_count",
     "news_unique_source_count",
+    "news_independent_event_count",
     "news_newest_age_days",
     "news_mean_age_days",
     "news_coverage_score",
@@ -62,6 +66,7 @@ NEWS_FUSION_FEATURES = {
     "news_max_confidence",
     "news_usable_article_count",
     "news_unique_source_count",
+    "news_independent_event_count",
     "news_newest_age_days",
     "news_mean_age_days",
     "news_coverage_score",
@@ -75,6 +80,30 @@ EVIDENCE_STRENGTH_SCORES = {
     "unavailable": 0.0,
     "experimental": 0.33,
 }
+
+
+class TransparentLogOddsEstimator:
+    """Deterministic stock-first fusion using a horizon-selected news weight."""
+
+    def __init__(self, alpha: float) -> None:
+        self.alpha = float(alpha)
+
+    def predict_proba(self, frame: pd.DataFrame) -> np.ndarray:
+        probability = np.clip(
+            pd.to_numeric(frame["stock_probability_up"], errors="coerce").to_numpy(dtype=float),
+            1e-6,
+            1 - 1e-6,
+        )
+        sentiment = pd.to_numeric(
+            frame["news_weighted_sentiment"], errors="coerce"
+        ).fillna(0.0).to_numpy(dtype=float)
+        reliability = pd.to_numeric(
+            frame["news_coverage_score"], errors="coerce"
+        ).fillna(0.0).to_numpy(dtype=float)
+        stock_log_odds = np.log(probability / (1.0 - probability))
+        combined = 1.0 / (1.0 + np.exp(-(stock_log_odds + self.alpha * reliability * sentiment)))
+        combined = np.clip(combined, 1e-6, 1 - 1e-6)
+        return np.column_stack([1.0 - combined, combined])
 
 
 class FusionDatasetNotReadyError(FileNotFoundError):
@@ -154,6 +183,9 @@ class FusionModelArtifact:
     shadow_end: str = ""
     metrics: dict[str, float] = field(default_factory=dict)
     baseline_metrics: dict[str, float] = field(default_factory=dict)
+    fusion_method: str = "late_fusion_logistic"
+    transparent_alpha: float | None = None
+    promotion_decision: dict[str, Any] = field(default_factory=dict)
 
     @property
     def input_columns(self) -> tuple[str, ...]:
@@ -168,6 +200,8 @@ class FusionModelArtifact:
             raise ValueError("Fusion artifact feature schema does not match FUSION_FEATURE_NAMES")
         if self.validation_status not in {"accepted", "limited", "experimental", "unavailable"}:
             raise ValueError("validation_status must be accepted, limited, experimental, or unavailable")
+        if self.fusion_method not in {"late_fusion_logistic", "transparent_log_odds"}:
+            raise ValueError("fusion_method must be late_fusion_logistic or transparent_log_odds")
 
     def to_dict(self) -> dict[str, Any]:
         """Return artifact metadata without serializing the estimator itself."""
@@ -189,6 +223,9 @@ class FusionModelArtifact:
             "shadow_end": self.shadow_end,
             "metrics": dict(self.metrics),
             "baseline_metrics": dict(self.baseline_metrics),
+            "fusion_method": self.fusion_method,
+            "transparent_alpha": self.transparent_alpha,
+            "promotion_decision": dict(self.promotion_decision),
         }
 
     def _select_features(self, frame: pd.DataFrame) -> pd.DataFrame:
@@ -197,9 +234,12 @@ class FusionModelArtifact:
             raise ValueError(f"Fusion input is missing columns: {missing}")
         return prepare_fusion_features(frame, self.feature_names)
 
-    def predict_proba(self, frame: pd.DataFrame) -> np.ndarray:
+    def predict_uncalibrated_proba(self, frame: pd.DataFrame) -> np.ndarray:
         selected = self._select_features(frame)
-        raw = np.asarray(self.estimator.predict_proba(selected)[:, 1], dtype=float)
+        return np.asarray(self.estimator.predict_proba(selected)[:, 1], dtype=float)
+
+    def predict_proba(self, frame: pd.DataFrame) -> np.ndarray:
+        raw = self.predict_uncalibrated_proba(frame)
         if self.calibrator is not None:
             if hasattr(self.calibrator, "predict_proba"):
                 raw = np.asarray(self.calibrator.predict_proba(raw.reshape(-1, 1))[:, 1], dtype=float)
@@ -211,6 +251,26 @@ class FusionModelArtifact:
                 raise TypeError("Fusion calibrator must expose predict_proba, predict, or be callable")
         raw = np.clip(raw, 1e-6, 1 - 1e-6)
         return np.column_stack([1 - raw, raw])
+
+    def component_contributions(self, frame: pd.DataFrame) -> dict[str, float]:
+        """Return an exact stock-first probability decomposition for one row."""
+
+        if len(frame) != 1:
+            raise ValueError("Fusion component contributions require exactly one row")
+        selected = self._select_features(frame)
+        news_zero = selected.copy()
+        for name in NEWS_FUSION_FEATURES:
+            if name in news_zero:
+                news_zero[name] = 0.0
+        full_probability = float(self.predict_proba(selected)[0, 1])
+        stock_only_probability = float(self.predict_proba(news_zero)[0, 1])
+        return {
+            "base_probability_up": 0.5,
+            "stock_component_probability_up": stock_only_probability,
+            "stock_contribution_probability_points": (stock_only_probability - 0.5) * 100.0,
+            "news_adjustment_probability_points": (full_probability - stock_only_probability) * 100.0,
+            "aggregate_probability_up": full_probability,
+        }
 
     def predict(self, frame: pd.DataFrame) -> np.ndarray:
         return (self.predict_proba(frame)[:, 1] >= float(self.threshold)).astype(int)
@@ -329,9 +389,10 @@ def check_fusion_dataset_readiness(
     dataset_path: Path = DEFAULT_FUSION_DATASET,
     *,
     supported_tickers: Sequence[str] | None = None,
-    min_rows_per_horizon: int = 100,
+    min_rows_per_horizon: int = 1000,
+    min_unique_dates_per_ticker_horizon: int = 50,
     minimum_start_year: int = 2019,
-    required_end_year: int = 2026,
+    required_end_year: int = 2025,
 ) -> FusionReadiness:
     """Validate the historical, point-in-time dataset before training.
 
@@ -378,6 +439,17 @@ def check_fusion_dataset_readiness(
                 errors.append(f"dataset starts at {dates.min().date()}, before {minimum_start_year} coverage is preferred")
             if dates.max().year < required_end_year:
                 errors.append(f"dataset ends at {dates.max().date()}, requires coverage through {required_end_year}")
+            if {"ticker", "horizon_days"}.issubset(frame.columns):
+                scoped = frame.assign(_observation_date=dates.dt.normalize())
+                for (ticker, horizon), group in scoped.groupby(["ticker", "horizon_days"]):
+                    if pd.isna(horizon):
+                        continue
+                    count = int(group["_observation_date"].nunique())
+                    if count < min_unique_dates_per_ticker_horizon:
+                        errors.append(
+                            f"{ticker} horizon {int(horizon)} has {count} unique observation "
+                            f"dates; requires {min_unique_dates_per_ticker_horizon}"
+                        )
     if "target_up" in frame:
         target = pd.to_numeric(frame["target_up"], errors="coerce")
         if target.isna().any() or not set(target.dropna().unique()).issubset({0, 1}):
@@ -439,7 +511,7 @@ def train_fusion_model(
 def train_fusion_models(
     dataset_path: Path = DEFAULT_FUSION_DATASET,
     *,
-    registry_path: Path | None = DEFAULT_FUSION_REGISTRY,
+    registry_path: Path | None = DEFAULT_STAGED_FUSION_REGISTRY,
     supported_tickers: Sequence[str] | None = None,
     min_rows_per_horizon: int = 100,
 ) -> dict[int, FusionModelArtifact]:

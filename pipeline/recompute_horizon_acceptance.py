@@ -1,4 +1,4 @@
-"""Recompute Horizon Acceptance V2 for existing frozen stock artifacts."""
+"""Recompute the current horizon-acceptance policy for frozen stock artifacts."""
 
 from __future__ import annotations
 
@@ -69,6 +69,7 @@ def recompute_acceptance() -> dict[str, Any]:
             baseline_metrics=baseline_metrics,
             oof_metrics=entry.get("oof_metrics", {}),
             cv_positive_mcc_folds=int(entry.get("cv_positive_mcc_folds", 0)),
+            baseline_prevalence=float(development[target].astype(int).mean()),
             phase="observed",
         )
         ticker_acceptance: dict[str, dict[str, Any]] = {}
@@ -90,8 +91,14 @@ def recompute_acceptance() -> dict[str, Any]:
                 baseline_metrics=calculate_metrics(
                     ticker_frame[target].astype(int).to_numpy(), ticker_frame["_baseline"].to_numpy()
                 ),
-                oof_metrics=entry.get("oof_metrics", {}),
-                cv_positive_mcc_folds=int(entry.get("cv_positive_mcc_folds", 0)),
+                oof_metrics={},
+                cv_positive_mcc_folds=0,
+                baseline_prevalence=float(
+                    development.loc[
+                        development["Ticker"].eq(str(ticker)), target
+                    ].astype(int).mean()
+                ),
+                development_evidence_available=False,
                 phase="observed",
                 ticker=str(ticker),
             )
@@ -120,6 +127,7 @@ def recompute_acceptance() -> dict[str, Any]:
         if artifact_path.exists():
             entry["artifact_sha256"] = sha256_file(artifact_path)
         entry["baseline_majority_class"] = int(development[target].astype(int).mean() >= 0.5)
+        entry["baseline_prevalence"] = float(development[target].astype(int).mean())
         summary_rows.append(
             {
                 "horizon_days": horizon,
@@ -134,7 +142,7 @@ def recompute_acceptance() -> dict[str, Any]:
                 "failed_checks": ";".join(acceptance["failed_checks"]),
             }
         )
-    registry["schema_version"] = 3
+    registry["schema_version"] = max(5, int(registry.get("schema_version", 0)))
     registry.setdefault("benchmark_context", {})["acceptance_policy_version"] = POLICY["policy_version"]
     registry["benchmark_context"]["acceptance_policy_path"] = "config/horizon_acceptance_policy.json"
     registry["benchmark_context"]["status_tiers"] = ["accepted", "limited", "experimental"]

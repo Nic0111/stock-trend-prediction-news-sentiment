@@ -136,11 +136,20 @@ def run_shadow_evaluation(
             baseline_metrics=baseline_metrics,
             oof_metrics=horizon_registry.get("oof_metrics", {}),
             cv_positive_mcc_folds=int(horizon_registry.get("cv_positive_mcc_folds", 0)),
+            baseline_prevalence=float(
+                horizon_registry.get(
+                    "baseline_prevalence",
+                    horizon_registry.get("baseline_majority_class", 0),
+                )
+            ),
             phase="shadow",
         )
+        unique_dates = int(pd.to_datetime(valid["Date"], errors="coerce").nunique())
         output["horizons"][str(horizon)] = {
             **acceptance,
             "rows": int(len(valid)),
+            "unique_dates": unique_dates,
+            "matured_shadow_sessions": unique_dates,
             "target_dates": {
                 "minimum": str(valid[f"Target_Date_{horizon}D"].min().date()),
                 "maximum": str(valid[f"Target_Date_{horizon}D"].max().date()),

@@ -46,6 +46,10 @@ class CombinedOutlookResult:
     source_count: int = 0
     component_contributions: dict[str, float] = field(default_factory=dict)
     fusion_model_version: str | None = None
+    fusion_method: str | None = None
+    fallback_reason: str | None = None
+    acceptance_override_active: bool = False
+    acceptance_override_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

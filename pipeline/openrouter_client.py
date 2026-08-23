@@ -90,6 +90,8 @@ def _complete_chat_once(
     temperature: float = 0.35,
     max_tokens: int = 650,
     timeout: float = 45.0,
+    response_format: Mapping[str, Any] | None = None,
+    reasoning: Mapping[str, Any] | None = None,
 ) -> str:
     """Send one non-streaming chat completion request to OpenRouter."""
     api_key = get_openrouter_api_key()
@@ -98,14 +100,17 @@ def _complete_chat_once(
             "OpenRouter is not configured. Add a key to config/openrouter_api_key.txt or set OPENROUTER_API_KEY."
         )
 
-    payload = json.dumps(
-        {
-            "model": model,
-            "messages": [dict(message) for message in messages],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-    ).encode("utf-8")
+    request_payload: dict[str, Any] = {
+        "model": model,
+        "messages": [dict(message) for message in messages],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if response_format is not None:
+        request_payload["response_format"] = dict(response_format)
+    if reasoning is not None:
+        request_payload["reasoning"] = dict(reasoning)
+    payload = json.dumps(request_payload).encode("utf-8")
     request = Request(
         OPENROUTER_ENDPOINT,
         data=payload,
@@ -125,7 +130,7 @@ def _complete_chat_once(
             break
         except HTTPError as exc:
             error_detail = _error_message(exc.read())
-            if exc.code == 429 and attempt == 0:
+            if (exc.code == 429 or exc.code >= 500) and attempt == 0:
                 time.sleep(1.5)
                 continue
             error_type = OpenRouterRateLimitError if exc.code == 429 else OpenRouterError
@@ -174,6 +179,8 @@ def complete_chat(
             ),
             model=model,
         )
+    except OpenRouterConfigurationError:
+        raise
     except OpenRouterRateLimitError as primary_error:
         if not fallback_model or fallback_model == model:
             raise
@@ -188,7 +195,45 @@ def complete_chat(
                 ),
                 model=fallback_model,
             )
+        except OpenRouterConfigurationError:
+            raise
         except OpenRouterRateLimitError as fallback_error:
             raise OpenRouterRateLimitError(
                 f"{primary_error} Fallback model {fallback_model} also failed: {fallback_error}"
             ) from fallback_error
+        except OpenRouterError as fallback_error:
+            raise OpenRouterError(
+                f"{primary_error} Fallback model {fallback_model} also failed: {fallback_error}"
+            ) from fallback_error
+
+
+def complete_chat_with_model(
+    messages: Sequence[Mapping[str, str]],
+    *,
+    model: str,
+    temperature: float = 0.0,
+    max_tokens: int = 500,
+    timeout: float = 60.0,
+    response_format: Mapping[str, Any] | None = None,
+    reasoning: Mapping[str, Any] | None = None,
+) -> OpenRouterAnswer:
+    """Call one fixed model without substituting a fallback.
+
+    Offline consensus labelling assigns independent model roles. Substituting a
+    fallback into either role would make agreement statistics misleading, so
+    this entry point deliberately fails closed when the requested model is
+    unavailable.
+    """
+
+    return OpenRouterAnswer(
+        content=_complete_chat_once(
+            messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+            response_format=response_format,
+            reasoning=reasoning,
+        ),
+        model=model,
+    )

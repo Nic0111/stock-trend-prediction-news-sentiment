@@ -56,7 +56,7 @@ def make_news() -> NewsContextResult:
         ticker="1155.KL",
         company_name="Malayan Banking Berhad",
         query_text='"Malayan Banking Berhad"',
-        as_of_date="2026-07-10",
+        as_of_date="2026-07-09",
         retrieved_at="2026-07-10T08:00:00",
         raw_article_count=1,
         relevant_article_count=1,
@@ -145,7 +145,7 @@ class DashboardServiceTests(unittest.TestCase):
                 self.assertEqual(live.combined_outlook.relationship, "reinforcing")
                 news_call.assert_called_with("1155.KL", 5, as_of_date="2026-07-09")
                 self.assertTrue((root / "stock" / "1155-kl-5d.json").exists())
-                self.assertTrue((root / "news" / "1155-kl.json").exists())
+                self.assertTrue((root / "news" / "1155-kl-2026-07-09.json").exists())
 
                 stock_call.side_effect = RuntimeError("Yahoo Finance unavailable")
                 fallback = dashboard_service.run_dashboard_analysis("1155.KL", 5)
@@ -156,7 +156,7 @@ class DashboardServiceTests(unittest.TestCase):
             self.assertIn("saved result", fallback.stock_warning or "")
             self.assertEqual(fallback.news, news)
             self.assertEqual(stock_call.call_count, 2)
-            self.assertEqual(news_call.call_count, 2)
+            self.assertEqual(news_call.call_count, 1)
 
     def test_stock_cache_is_rejected_when_producer_signature_changes(self) -> None:
         prediction = make_prediction()
@@ -212,7 +212,10 @@ class DashboardServiceTests(unittest.TestCase):
                     result = dashboard_service.run_dashboard_analysis("1155.KL", 1)
 
             self.assertEqual(result.stock_source, "unavailable")
-            self.assertEqual(result.news_source, "fallback")
+            # The saved news payload contains all configured horizon contexts,
+            # so a fresh artifact-matched cache is reused without a provider
+            # call even when the stock signal for another horizon fails.
+            self.assertEqual(result.news_source, "live")
             self.assertIsNone(result.stock)
             self.assertIsNotNone(result.news)
             self.assertIn("no saved result", result.stock_warning or "")
@@ -235,6 +238,32 @@ class DashboardServiceTests(unittest.TestCase):
         self.assertEqual(result.news_source, "unavailable")
         self.assertIn("Sentiment engine unavailable", result.news_warning or "")
         self.assertIn("Install torch", result.news_warning or "")
+
+    def test_news_with_a_different_observation_date_is_not_cached_or_combined(self) -> None:
+        stock = make_prediction(5)
+        news = make_news()
+        news.as_of_date = "2026-07-10"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            with (
+                patch.object(dashboard_service, "STOCK_CACHE_DIR", root / "stock"),
+                patch.object(dashboard_service, "NEWS_CACHE_DIR", root / "news"),
+                patch.object(dashboard_service, "predict_stock_trend", return_value=stock),
+                patch.object(
+                    dashboard_service,
+                    "retrieve_news_with_marketaux_fallback",
+                    return_value=news,
+                ),
+            ):
+                result = dashboard_service.run_dashboard_analysis("1155.KL", 5)
+                cache_was_written = (
+                    root / "news" / "1155-kl-2026-07-09.json"
+                ).exists()
+
+        self.assertEqual(result.stock_source, "live")
+        self.assertEqual(result.news_source, "unavailable")
+        self.assertIsNone(result.news)
+        self.assertFalse(cache_was_written)
 
 
 if __name__ == "__main__":

@@ -18,9 +18,23 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 from sklearn.pipeline import Pipeline
 
-from pipeline.finbert_sentiment_model import FinBERTArtifactError, load_finbert_sentiment_model
-from pipeline.news_relevance import classify_entity_relevance, classify_non_news_source, stable_article_id
-from pipeline.runtime_provenance import sentiment_artifact_hashes
+from pipeline.finbert_sentiment_model import (
+    AveragedFinBERTEnsemble,
+    FinBERTArtifactError,
+    WeightedFinBERTEnsemble,
+    load_finbert_sentiment_model,
+)
+from pipeline.sentiment_text import TEXT_MODE_DEFAULT, build_sentiment_text
+from pipeline.news_relevance import (
+    classify_entity_relevance,
+    classify_non_news_source,
+    stable_article_id,
+    stable_event_id,
+)
+from pipeline.official_disclosure_news import classify_material_event
+from pipeline.runtime_provenance import (
+    sentiment_artifact_hashes_for_directory,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -34,6 +48,8 @@ METADATA_FILE = DATA_DIR / "stock-metadata.csv"
 FINBERT_SENTIMENT_MODEL_DIR = MODELS_DIR / "experimental" / "finbert-sentiment"
 SENTIMENT_RUNTIME_CONFIG_FILE = MODELS_DIR / "sentiment-runtime-config.json"
 NEWSAPI_KEY_FILE = CONFIG_DIR / "newsapi_key.txt"
+SENTIMENT_VARIANT_ENV_VAR = "STOCKSENSE_SENTIMENT_VARIANT"
+DEFAULT_SENTIMENT_VARIANT = "finbert_phrasebank_v1"
 
 NEWSAPI_ENDPOINT = "https://newsapi.org/v2/everything"
 NEWSAPI_KEY_ENV_VAR = "NEWSAPI_KEY"
@@ -44,7 +60,10 @@ PAGE_SIZE = 100
 NEWS_RETRIEVAL_LOOKBACK_DAYS = 30
 # Bump when provider date-window semantics change so cached contexts are not
 # mistaken for results produced under the current NewsAPI boundary contract.
-NEWS_CONTEXT_CONFIG_VERSION = 7
+# Increment when the serialized context shape changes. The contribution trail
+# is required for the evidence visualisations and must not be read from an
+# older cache that cannot reproduce the displayed score.
+NEWS_CONTEXT_CONFIG_VERSION = 12
 NEWS_HISTORICAL_CONTEXT_START_DAYS = NEWS_RETRIEVAL_LOOKBACK_DAYS + 1
 NEWS_HISTORICAL_CONTEXT_END_DAYS = 90
 SENTIMENT_PROBABILITY_THRESHOLD = 0.55
@@ -92,8 +111,17 @@ ARTICLE_COLUMNS = [
     "probability_negative",
     "probability_neutral",
     "probability_positive",
+    "phrasebank_probability_negative",
+    "phrasebank_probability_neutral",
+    "phrasebank_probability_positive",
+    "bursa_probability_negative",
+    "bursa_probability_neutral",
+    "bursa_probability_positive",
+    "sentiment_model_variant",
+    "sentiment_model_weights",
     "sentiment_uncertain",
     "article_id",
+    "event_id",
     "automatic_relevance",
     "relevance_score",
     "relevance_reasons",
@@ -139,6 +167,23 @@ class NewsContextResult:
 
 def build_news_context_metadata() -> Dict[str, Any]:
     """Return the immutable retrieval/context contract attached to news results."""
+    variant = os.getenv(SENTIMENT_VARIANT_ENV_VAR, "").strip() or DEFAULT_SENTIMENT_VARIANT
+    weights: Dict[str, float] = {"phrasebank": 1.0}
+    if SENTIMENT_RUNTIME_CONFIG_FILE.exists():
+        try:
+            runtime_config = json.loads(
+                SENTIMENT_RUNTIME_CONFIG_FILE.read_text(encoding="utf-8")
+            )
+            challenger = (runtime_config.get("challengers") or {}).get(variant) or {}
+            if isinstance(challenger.get("weights"), dict):
+                weights = {
+                    str(name): float(value)
+                    for name, value in challenger["weights"].items()
+                }
+        except (OSError, ValueError, TypeError):
+            # Runtime loading performs the fail-closed validation. Metadata
+            # generation remains safe for cached/provider error responses.
+            pass
     return {
         "news_context_config_version": NEWS_CONTEXT_CONFIG_VERSION,
         "retrieval_lookback_days": NEWS_RETRIEVAL_LOOKBACK_DAYS,
@@ -146,6 +191,10 @@ def build_news_context_metadata() -> Dict[str, Any]:
         "historical_context_end_days": NEWS_HISTORICAL_CONTEXT_END_DAYS,
         "context_windows": {str(horizon): window for horizon, window in CONTEXT_WINDOWS.items()},
         "context_half_lives": {str(horizon): half_life for horizon, half_life in CONTEXT_HALF_LIVES.items()},
+        "sentiment_weighting_policy": "recency_x_finbert_confidence_v1",
+        "sentiment_model_variant": variant,
+        "sentiment_model_weights": weights,
+        "coverage_policy": "article_source_event_diversity_v1",
         "prediction_cutoff_time": "17:00:00+08:00",
     }
 
@@ -420,8 +469,62 @@ def filter_articles(
     return rows
 
 
-def get_article_sentiment_text(article: Dict[str, Any]) -> str:
-    return clean_text(f"{article.get('title', '')} {article.get('description', '')}")
+def get_article_sentiment_text(
+    article: Dict[str, Any], *, mode: str = TEXT_MODE_DEFAULT
+) -> str:
+    """Build the same bounded article text used by the deployed FinBERT recipe."""
+
+    return build_sentiment_text(article, mode=mode)
+
+
+def _resolve_project_path(value: str | Path) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+def _read_sentiment_runtime_config() -> Dict[str, Any]:
+    if not SENTIMENT_RUNTIME_CONFIG_FILE.exists():
+        return {}
+    try:
+        loaded_config = json.loads(SENTIMENT_RUNTIME_CONFIG_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return loaded_config if isinstance(loaded_config, dict) else {}
+
+
+def sentiment_runtime_variant() -> str:
+    """Return the explicit override, configured active variant, or stable default.
+
+    Environment overrides remain useful for an isolated challenger check.  The
+    persisted ``active_variant`` is only changed by the guarded promotion or
+    rollback workflow, so a restart cannot silently select whichever
+    challenger happens to be listed first in the JSON file.
+    """
+    override = os.getenv(SENTIMENT_VARIANT_ENV_VAR, "").strip()
+    if override:
+        return override
+    configured = str(_read_sentiment_runtime_config().get("active_variant", "")).strip()
+    return configured or DEFAULT_SENTIMENT_VARIANT
+
+
+def _validate_configured_hashes(
+    expected_hashes: Any,
+    model_directory: Path,
+    *,
+    label: str,
+) -> None:
+    if not isinstance(expected_hashes, dict) or not expected_hashes:
+        return
+    actual_hashes = sentiment_artifact_hashes_for_directory(model_directory)
+    mismatches = [
+        key for key, expected in expected_hashes.items()
+        if actual_hashes.get(key) != expected
+    ]
+    if mismatches:
+        raise FinBERTArtifactError(
+            f"FinBERT {label} artifact hashes do not match the deployed configuration: "
+            + ", ".join(mismatches)
+        )
 
 
 def load_sentiment_model() -> object:
@@ -432,14 +535,87 @@ def load_sentiment_model() -> object:
     FinBERT so provider comparisons measure retrieval rather than classifier
     changes.
     """
-    runtime_config: Dict[str, Any] = {}
-    if SENTIMENT_RUNTIME_CONFIG_FILE.exists():
-        try:
-            loaded_config = json.loads(SENTIMENT_RUNTIME_CONFIG_FILE.read_text(encoding="utf-8"))
-            if isinstance(loaded_config, dict):
-                runtime_config = loaded_config
-        except (OSError, json.JSONDecodeError):
-            runtime_config = {}
+    runtime_config = _read_sentiment_runtime_config()
+    variant = sentiment_runtime_variant()
+    if variant != DEFAULT_SENTIMENT_VARIANT:
+        challenger = (runtime_config.get("challengers") or {}).get(variant)
+        if not isinstance(challenger, dict):
+            raise ValueError(
+                f"Unknown sentiment challenger {variant!r}. "
+                "Add it to models/sentiment-runtime-config.json before enabling it."
+            )
+        if str(challenger.get("backend", "")).casefold() != "weighted_finbert_ensemble":
+            raise ValueError(f"Sentiment challenger {variant!r} is not a weighted FinBERT ensemble")
+        components_config = challenger.get("components")
+        weights = challenger.get("weights")
+        if not isinstance(components_config, dict) or not isinstance(weights, dict):
+            raise ValueError(f"Sentiment challenger {variant!r} has incomplete component configuration")
+        components: Dict[str, object] = {}
+        for name, component_config in components_config.items():
+            if not isinstance(component_config, dict):
+                raise ValueError(f"Sentiment challenger component {name!r} is invalid")
+            seed_models = component_config.get("seed_models")
+            if seed_models is not None:
+                if not isinstance(seed_models, list) or len(seed_models) < 2:
+                    raise ValueError(
+                        f"Sentiment challenger seed-average component {name!r} needs at least two seed models"
+                    )
+                seed_components: Dict[str, object] = {}
+                for index, seed_config in enumerate(seed_models):
+                    if not isinstance(seed_config, dict):
+                        raise ValueError(
+                            f"Sentiment challenger seed model {name!r}[{index}] is invalid"
+                        )
+                    seed_directory_value = seed_config.get("model_directory")
+                    if not seed_directory_value:
+                        raise ValueError(
+                            f"Sentiment challenger seed model {name!r}[{index}] has no model directory"
+                        )
+                    seed_directory = _resolve_project_path(seed_directory_value)
+                    _validate_configured_hashes(
+                        seed_config.get("artifact_hashes"),
+                        seed_directory,
+                        label=f"challenger component {name} seed {index}",
+                    )
+                    seed_name = str(seed_config.get("seed", index))
+                    if seed_name in seed_components:
+                        raise ValueError(
+                            f"Sentiment challenger component {name!r} repeats seed {seed_name!r}"
+                        )
+                    seed_components[seed_name] = load_finbert_sentiment_model(
+                        str(seed_directory),
+                        temperature=float(seed_config.get("temperature", 1.0)),
+                    )
+                components[str(name)] = AveragedFinBERTEnsemble(
+                    seed_components,
+                    variant_id=f"{variant}:{name}:seed-average",
+                )
+                continue
+            directory_value = component_config.get("model_directory")
+            if not directory_value:
+                raise ValueError(f"Sentiment challenger component {name!r} has no model directory")
+            directory = _resolve_project_path(directory_value)
+            _validate_configured_hashes(
+                component_config.get("artifact_hashes"),
+                directory,
+                label=f"challenger component {name}",
+            )
+            components[str(name)] = load_finbert_sentiment_model(
+                str(directory),
+                temperature=float(component_config.get("temperature", 1.0)),
+            )
+        model = WeightedFinBERTEnsemble(
+            components,
+            {str(name): float(value) for name, value in weights.items()},
+            variant_id=variant,
+            ensemble_temperature=float(challenger.get("ensemble_temperature", 1.0)),
+        )
+        setattr(
+            model,
+            "sentiment_text_mode",
+            str(challenger.get("text_mode") or TEXT_MODE_DEFAULT),
+        )
+        return model
     backend = str(runtime_config.get("backend", "finbert")).strip().casefold()
     if backend != "finbert":
         raise ValueError(
@@ -447,23 +623,21 @@ def load_sentiment_model() -> object:
             "TF-IDF is retained only for offline benchmarking."
         )
     configured_directory = runtime_config.get("model_directory")
-    model_directory = Path(configured_directory) if configured_directory else FINBERT_SENTIMENT_MODEL_DIR
-    if not model_directory.is_absolute():
-        model_directory = PROJECT_ROOT / model_directory
-    configured_hashes = runtime_config.get("artifact_hashes")
-    if isinstance(configured_hashes, dict) and configured_hashes:
-        actual_hashes = sentiment_artifact_hashes()
-        mismatches = [
-            key for key, expected in configured_hashes.items()
-            if key in actual_hashes and actual_hashes[key] != expected
-        ]
-        if mismatches:
-            raise FinBERTArtifactError(
-                "FinBERT runtime artifact hashes do not match the deployed configuration: "
-                + ", ".join(mismatches)
-            )
+    model_directory = _resolve_project_path(
+        configured_directory or FINBERT_SENTIMENT_MODEL_DIR
+    )
+    _validate_configured_hashes(
+        runtime_config.get("artifact_hashes"),
+        model_directory,
+        label="runtime",
+    )
     temperature = float(runtime_config.get("temperature", 1.0))
-    return load_finbert_sentiment_model(str(model_directory), temperature=temperature)
+    model = load_finbert_sentiment_model(str(model_directory), temperature=temperature)
+    # PhraseBank's historical representation is headline + lead.  A challenger
+    # may opt into a target-aware representation, which must travel with its
+    # immutable runtime recipe rather than being inferred from the variant name.
+    setattr(model, "sentiment_text_mode", TEXT_MODE_DEFAULT)
+    return model
 
 
 def load_or_train_sentiment_model() -> object:
@@ -471,18 +645,25 @@ def load_or_train_sentiment_model() -> object:
     return load_sentiment_model()
 
 
-def add_sentiment_scores(rows: List[Dict[str, Any]], model: Pipeline) -> int:
+def add_sentiment_scores(rows: List[Dict[str, Any]], model: object) -> int:
     if not rows:
         return 0
-    texts = [get_article_sentiment_text(row) for row in rows]
-    probabilities = model.predict_proba(texts)
+    text_mode = str(getattr(model, "sentiment_text_mode", TEXT_MODE_DEFAULT))
+    texts = [get_article_sentiment_text(row, mode=text_mode) for row in rows]
     classes = [str(value).lower() for value in model.classes_]
+    component_probabilities = {}
+    if hasattr(model, "predict_component_proba") and hasattr(model, "blend_component_proba"):
+        component_probabilities = model.predict_component_proba(texts)
+        probabilities = model.blend_component_proba(component_probabilities)
+    else:
+        probabilities = model.predict_proba(texts)
+    variant = str(getattr(model, "sentiment_model_variant", DEFAULT_SENTIMENT_VARIANT))
+    component_weights = dict(getattr(model, "component_weights", {"phrasebank": 1.0}))
     for row, probability_row in zip(rows, probabilities):
         class_probabilities = dict(zip(classes, probability_row))
         label = max(class_probabilities, key=class_probabilities.get)
         confidence = float(class_probabilities[label])
-        row.update(
-            {
+        update = {
                 "sentiment_label": label,
                 "sentiment_score": SENTIMENT_SCORE_MAP[label],
                 "sentiment_probability": confidence,
@@ -490,8 +671,18 @@ def add_sentiment_scores(rows: List[Dict[str, Any]], model: Pipeline) -> int:
                 "probability_neutral": float(class_probabilities.get("neutral", 0.0)),
                 "probability_positive": float(class_probabilities.get("positive", 0.0)),
                 "sentiment_uncertain": confidence < SENTIMENT_PROBABILITY_THRESHOLD,
+                "sentiment_model_variant": variant,
+                "sentiment_model_weights": component_weights,
             }
-        )
+        row.update(update)
+    if component_probabilities:
+        for row_index, row in enumerate(rows):
+            for component_name, component_matrix in component_probabilities.items():
+                component_values = dict(zip(classes, component_matrix[row_index]))
+                for class_name in ("negative", "neutral", "positive"):
+                    row[f"{component_name}_probability_{class_name}"] = float(
+                        component_values.get(class_name, 0.0)
+                    )
     return len(rows)
 
 
@@ -551,25 +742,105 @@ def build_news_contexts(
             for row in usable
             if clean_text(row.get("source_domain")) or clean_text(row.get("source_name"))
         }
+        events = {
+            str(row.get("event_id") or stable_event_id(row))
+            for row in usable
+        }
         predominantly_uncertain = bool(candidates) and len(usable) < (len(candidates) / 2)
         if not usable:
             coverage = "Unavailable"
-        elif len(usable) >= 5 and len(sources) >= 3 and not predominantly_uncertain:
+        elif (
+            len(usable) >= 5
+            and len(sources) >= 3
+            and len(events) >= 3
+            and not predominantly_uncertain
+        ):
             coverage = "High"
-        elif len(usable) >= 3 and len(sources) >= 2 and not predominantly_uncertain:
+        elif (
+            len(usable) >= 3
+            and len(sources) >= 2
+            and len(events) >= 2
+            and not predominantly_uncertain
+        ):
             coverage = "Medium"
         else:
             coverage = "Low"
 
-        weighted_sum = 0.0
-        total_weight = 0.0
+        usable_ages: list[float] = []
+        usable_confidences: list[float] = []
+        contribution_rows: list[dict[str, Any]] = []
         for row in usable:
             age_days = article_age_days(str(row["published_at"]), as_of_date, cutoff_at)
+            usable_ages.append(float(age_days))
+            sentiment_confidence = float(row["sentiment_probability"])
+            usable_confidences.append(sentiment_confidence)
             recency_weight = calculate_recency_weight(age_days, half_life)
-            weight = recency_weight * float(row["sentiment_probability"])
-            weighted_sum += float(row["sentiment_score"]) * weight
-            total_weight += weight
-        weighted_score = weighted_sum / total_weight if total_weight else None
+            weight = recency_weight * sentiment_confidence
+            sentiment_score = float(row["sentiment_score"])
+            contribution_rows.append(
+                {
+                    "article_id": str(row.get("article_id") or row.get("url") or row.get("title") or ""),
+                    "event_id": str(row.get("event_id") or stable_event_id(row)),
+                    "age_days": float(age_days),
+                    "recency_weight": float(recency_weight),
+                    "sentiment_confidence": float(sentiment_confidence),
+                    "raw_weight": float(weight),
+                    "sentiment_score": sentiment_score,
+                    "sentiment_label": str(row.get("sentiment_label") or "neutral"),
+                    "event_category": str(
+                        row.get("event_category")
+                        or classify_material_event(
+                            row.get("title", ""), row.get("description", "")
+                        )
+                    ).casefold(),
+                    "disclosure_type": str(row.get("disclosure_type") or "").casefold(),
+                }
+            )
+        # A syndicated story is one information event. Copies remain visible,
+        # but together receive no more influence than the strongest
+        # recent/confident representation of that event.
+        event_rows: Dict[str, list[dict[str, Any]]] = {}
+        for contribution in contribution_rows:
+            event_rows.setdefault(str(contribution["event_id"]), []).append(contribution)
+        event_total_weight = 0.0
+        weighted_sum = 0.0
+        event_representatives: list[dict[str, Any]] = []
+        for event_contributions in event_rows.values():
+            raw_total = sum(float(item["raw_weight"]) for item in event_contributions)
+            event_weight = max(
+                (float(item["raw_weight"]) for item in event_contributions),
+                default=0.0,
+            )
+            event_score = (
+                sum(
+                    float(item["sentiment_score"]) * float(item["raw_weight"])
+                    for item in event_contributions
+                )
+                / raw_total
+                if raw_total
+                else 0.0
+            )
+            event_total_weight += event_weight
+            weighted_sum += event_score * event_weight
+            if event_contributions:
+                event_representatives.append(
+                    max(event_contributions, key=lambda item: float(item["raw_weight"]))
+                )
+            for item in event_contributions:
+                within_event = float(item["raw_weight"]) / raw_total if raw_total else 0.0
+                item["event_weight"] = event_weight
+                item["effective_weight"] = event_weight * within_event
+        weighted_score = weighted_sum / event_total_weight if event_total_weight else None
+        if event_total_weight:
+            for contribution in contribution_rows:
+                contribution["normalized_weight"] = (
+                    contribution["effective_weight"] / event_total_weight
+                )
+                contribution["signed_contribution"] = contribution["sentiment_score"] * contribution["normalized_weight"]
+        else:
+            for contribution in contribution_rows:
+                contribution["normalized_weight"] = 0.0
+                contribution["signed_contribution"] = 0.0
         labels = [str(row["sentiment_label"]) for row in usable]
         contexts[str(horizon)] = {
             "horizon_days": horizon,
@@ -579,13 +850,93 @@ def build_news_contexts(
             "usable_article_count": len(usable),
             "uncertain_article_count": len(candidates) - len(usable),
             "unique_source_count": len(sources),
+            "independent_event_count": len(events),
             "weighted_sentiment_score": weighted_score,
             "positive_count": labels.count("positive"),
             "neutral_count": labels.count("neutral"),
             "negative_count": labels.count("negative"),
+            "mean_sentiment_confidence": (
+                sum(usable_confidences) / len(usable_confidences)
+                if usable_confidences
+                else None
+            ),
+            "max_sentiment_confidence": (
+                max(usable_confidences) if usable_confidences else None
+            ),
+            "mean_article_age_days": (
+                sum(usable_ages) / len(usable_ages) if usable_ages else None
+            ),
+            "newest_article_age_days": (
+                min(usable_ages) if usable_ages else None
+            ),
+            "article_contributions": contribution_rows,
             "coverage_confidence": coverage,
             "low_confidence_flag": coverage in {"Low", "Unavailable"},
+            "weighting_policy_version": "event_capped_recency_x_finbert_confidence_v2",
         }
+        event_count = len(event_rows)
+        contexts[str(horizon)].update(
+            {
+                "news_event_reliability_mean": (
+                    event_total_weight / event_count if event_count else 0.0
+                ),
+                "news_positive_event_impact": (
+                    sum(
+                        float(item.get("event_weight", 0.0))
+                        for item in event_representatives
+                        if float(item["sentiment_score"]) > 0
+                    )
+                    / event_total_weight
+                    if event_total_weight
+                    else 0.0
+                ),
+                "news_negative_event_impact": (
+                    sum(
+                        float(item.get("event_weight", 0.0))
+                        for item in event_representatives
+                        if float(item["sentiment_score"]) < 0
+                    )
+                    / event_total_weight
+                    if event_total_weight
+                    else 0.0
+                ),
+                "news_official_disclosure_share": (
+                    sum(
+                        float(item.get("event_weight", 0.0))
+                        for item in event_representatives
+                        if item.get("disclosure_type")
+                        in {
+                            "official",
+                            "official_disclosure",
+                            "bursa_announcement",
+                            "issuer_ir",
+                            "press_release",
+                        }
+                    )
+                    / event_total_weight
+                    if event_total_weight
+                    else 0.0
+                ),
+            }
+        )
+        for category in (
+            "financial_results_guidance",
+            "dividends_distributions",
+            "contracts_order_wins",
+            "acquisitions_disposals_investments",
+            "financing_capital_changes",
+            "regulatory_legal_governance",
+            "operational_product_strategy",
+            "management_changes",
+        ):
+            category_weight = sum(
+                float(item.get("event_weight", 0.0))
+                for item in event_representatives
+                if item.get("event_category") == category
+            )
+            contexts[str(horizon)][f"news_event_category_{category}_share"] = (
+                category_weight / event_total_weight if event_total_weight else 0.0
+            )
     return contexts
 
 
@@ -635,6 +986,7 @@ def enrich_output_rows(
             **row,
         }
         enriched_row["article_id"] = stable_article_id(enriched_row)
+        enriched_row["event_id"] = stable_event_id(enriched_row)
         enriched_row.setdefault("automatic_relevance", "included" if automatic_included else "review")
         enriched_row.setdefault("automatic_included", automatic_included)
         enriched_row.setdefault("effective_included", automatic_included)
@@ -688,9 +1040,6 @@ def retrieve_financial_news(
         review_articles=review_rows,
     )
     add_sentiment_scores(rows, model)
-    cutoff_at = prediction_cutoff_at(effective_date)
-    annotate_contribution_horizons(rows, effective_date, cutoff_at)
-    contexts = build_news_contexts(rows, effective_date, cutoff_at)
     enriched_rows = enrich_output_rows(normalized_ticker, company_name, query_text, rows)
     enriched_review_rows = enrich_output_rows(
         normalized_ticker,
@@ -699,6 +1048,9 @@ def retrieve_financial_news(
         review_rows,
         automatic_included=False,
     )
+    cutoff_at = prediction_cutoff_at(effective_date)
+    annotate_contribution_horizons(enriched_rows, effective_date, cutoff_at)
+    contexts = build_news_contexts(enriched_rows, effective_date, cutoff_at)
     paths = build_output_paths(normalized_ticker) if persist_outputs else {}
     if persist_outputs:
         paths["raw_json"].write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -711,7 +1063,7 @@ def retrieve_financial_news(
         company_name=company_name,
         query_text=query_text,
         as_of_date=effective_date.isoformat(),
-        retrieved_at=datetime.now().isoformat(timespec="seconds"),
+        retrieved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         raw_article_count=len(data.get("articles", [])),
         relevant_article_count=len(rows),
         results_truncated=int(data.get("totalResults", 0)) > PAGE_SIZE,
