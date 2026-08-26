@@ -94,6 +94,26 @@ class StockSenseApiTests(unittest.TestCase):
         self.assertNotIn("model_directory", response.text)
         self.assertNotIn("report_path", response.text)
 
+    def test_model_performance_follows_active_fusion_registry(self) -> None:
+        response = self.client.get("/api/v1/system/model-performance")
+        self.assertEqual(response.status_code, 200)
+        fusion = response.json()["fusion_ablation"]
+        self.assertEqual(fusion["schema_version"], "stocksense-fusion-evaluation-v4")
+        self.assertTrue(fusion["runtime_enabled"])
+        self.assertEqual(fusion["accepted_horizons"], [1, 5, 10])
+        self.assertEqual(
+            [fusion["horizons"][str(days)]["runtime_label"] for days in (1, 5, 10)],
+            ["Fusion-supported", "Fusion-supported", "Fusion-supported"],
+        )
+        # Runtime enablement must not erase the report's scientific gate result.
+        self.assertEqual(fusion["scientific_accepted_horizons"], [])
+        self.assertTrue(
+            all(
+                fusion["horizons"][str(days)]["scientific_accepted"] is False
+                for days in (1, 5, 10)
+            )
+        )
+
     def test_staged_model_performance_rejects_superseded_fusion_ablation(self) -> None:
         response = self.client.get(
             "/api/v1/system/model-performance?run_id=20260812T203852522157"
@@ -214,7 +234,9 @@ class StockSenseApiTests(unittest.TestCase):
         self.assertEqual(response.json()["evidence_refs"][0]["id"], "model-1")
         self.assertNotIn("[MODEL-1]", response.json()["content"])
         system_prompt = complete_chat.call_args.args[0][0]["content"]
-        self.assertIn("Aggregate Result explanation", system_prompt)
+        self.assertIn("Explain only the displayed Stock Outlook result", system_prompt)
+        self.assertIn("what the probability means", system_prompt)
+        self.assertIn("investment-learning terms", system_prompt)
 
 
 if __name__ == "__main__":

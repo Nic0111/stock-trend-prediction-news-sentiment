@@ -53,6 +53,25 @@ from pipeline.fusion_evaluation_v3 import (
     run_fusion_evaluation_v3,
     run_fusion_v3_preflight,
 )
+from pipeline.fusion_evaluation_v4 import (
+    DEFAULT_POLICY as DEFAULT_FUSION_V4_POLICY,
+    DEFAULT_REGISTRY as DEFAULT_FUSION_V4_REGISTRY,
+    DEFAULT_REPORT as DEFAULT_FUSION_V4_REPORT,
+    FusionV4ReadinessError,
+    run_fusion_v4_preflight,
+    run_fusion_evaluation_v4,
+    export_v4_blind_audit_queue,
+    rebind_v4_sentiment_config,
+    seal_v4_dataset,
+)
+from pipeline.fusion_diagnostics import (
+    DEFAULT_ARTIFACT_DIR as DEFAULT_FUSION_DIAGNOSTICS_ARTIFACT_DIR,
+    DEFAULT_DATASET as DEFAULT_FUSION_DIAGNOSTICS_DATASET,
+    DEFAULT_OUTPUT as DEFAULT_FUSION_DIAGNOSTICS_OUTPUT,
+    DEFAULT_REPORT as DEFAULT_FUSION_DIAGNOSTICS_REPORT,
+    FusionDiagnosticsError,
+    generate_fusion_v4_diagnostics,
+)
 from pipeline.fusion_v3_promotion import (
     materialize_runtime_surprise_state,
     prepare_fusion_v3_acceptance_override,
@@ -296,6 +315,108 @@ def build_parser() -> argparse.ArgumentParser:
     v3_parser.add_argument("--bootstraps", type=int, default=None)
     v3_parser.add_argument(
         "--horizon", action="append", type=int, dest="v3_horizons", default=None
+    )
+
+    v4_parser = subparsers.add_parser(
+        "evaluate-v4",
+        help=(
+            "Run the isolated compact target-specific Fusion v4 candidate. "
+            "It never changes the active production registry."
+        ),
+    )
+    v4_parser.add_argument("--dataset", default=str(DEFAULT_FUSION_DATASET))
+    v4_parser.add_argument("--policy", default=str(DEFAULT_FUSION_V4_POLICY))
+    v4_parser.add_argument("--report", default=str(DEFAULT_FUSION_V4_REPORT))
+    v4_parser.add_argument("--registry", default=str(DEFAULT_FUSION_V4_REGISTRY))
+    v4_parser.add_argument(
+        "--artifact-dir",
+        default=str(DEFAULT_FUSION_V4_REGISTRY.parent / "staged-v4"),
+        help="Directory for isolated candidate artifacts (never active production).",
+    )
+    v4_parser.add_argument("--permutations", type=int, default=None)
+    v4_parser.add_argument("--bootstraps", type=int, default=None)
+    v4_parser.add_argument(
+        "--horizon", action="append", type=int, dest="v4_horizons", default=None
+    )
+    v4_parser.add_argument(
+        "--skip-rolling",
+        action="store_true",
+        help="Diagnostic smoke test only; omit rolling-origin evidence.",
+    )
+    v4_parser.add_argument(
+        "--allow-unready",
+        action="store_true",
+        help="Run a diagnostic candidate despite evidence-readiness gaps.",
+    )
+    v4_parser.add_argument(
+        "--fit-intercept-options",
+        nargs="+",
+        choices=("true", "false"),
+        default=["true"],
+        help=(
+            "Candidate intercept settings for the anchored news correction. "
+            "Selection remains purged-development-only; default is true."
+        ),
+    )
+
+    v4_preflight_parser = subparsers.add_parser(
+        "preflight-v4",
+        help="Run v4 identity, coverage and power checks before resampling.",
+    )
+    v4_preflight_parser.add_argument("--dataset", default=str(DEFAULT_FUSION_DATASET))
+    v4_preflight_parser.add_argument("--policy", default=str(DEFAULT_FUSION_V4_POLICY))
+    v4_preflight_parser.add_argument("--report", required=True)
+    v4_preflight_parser.add_argument(
+        "--horizon", action="append", type=int, dest="v4_preflight_horizons", default=None
+    )
+
+    v4_seal_parser = subparsers.add_parser(
+        "seal-v4-dataset",
+        help="Copy and seal an identity-checked v4 feature table for research.",
+    )
+    v4_seal_parser.add_argument("--source", required=True)
+    v4_seal_parser.add_argument("--output", required=True)
+    v4_seal_parser.add_argument("--manifest", default=None)
+    v4_seal_parser.add_argument("--policy", default=str(DEFAULT_FUSION_V4_POLICY))
+
+    v4_rebind_parser = subparsers.add_parser(
+        "rebind-v4-sentiment-config",
+        help="Create an isolated v4 copy after proving a metadata-only sentiment hash mismatch.",
+    )
+    v4_rebind_parser.add_argument("--source", required=True)
+    v4_rebind_parser.add_argument("--output", required=True)
+    v4_rebind_parser.add_argument("--manifest", default=None)
+    v4_rebind_parser.add_argument("--policy", default=str(DEFAULT_FUSION_V4_POLICY))
+
+    v4_audit_parser = subparsers.add_parser(
+        "export-v4-blind-audit",
+        help=(
+            "Export a deterministic, blinded article queue for independent "
+            "entity/materiality review; it never marks rows as audited."
+        ),
+    )
+    v4_audit_parser.add_argument("--dataset", required=True)
+    v4_audit_parser.add_argument("--article-root", required=True)
+    v4_audit_parser.add_argument("--output", required=True)
+    v4_audit_parser.add_argument("--manifest", default=None)
+    v4_audit_parser.add_argument("--policy", default=str(DEFAULT_FUSION_V4_POLICY))
+    v4_audit_parser.add_argument("--sample-size", type=int, default=200)
+    v4_audit_parser.add_argument("--seed", type=int, default=20260825)
+
+    diagnostics_parser = subparsers.add_parser(
+        "fusion-diagnostics-v4",
+        help=(
+            "Reconstruct provenance-matched row-level Fusion v4 coverage, "
+            "confidence and reliability diagnostics for the performance UI."
+        ),
+    )
+    diagnostics_parser.add_argument("--dataset", default=str(DEFAULT_FUSION_DIAGNOSTICS_DATASET))
+    diagnostics_parser.add_argument("--report", default=str(DEFAULT_FUSION_DIAGNOSTICS_REPORT))
+    diagnostics_parser.add_argument("--artifact-dir", default=str(DEFAULT_FUSION_DIAGNOSTICS_ARTIFACT_DIR))
+    diagnostics_parser.add_argument("--output", default=str(DEFAULT_FUSION_DIAGNOSTICS_OUTPUT))
+    diagnostics_parser.add_argument("--policy", default=str(DEFAULT_FUSION_V4_POLICY))
+    diagnostics_parser.add_argument(
+        "--horizon", action="append", type=int, dest="diagnostic_horizons", default=None
     )
     v3_parser.add_argument(
         "--skip-rolling",
@@ -1235,6 +1356,7 @@ def main(argv: list[str] | None = None) -> int:
                 policy_path=Path(args.policy),
                 report_path=Path(args.report),
                 registry_path=Path(args.registry),
+                artifact_dir=Path(args.artifact_dir),
                 permutation_iterations=args.permutations,
                 bootstrap_iterations=args.bootstraps,
                 horizons=args.v3_horizons,
@@ -1248,6 +1370,82 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print(json.dumps(report, indent=2, default=str))
         return 0 if report.get("accepted_horizons") else 2
+    if args.command == "evaluate-v4":
+        try:
+            report = run_fusion_evaluation_v4(
+                Path(args.dataset),
+                policy_path=Path(args.policy),
+                report_path=Path(args.report),
+                registry_path=Path(args.registry),
+                artifact_dir=Path(args.artifact_dir),
+                permutation_iterations=args.permutations,
+                bootstrap_iterations=args.bootstraps,
+                horizons=args.v4_horizons,
+                include_rolling_origins=not args.skip_rolling,
+                enforce_readiness=not args.allow_unready,
+                fit_intercept_candidates=tuple(
+                    value == "true" for value in args.fit_intercept_options
+                ),
+            )
+        except FusionV4ReadinessError as exc:
+            print(json.dumps({"completed": False, "readiness_blocked": True, "reason": str(exc)}, indent=2))
+            return 2
+        print(json.dumps(report, indent=2, default=str))
+        return 0 if report.get("overall_all_horizon_accepted") else 2
+    if args.command == "fusion-diagnostics-v4":
+        try:
+            result = generate_fusion_v4_diagnostics(
+                Path(args.dataset),
+                report_path=Path(args.report),
+                artifact_dir=Path(args.artifact_dir),
+                output_path=Path(args.output),
+                policy_path=Path(args.policy),
+                horizons=args.diagnostic_horizons,
+            )
+        except (FusionDiagnosticsError, FileNotFoundError, ValueError) as exc:
+            print(json.dumps({"completed": False, "reason": str(exc)}, indent=2))
+            return 2
+        print(json.dumps(result, indent=2, default=str))
+        return 0
+    if args.command == "preflight-v4":
+        report = run_fusion_v4_preflight(
+            Path(args.dataset),
+            policy_path=Path(args.policy),
+            report_path=Path(args.report),
+            horizons=args.v4_preflight_horizons,
+        )
+        print(json.dumps(report, indent=2, default=str))
+        return 0 if report.get("overall_ready") else 2
+    if args.command == "seal-v4-dataset":
+        manifest = seal_v4_dataset(
+            Path(args.source),
+            Path(args.output),
+            policy_path=Path(args.policy),
+            manifest_path=Path(args.manifest) if args.manifest else None,
+        )
+        print(json.dumps(manifest, indent=2, default=str))
+        return 0
+    if args.command == "rebind-v4-sentiment-config":
+        manifest = rebind_v4_sentiment_config(
+            Path(args.source),
+            Path(args.output),
+            policy_path=Path(args.policy),
+            manifest_path=Path(args.manifest) if args.manifest else None,
+        )
+        print(json.dumps(manifest, indent=2, default=str))
+        return 0
+    if args.command == "export-v4-blind-audit":
+        manifest = export_v4_blind_audit_queue(
+            Path(args.dataset),
+            Path(args.article_root),
+            Path(args.output),
+            sample_size=args.sample_size,
+            seed=args.seed,
+            policy_path=Path(args.policy),
+            manifest_path=Path(args.manifest) if args.manifest else None,
+        )
+        print(json.dumps(manifest, indent=2, default=str))
+        return 0
     if args.command == "preflight-v3":
         report = run_fusion_v3_preflight(
             Path(args.dataset),

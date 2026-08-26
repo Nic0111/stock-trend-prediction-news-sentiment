@@ -16,6 +16,7 @@ from pipeline.fusion_model import (
     TransparentLogOddsEstimator,
 )
 from pipeline.fusion_runtime import (
+    _v6_registry_guard,
     _v5_registry_guard,
     build_aggregate_outlook,
     build_runtime_fusion_frame,
@@ -136,7 +137,7 @@ class FusionRuntimeTests(unittest.TestCase):
         self.assertEqual(result.probability_up, 0.55)
         self.assertIn("requires Medium or High", result.fallback_reason or "")
 
-    def test_experimental_stock_marks_fusion_research_only(self) -> None:
+    def test_experimental_stock_can_use_fusion_when_inputs_are_valid(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             result = build_aggregate_outlook(
                 _stock("experimental"),
@@ -146,9 +147,12 @@ class FusionRuntimeTests(unittest.TestCase):
                 horizon_days=1,
                 registry_path=self._registry(Path(directory)),
             )
-        self.assertEqual(result.mode, "stock_led_synthesis")
-        self.assertEqual(result.validation_status, "experimental")
-        self.assertIn("numerical fusion is disabled", result.fallback_reason or "")
+        # Fusion activation is governed by a valid stock probability, usable
+        # news and a matching accepted artifact.  The stock model's evidence
+        # label remains visible in its own card, but it must not silently
+        # disable the numerical fusion path when the inputs are valid.
+        self.assertEqual(result.mode, "validated_fusion")
+        self.assertEqual(result.probability_kind, "combined")
 
     def test_accepted_fusion_may_reverse_stock_direction(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -210,6 +214,55 @@ class FusionRuntimeTests(unittest.TestCase):
             ):
                 reason = _v5_registry_guard(payload, 1)
         self.assertIn("baseline state has not been materialised", reason or "")
+
+    def test_v4_registry_fails_closed_until_runtime_feature_contract_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stock_path = root / "stock-registry.json"
+            sentiment_path = root / "sentiment-runtime.json"
+            stock_path.write_text(
+                json.dumps({"run_id": "stock-v4", "dataset_sha256": "dataset-v4"}),
+                encoding="utf-8",
+            )
+            sentiment_path.write_text('{"variant":"frozen-v4"}', encoding="utf-8")
+            payload = {
+                "schema_version": "fusion-registry-v6",
+                "status": "accepted",
+                "overall_all_horizon_accepted": True,
+                "runtime_feature_contract_ready": False,
+                "horizons": {"1": {"accepted": True}},
+                "provenance": {
+                    "strict_identity_passed": True,
+                    "active_stock_run_id": "stock-v4",
+                    "stock_dataset_sha256": "dataset-v4",
+                    "sentiment_config_sha256": hashlib.sha256(
+                        sentiment_path.read_bytes()
+                    ).hexdigest(),
+                },
+            }
+            with patch("pipeline.fusion_runtime.ACTIVE_STOCK_REGISTRY", stock_path), patch(
+                "pipeline.fusion_runtime.SENTIMENT_RUNTIME_CONFIG", sentiment_path
+            ):
+                reason = _v6_registry_guard(payload, 1)
+        self.assertIn("runtime feature contract", reason or "")
+
+    def test_v4_registry_cannot_fall_through_to_legacy_loader(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            registry_path = Path(directory) / "fusion-v4.json"
+            registry_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "fusion-registry-v6",
+                        "status": "research_only",
+                        "overall_all_horizon_accepted": False,
+                        "horizons": {"1": {"accepted": False}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            artifact, reason = load_accepted_fusion_artifact(1, registry_path)
+        self.assertIsNone(artifact)
+        self.assertIn("fusion-evaluation-v4", reason or "")
 
     def test_v3_runtime_frame_has_full_contract_and_exact_no_news_semantics(self) -> None:
         news = _news("High", score=0.4)

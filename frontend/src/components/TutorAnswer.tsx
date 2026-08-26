@@ -60,12 +60,37 @@ function legacyTutorResponse(message: ChatMessage): TutorResponse | null {
   };
 }
 
-export function TutorAnswer({ message, onFollowUp }: { message: ChatMessage; onFollowUp: (question: string) => void }) {
+function ParagraphText({ text, className }: { text: string; className: string }) {
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  return (
+    <div className={`${className} tutor-paragraphs`}>
+      {(paragraphs.length ? paragraphs : [text]).map((paragraph, index) => (
+        <p key={`${className}-${index}`}>{paragraph}</p>
+      ))}
+    </div>
+  );
+}
+
+export function TutorAnswer({
+  message,
+  onFollowUp,
+  paragraphOnly = false,
+}: {
+  message: ChatMessage;
+  onFollowUp: (question: string) => void;
+  paragraphOnly?: boolean;
+}) {
   const tutor = legacyTutorResponse(message);
-  if (!tutor) return <p className="tutor-legacy-copy">{message.content}</p>;
+  if (!tutor) return <ParagraphText text={message.content} className="tutor-legacy-copy" />;
+  if (paragraphOnly) {
+    return <ParagraphText text={tutor.direct_answer} className="tutor-direct-answer" />;
+  }
   return (
     <div className="tutor-answer">
-      <p className="tutor-direct-answer">{tutor.direct_answer}</p>
+      <ParagraphText text={tutor.direct_answer} className="tutor-direct-answer" />
       {tutor.explanation_steps.length > 0 && <p className="tutor-explanation">{tutor.explanation_steps.join(" ")}</p>}
       {tutor.evidence_refs.length > 0 && (
         <div className="tutor-evidence-refs">

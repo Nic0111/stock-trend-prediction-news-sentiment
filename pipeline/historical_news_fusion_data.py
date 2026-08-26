@@ -1353,9 +1353,14 @@ def run_build_fusion_window_candidates(
 
     policy = json.loads(Path(policy_path).read_text(encoding="utf-8"))
     policy_schema = str(policy.get("schema_version") or "")
-    if policy_schema not in {"fusion-evaluation-v2", "fusion-evaluation-v3"}:
+    if policy_schema not in {
+        "fusion-evaluation-v2",
+        "fusion-evaluation-v3",
+        "fusion-evaluation-v4",
+    }:
         raise ValueError(
-            "Window-candidate generation requires fusion-evaluation-v2 or fusion-evaluation-v3"
+            "Window-candidate generation requires fusion-evaluation-v2, "
+            "fusion-evaluation-v3 or fusion-evaluation-v4"
         )
     stock = read_stock_feature_input(stock_path)
     news_root = Path(news_dir) if news_dir else DEFAULT_FUSION_DATA_DIR
@@ -1431,9 +1436,9 @@ def run_build_fusion_window_candidates(
         )
         article_identity_checks[column] = bool(expected) and observed == [str(expected)]
     article_identity_verified = all(article_identity_checks.values())
-    if policy_schema == "fusion-evaluation-v3" and not article_identity_verified:
+    if policy_schema in {"fusion-evaluation-v3", "fusion-evaluation-v4"} and not article_identity_verified:
         raise ValueError(
-            "Fusion v3 requires article-level sentiment identities that exactly match "
+            "The selected fusion policy requires article-level sentiment identities that exactly match "
             f"the active runtime ensemble: {article_identity_checks}. Rescore the "
             "historical corpus before rebuilding window candidates."
         )

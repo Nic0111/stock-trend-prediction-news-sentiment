@@ -60,6 +60,7 @@ class IncrementalNewsFusion:
         adjustment_cap: float = 0.5,
         random_seed: int = 42,
         balance_classes: bool = False,
+        fit_intercept: bool = True,
     ) -> None:
         self.feature_names = tuple(str(name) for name in feature_names)
         self.penalty_strength = float(penalty_strength)
@@ -67,6 +68,12 @@ class IncrementalNewsFusion:
         self.adjustment_cap = float(adjustment_cap)
         self.random_seed = int(random_seed)
         self.balance_classes = bool(balance_classes)
+        # A free news-only intercept can shift every news-bearing row even
+        # when the evidence features carry no incremental signal.  It remains
+        # enabled by default for backwards compatibility; constrained
+        # candidates can disable it to keep the correction anchored at the
+        # frozen stock probability.
+        self.fit_intercept = bool(fit_intercept)
         if not self.feature_names:
             raise ValueError("At least one incremental news feature is required")
         if self.penalty_strength < 0:
@@ -75,11 +82,34 @@ class IncrementalNewsFusion:
             raise ValueError("l1_ratio must be between zero and one")
         if self.adjustment_cap <= 0:
             raise ValueError("adjustment_cap must be positive")
-        self.location_: np.ndarray | None = None
-        self.scale_: np.ndarray | None = None
-        self.intercept_: float | None = None
-        self.coefficients_: np.ndarray | None = None
-        self.fit_diagnostics_: dict[str, Any] = {}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Restore artifacts created before the optional intercept flag.
+
+        Production v4 artifacts were serialized before ``fit_intercept`` was
+        added.  Treat those historical models as the original, intercept-
+        enabled implementation so loading them remains behaviourally
+        identical and provenance inspection does not fail.
+        """
+
+        # Keep the fitted state carried by the pickle.  The previous
+        # implementation initialised all fitted attributes to ``None`` after
+        # updating the state, which silently turned every persisted model into
+        # an unfitted model on load.  Only add defaults for attributes that are
+        # genuinely absent in an older artifact.
+        self.__dict__.update(state)
+        if "fit_intercept" not in self.__dict__:
+            self.fit_intercept = True
+        if "location_" not in self.__dict__:
+            self.location_ = None
+        if "scale_" not in self.__dict__:
+            self.scale_ = None
+        if "intercept_" not in self.__dict__:
+            self.intercept_ = None
+        if "coefficients_" not in self.__dict__:
+            self.coefficients_ = None
+        if "fit_diagnostics_" not in self.__dict__:
+            self.fit_diagnostics_ = {}
 
     @staticmethod
     def _available(frame: pd.DataFrame) -> np.ndarray:
@@ -144,7 +174,7 @@ class IncrementalNewsFusion:
         l2 = self.penalty_strength * (1.0 - self.l1_ratio)
 
         def objective(parameters: np.ndarray) -> tuple[float, np.ndarray]:
-            intercept = float(parameters[0])
+            intercept = float(parameters[0]) if self.fit_intercept else 0.0
             beta = parameters[1:]
             raw_delta = matrix @ beta
             probability = _sigmoid(stock_logit + intercept + raw_delta)
@@ -158,7 +188,9 @@ class IncrementalNewsFusion:
             residual = (probability - target) * sample_weight / sample_weight.mean()
             coefficient_gradient = matrix.T @ residual / len(target)
             coefficient_gradient += l2 * beta + l1 * beta / smooth_l1
-            intercept_gradient = np.asarray([residual.mean()], dtype=float)
+            intercept_gradient = np.asarray(
+                [residual.mean() if self.fit_intercept else 0.0], dtype=float
+            )
             gradient = np.concatenate([intercept_gradient, coefficient_gradient])
             return float(loss + penalty), gradient
 
@@ -171,7 +203,7 @@ class IncrementalNewsFusion:
         )
         if not result.success:
             raise RuntimeError(f"Anchored fusion optimization failed: {result.message}")
-        self.intercept_ = float(result.x[0])
+        self.intercept_ = float(result.x[0]) if self.fit_intercept else 0.0
         self.coefficients_ = np.asarray(result.x[1:], dtype=float)
         self.fit_diagnostics_ = {
             "converged": True,
@@ -182,6 +214,7 @@ class IncrementalNewsFusion:
             "coefficient_l1_norm": float(np.abs(self.coefficients_).sum()),
             "news_present_intercept": self.intercept_,
             "balance_classes": self.balance_classes,
+            "fit_intercept": bool(getattr(self, "fit_intercept", True)),
         }
         return self
 
@@ -227,6 +260,7 @@ class IncrementalNewsFusion:
             "adjustment_cap": self.adjustment_cap,
             "news_present_intercept": self.intercept_,
             "balance_classes": self.balance_classes,
+            "fit_intercept": bool(getattr(self, "fit_intercept", True)),
             "coefficients": {
                 name: float(value)
                 for name, value in zip(self.feature_names, self.coefficients_)

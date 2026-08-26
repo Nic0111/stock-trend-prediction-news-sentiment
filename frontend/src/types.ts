@@ -115,6 +115,37 @@ export interface CompanyModelDiagnostic {
   ece?: number | null;
 }
 
+export interface FusionCompanyDiagnostic {
+  ticker?: string;
+  company_name?: string;
+  rows: number;
+  stock_balanced_accuracy: number;
+  fusion_balanced_accuracy: number;
+  gain: number;
+}
+
+export interface FusionSubgroupArmMetrics {
+  balanced_accuracy?: number | null;
+  macro_f1?: number | null;
+  mcc?: number | null;
+  brier_score?: number | null;
+  log_loss?: number | null;
+  ece?: number | null;
+}
+
+export interface FusionSubgroupDiagnostic {
+  rows?: number;
+  stock_balanced_accuracy?: number | null;
+  fusion_balanced_accuracy?: number | null;
+  gain?: number | null;
+  stock_only?: FusionSubgroupArmMetrics;
+  stock_only_meta?: FusionSubgroupArmMetrics;
+  stock_meta?: FusionSubgroupArmMetrics;
+  compact_full?: FusionSubgroupArmMetrics;
+  full_fusion?: FusionSubgroupArmMetrics;
+  stock_plus_news?: FusionSubgroupArmMetrics;
+}
+
 export interface StockPerformanceHorizon extends StockHorizonDiagnostic {
   learning_curve: LearningCurvePoint[];
   confusion_matrix: { labels: string[]; values: number[][]; normalized: number[][] } | null;
@@ -143,6 +174,9 @@ export interface ModelPerformance {
     accepted_horizons?: number[];
     overall_status?: string;
     runtime_action?: string;
+    runtime_enabled?: boolean;
+    scientific_accepted_horizons?: number[];
+    scientific_overall_status?: string;
     provenance?: {
       strict_identity_passed?: boolean;
       active_stock_run_id?: string | null;
@@ -184,9 +218,9 @@ export interface ModelPerformance {
       };
       calibration?: Record<string, { intercept: number; slope: number; curve: { predicted: number; observed: number; rows: number }[] }>;
       rolling_origins?: { evaluation_year: number; rows: number; ticker_count: number; brier_improvement: number; balanced_accuracy_gain: number }[];
-      per_company?: Record<string, { rows: number; stock_balanced_accuracy: number; fusion_balanced_accuracy: number; gain: number }>;
+      per_company?: Record<string, FusionCompanyDiagnostic>;
       error_transitions?: Record<string, number>;
-      subgroups?: Record<string, Record<string, { rows: number; stock_balanced_accuracy: number; fusion_balanced_accuracy: number; gain: number }>>;
+      subgroups?: Record<string, Record<string, FusionSubgroupDiagnostic>>;
       confidence_accuracy?: Record<string, { bucket: number; rows: number; minimum_margin: number; maximum_margin: number; accuracy: number }[]>;
       coefficient_stability?: {
         folds: number;
@@ -195,6 +229,8 @@ export interface ModelPerformance {
       };
       readiness?: { passed: boolean; checks: Record<string, boolean> };
       runtime_label?: string;
+      runtime_enabled?: boolean;
+      scientific_accepted?: boolean;
       mcnemar_exact_p_value?: number;
       acceptance_checks?: Record<string, boolean>;
       accepted: boolean;

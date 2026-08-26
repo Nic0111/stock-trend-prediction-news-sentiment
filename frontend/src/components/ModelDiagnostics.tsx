@@ -25,6 +25,7 @@ import {
 import { Link } from "react-router-dom";
 import { getModelDiagnostics } from "../api/client";
 import type { Horizon, SentimentModelDiagnostic, StockHorizonDiagnostic } from "../types";
+import { formatPercentagePoints, formatPercent, formatPerformanceValue } from "../utils/metrics";
 import { ErrorState, LoadingState } from "./AsyncState";
 
 const METRIC_COLORS = {
@@ -36,7 +37,7 @@ const METRIC_COLORS = {
 };
 
 function percentage(value: number | null | undefined, digits = 1) {
-  return typeof value === "number" ? `${(value * 100).toFixed(digits)}%` : "Unavailable";
+  return formatPercent(value, digits);
 }
 
 function metricLabel(value: unknown) {
@@ -45,7 +46,7 @@ function metricLabel(value: unknown) {
 
 function metricTooltip({ active, payload, label }: { active?: boolean; payload?: ReadonlyArray<{ name?: unknown; value?: unknown; color?: string }>; label?: unknown }) {
   if (!active || !payload?.length) return null;
-  return <div className="evaluation-tooltip"><strong>{String(label ?? "Metric")}</strong>{payload.map((entry, index) => <span key={`${String(entry.name)}-${index}`} style={{ "--tooltip-color": entry.color } as React.CSSProperties}><i />{String(entry.name ?? "Value")}: {percentage(typeof entry.value === "number" ? entry.value : null)}</span>)}</div>;
+  return <div className="evaluation-tooltip"><strong>{String(label ?? "Metric")}</strong>{payload.map((entry, index) => <span key={`${String(entry.name)}-${index}`} style={{ "--tooltip-color": entry.color } as React.CSSProperties}><i />{String(entry.name ?? "Value")}: {formatPerformanceValue(typeof entry.value === "number" ? entry.value : null, String(entry.name))}</span>)}</div>;
 }
 
 function EvidenceHeader({ eyebrow, title, description, icon }: { eyebrow: string; title: string; description: string; icon: React.ReactNode }) {
@@ -89,7 +90,7 @@ function StockLedgerBody({ horizon }: { horizon: StockHorizonDiagnostic }) {
     </div>
     <div className="evaluation-reading-row">
       <div><Gauge size={17} /><span><strong>{percentage(horizon.metrics.balanced_accuracy)}</strong> holdout balanced accuracy</span></div>
-      <div><ShieldCheck size={17} /><span><strong>{horizon.balanced_accuracy_gain == null ? "Unavailable" : `${horizon.balanced_accuracy_gain >= 0 ? "+" : ""}${(horizon.balanced_accuracy_gain * 100).toFixed(1)} pp`}</strong> versus {horizon.strongest_baseline}</span></div>
+      <div><ShieldCheck size={17} /><span><strong>{formatPercentagePoints(horizon.balanced_accuracy_gain)}</strong> versus {horizon.strongest_baseline}</span></div>
       <div><Scale size={17} /><span><strong>{typeof horizon.metrics.mcc === "number" ? horizon.metrics.mcc.toFixed(3) : "Unavailable"}</strong> Matthews correlation</span></div>
       <div className={failed.length ? "has-caution" : ""}>{failed.length ? <CircleAlert size={17} /> : <CheckCircle2 size={17} />}<span><strong>{failed.length}</strong> recorded acceptance check{failed.length === 1 ? "" : "s"} not passed</span></div>
     </div>
@@ -119,11 +120,25 @@ function SentimentComparison({ models }: { models: SentimentModelDiagnostic[] })
 }
 
 function SentimentClassChart({ model }: { model?: SentimentModelDiagnostic }) {
-  const data = Object.entries(model?.class_f1 || {}).map(([label, value]) => ({ label: label[0].toUpperCase() + label.slice(1), value }));
-  const colors = [METRIC_COLORS.negative, METRIC_COLORS.caution, METRIC_COLORS.accent];
+  // Keep the semantic order stable even when the benchmark JSON is emitted
+  // in a different key order: positive (green), neutral (amber), negative
+  // (red). This matches the News & Sentiment tone legend.
+  const classOrder = ["positive", "neutral", "negative"] as const;
+  const toneColors: Record<(typeof classOrder)[number], string> = {
+    positive: METRIC_COLORS.accent,
+    neutral: METRIC_COLORS.caution,
+    negative: METRIC_COLORS.negative,
+  };
+  const data = classOrder
+    .map((key) => ({
+      key,
+      label: key[0].toUpperCase() + key.slice(1),
+      value: model?.class_f1?.[key] ?? null,
+    }))
+    .filter((entry) => typeof entry.value === "number");
   return <article className="evaluation-chart-panel">
     <div className="evaluation-chart-title"><div><span>Class-level reliability</span><strong>Which tone is hardest to recognize?</strong></div><BarChart3 size={18} /></div>
-    <div className="evaluation-chart-canvas evaluation-chart-wide"><ResponsiveContainer width="100%" height="100%"><BarChart data={data} layout="vertical" margin={{ top: 8, right: 18, left: 8, bottom: 2 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" domain={[0, 1]} tickFormatter={(value) => `${Math.round(value * 100)}%`} tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="label" width={62} tick={{ fontSize: 11 }} /><Tooltip content={metricTooltip} /><Bar dataKey="value" name="F1 score" radius={[0, 6, 6, 0]}>{data.map((entry, index) => <Cell key={entry.label} fill={colors[index % colors.length]} />)}</Bar></BarChart></ResponsiveContainer></div>
+    <div className="evaluation-chart-canvas evaluation-chart-wide"><ResponsiveContainer width="100%" height="100%"><BarChart data={data} layout="vertical" margin={{ top: 8, right: 18, left: 8, bottom: 2 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" domain={[0, 1]} tickFormatter={(value) => `${Math.round(value * 100)}%`} tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="label" width={62} tick={{ fontSize: 11 }} /><Tooltip content={metricTooltip} /><Bar dataKey="value" name="F1 score" radius={[0, 6, 6, 0]}>{data.map((entry) => <Cell key={entry.key} fill={toneColors[entry.key]} />)}</Bar></BarChart></ResponsiveContainer></div>
     <p className="evaluation-chart-note">Class F1 combines precision and recall. A lower Neutral bar shows why balanced headlines remain the hardest category.</p>
   </article>;
 }

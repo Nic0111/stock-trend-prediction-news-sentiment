@@ -73,18 +73,24 @@ def get_sentiment_runtime_descriptor() -> Dict[str, str]:
                 loaded = payload
         except (OSError, json.JSONDecodeError):
             loaded = {}
-    variant = os.getenv("STOCKSENSE_SENTIMENT_VARIANT", "").strip()
-    challenger = (loaded.get("challengers") or {}).get(variant) if variant else None
-    if isinstance(challenger, dict):
+    variant = (
+        os.getenv("STOCKSENSE_SENTIMENT_VARIANT", "").strip()
+        or clean_text(loaded.get("active_variant"))
+        or "finbert_phrasebank_v1"
+    )
+    challenger = (loaded.get("challengers") or {}).get(variant)
+    if variant != "finbert_phrasebank_v1" and isinstance(challenger, dict):
         return {
             "backend": clean_text(challenger.get("backend")) or "unknown",
             "model": variant,
             "variant": variant,
         }
     return {
-        "backend": clean_text(loaded.get("backend")) or "unknown",
+        "backend": clean_text(loaded.get("default_backend"))
+        or clean_text(loaded.get("backend"))
+        or "unknown",
         "model": clean_text(loaded.get("model_directory")) or "unknown",
-        "variant": "finbert_phrasebank_v1",
+        "variant": variant,
     }
 
 

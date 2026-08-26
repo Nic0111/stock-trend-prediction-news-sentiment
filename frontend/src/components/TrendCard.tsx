@@ -1,6 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, Check, CircleAlert, Minus, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
 import type { DashboardAnalysis, Prediction, SynthesisRelationship } from "../types";
 
 function directionPresentation(prediction: Prediction) {
@@ -37,33 +36,13 @@ export function TrendCard({ analysis }: { analysis: DashboardAnalysis }) {
     : evidenceStatus === "limited"
       ? "Limited evidence"
       : "Experimental · research only";
-  const failedChecks = analysis.stock.failed_acceptance_checks || [];
-  const probabilityPercent = Math.min(100, Math.max(0, analysis.stock.probability_up * 100));
-  const thresholdPercent = Math.min(100, Math.max(0, analysis.stock.decision_threshold * 100));
-  const marginPoints = (analysis.stock.probability_up - analysis.stock.decision_threshold) * 100;
   return (
     <section className={`signal-panel ${presentation.tone}`}>
       <div className="panel-kicker">Model outlook <span className={`live-dot ${freshness !== "fresh" || analysis.stock_source !== "live" ? "stale" : ""}`}>{sourceLabel}</span></div>
       <div className="signal-main"><div className="signal-icon"><Icon size={30} /></div><div><h2>{presentation.label}</h2><p>{presentation.subtitle}</p></div></div>
       <div className="fact-grid"><div><span>Market observation</span><strong>{analysis.stock.as_of_date}</strong></div><div><span>Horizon</span><strong>{analysis.horizon_days} trading day(s)</strong></div><div><span>Evidence</span><strong>{evidenceLabel}</strong></div></div>
-      {evidenceStatus === "limited" && <div className="notice warning">This direction has limited evidence. The model shows useful signal, but one or more horizon or company acceptance checks are still below the frozen safety standard.</div>}
       {evidenceStatus === "experimental" && <div className="notice warning">This is an experimental model direction. It has not passed the frozen acceptance benchmark and is for research transparency.</div>}
       {analysis.stock_warning && <div className="notice warning">{analysis.stock_warning}</div>}
-      <details className="details stock-detail-ledger"><summary>Stock model details</summary><div className="stock-detail-body">
-        <div className="stock-threshold-visual" aria-label={`Up probability ${probabilityPercent.toFixed(1)} percent, decision threshold ${thresholdPercent.toFixed(1)} percent`}>
-          <div className="stock-detail-heading"><div><span>Probability and locked cutoff</span><strong>{analysis.stock.model_name}</strong></div><b className={marginPoints >= 0 ? "positive-text" : "negative-text"}>{marginPoints >= 0 ? "+" : ""}{marginPoints.toFixed(1)} points from Up</b></div>
-          <div className="probability-ledger-labels"><span>Down {((1 - analysis.stock.probability_up) * 100).toFixed(1)}%</span><span>Up {probabilityPercent.toFixed(1)}%</span></div>
-          <div className="probability-ledger-track"><span className="probability-ledger-fill" style={{ width: `${probabilityPercent}%` }} /><i className="probability-marker" style={{ left: `${probabilityPercent}%` }} /><i className="threshold-marker" style={{ left: `${thresholdPercent}%` }} /></div>
-          <div className="probability-ledger-axis"><span>0%</span><span className="threshold-caption" style={{ left: `${thresholdPercent}%` }}>Cutoff {thresholdPercent.toFixed(1)}%</span><span>100%</span></div>
-        </div>
-        <div className="stock-evidence-checks">
-          <div><span className="detail-section-label">Evidence checks</span><ul><li className={analysis.stock.benchmark_passed ? "passed" : "caution"}>{analysis.stock.benchmark_passed ? <Check size={14} /> : <CircleAlert size={14} />}Frozen horizon benchmark</li><li className={analysis.stock.threshold_constraints_passed ? "passed" : "caution"}>{analysis.stock.threshold_constraints_passed ? <Check size={14} /> : <CircleAlert size={14} />}Decision-threshold constraints</li><li><ShieldCheck size={14} />{analysis.stock.evidence_strength} evidence strength</li></ul></div>
-          <div><span className="detail-section-label">Evidence tiers</span><dl><div><dt>Horizon</dt><dd>{analysis.stock.global_evidence_status || "Unavailable"}</dd></div><div><dt>Company</dt><dd>{analysis.stock.ticker_evidence_status || "Unavailable"}</dd></div>{analysis.stock.shadow_evidence_status && <div><dt>Shadow</dt><dd>{analysis.stock.shadow_evidence_status}</dd></div>}</dl></div>
-        </div>
-        {failedChecks.length > 0 && <div className="stock-failed-checks"><CircleAlert size={15} /><span><strong>Checks not passed</strong>{failedChecks.map((check) => check.replaceAll("_", " ")).join(" · ")}</span></div>}
-        <div className="stock-factor-grid"><div><span className="detail-section-label">Local model sensitivity · higher probability</span>{analysis.stock.supporting_factors.length ? <ul>{analysis.stock.supporting_factors.map((factor) => <li key={factor.feature}><ArrowUpRight size={14} />{factor.label}</li>)}</ul> : <p>None identified</p>}</div><div><span className="detail-section-label">Local model sensitivity · lower probability</span>{analysis.stock.opposing_factors.length ? <ul>{analysis.stock.opposing_factors.map((factor) => <li key={factor.feature}><ArrowDownRight size={14} />{factor.label}</li>)}</ul> : <p>None identified</p>}</div></div><p className="stock-factor-disclosure">These are one-feature-at-a-time probability sensitivities around a reference row, not causal explanations or SHAP values.</p>
-        <div className="stock-detail-footer"><span>Latest valid session <strong>{analysis.stock.market_reference_date || "Unavailable"}</strong> · Session lag <strong>{analysis.stock.observation_lag_sessions ?? "Unavailable"}</strong></span><Link to={`/model-performance?horizon=${analysis.horizon_days}`}>View full model performance</Link></div>
-      </div></details>
     </section>
   );
 }
@@ -93,17 +72,12 @@ export function CombinedOutlookCard({ analysis, children }: { analysis: Dashboar
     ? outlook.probability_up >= 0.5
       ? `${(outlook.probability_up * 100).toFixed(1)}% probability of upward movement`
       : `${((1 - outlook.probability_up) * 100).toFixed(1)}% probability of downward movement`
-    : "No stock probability is available";
-  const probabilityLabel = outlook.probability_kind === "combined"
-    ? "Combined probability"
-    : outlook.probability_kind === "stock_model"
-      ? "Stock model probability"
-      : "Evidence status";
-  // Keep the aggregate status deliberately simple for learners.  The
-  // promotion/audit metadata remains in the registry and API, but the card
-  // communicates only which calculation is being shown.
-  const aggregateLabel = outlook.mode === "validated_fusion" ? "Fusion" : "Stock-Led";
-  const evidenceLabel = aggregateLabel;
+      : "No stock probability is available";
+  const RelationshipIcon = outlook.relationship === "reinforcing"
+    ? Check
+    : outlook.relationship === "conflicting"
+      ? CircleAlert
+      : ShieldCheck;
   const newsAdjustment = outlook.component_contributions?.news_adjustment_probability_points;
   const fusionMethod = outlook.fusion_method === "transparent_log_odds"
     ? "Transparent log-odds fusion"
@@ -117,26 +91,19 @@ export function CombinedOutlookCard({ analysis, children }: { analysis: Dashboar
     <section className={`combined-outlook-card ${directionTone}`}>
       <div className="combined-outlook-heading">
         <div>
-          <div className="combined-outlook-kicker">
-            <span className="panel-kicker">Aggregate Result</span>
-            <span className="combined-composition-description">stock trend + news sentiment</span>
-            <span className={`fusion-runtime-label ${outlook.mode === "validated_fusion" ? "supported" : "fallback"}`}>
-              {aggregateLabel}
-            </span>
-          </div>
-          <h2>{outlook.direction || "Unavailable"}</h2>
+          <span className="panel-kicker">Aggregate Result</span>
         </div>
-        <span className="combined-validation"><ShieldCheck size={16} />{evidenceLabel}</span>
-      </div>
-      <div className="combined-outlook-main">
-        <div className="combined-direction-icon"><Icon size={28} /></div>
-        <div>
-          <p className="combined-probability-label">{probabilityLabel}</p>
-          <p className="combined-probability">{probabilityText}</p>
-        </div>
-        <span className={`relationship-pill ${relationshipTone[outlook.relationship]}`}>
+        <span className={`combined-validation ${relationshipTone[outlook.relationship]}`}>
+          <RelationshipIcon size={16} />
           {relationshipLabels[outlook.relationship]}
         </span>
+      </div>
+      <div className="combined-outlook-main signal-main">
+        <div className="combined-direction-icon signal-icon"><Icon size={30} /></div>
+        <div>
+          <h2>{outlook.direction || "Unavailable"}</h2>
+          <p>{probabilityText}</p>
+        </div>
       </div>
       <div className="combined-fact-grid">
         <div><span>Observation</span><strong>{outlook.as_of_date || "Unavailable"}</strong></div>

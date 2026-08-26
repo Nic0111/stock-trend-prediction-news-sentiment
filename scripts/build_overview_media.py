@@ -1,12 +1,15 @@
-"""Build the optional 1080p60 clips and 4K scene posters for Overview.
+"""Build the active 1080p60 clips and 4K scene posters for Overview.
 
-The repository intentionally keeps the existing 720p/1080p24 files intact. This
-script creates versioned siblings so a failed encode can never break the page's
-fallback tier.
+The repository keeps only the runtime 1080p60 clips and poster tiers. Original
+source videos are supplied from outside the repository when a rebuild is
+needed, so an old low-resolution media tree cannot be mistaken for a runtime
+fallback or accidentally shipped with the frontend.
 
 Usage:
-    .venv\\Scripts\\python.exe scripts\\build_overview_media.py
-    .venv\\Scripts\\python.exe scripts\\build_overview_media.py --force
+    .venv\\Scripts\\python.exe scripts\\build_overview_media.py \\
+        --source-video-dir C:\\path\\to\\source-clips
+    .venv\\Scripts\\python.exe scripts\\build_overview_media.py \\
+        --source-video-dir C:\\path\\to\\source-clips --force
 
 FFmpeg is resolved from --ffmpeg, PATH, or imageio-ffmpeg (installed in the
 project virtual environment when available).
@@ -127,6 +130,12 @@ def build_poster(source: Path, destination: Path, force: bool) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--media-root", type=Path, default=Path("frontend/public/media/overview-world/v2"))
+    parser.add_argument(
+        "--source-video-dir",
+        type=Path,
+        required=True,
+        help="External directory containing the original scene MP4s; it is not stored in the repository.",
+    )
     parser.add_argument("--ffmpeg")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--scene", choices=SCENES, action="append", help="Build only the selected scene(s).")
@@ -141,7 +150,7 @@ def main() -> int:
 
     media_root = args.media_root.resolve()
     ffmpeg = resolve_ffmpeg(args.ffmpeg)
-    source_video_dir = media_root / "video"
+    source_video_dir = args.source_video_dir.resolve()
     output_video_dir = media_root / "video-1080-60"
     source_poster_dir = media_root / "poster"
     output_poster_dir = media_root / "poster-4k"

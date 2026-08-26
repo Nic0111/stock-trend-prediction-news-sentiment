@@ -1,0 +1,28 @@
+{
+  "output_path": "data\\fusion\\fusion-window-candidates-v4-expanded-v13-auto-rescored.parquet",
+  "rows": 357699,
+  "horizons": [
+    1,
+    5,
+    10
+  ],
+  "candidates": 21,
+  "sha256": "7d5369435653b2c89260a4a9fc5d69db5f1f6b8cff0a05e9c1bf69b1573af3bd",
+  "shards": [
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v4-expanded-v13-auto-rescored-1d.parquet",
+      "rows": 119553,
+      "sha256": "9831c63e46ff404332d1ba66a8617ae28364047f5eacdf8f19d5e867a11cb74e"
+    },
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v4-expanded-v13-auto-rescored-5d.parquet",
+      "rows": 102234,
+      "sha256": "7f6377674c99b91595e88149c82a1b15723a78e27563fed255e1ee94d66ed6c8"
+    },
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v4-expanded-v13-auto-rescored-10d.parquet",
+      "rows": 135912,
+      "sha256": "eea27dbbb1261428083eb7ab5b39a8b64d29f90847f37a3bb2d1bf2fd597fc21"
+    }
+  ]
+}

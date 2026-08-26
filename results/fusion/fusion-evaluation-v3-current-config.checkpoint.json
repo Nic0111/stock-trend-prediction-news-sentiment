@@ -1,0 +1,25 @@
+{
+  "schema_version": "fusion-v3-checkpoint-v1",
+  "status": "complete",
+  "run_manifest": {
+    "schema_version": "fusion-v3-run-manifest-v1",
+    "dataset_sha256": "51e05f55c44d6f1925a0f5ee5f9233cba39b11cd1e386e12671622858f1ce643",
+    "policy_sha256": "678363d07d00bbf88b48cb062ef48469484dfd726860f95be97f1c3a27b7f348",
+    "requested_horizons": [
+      1,
+      5,
+      10
+    ],
+    "permutation_iterations": 1000,
+    "bootstrap_iterations": 2000,
+    "include_rolling_origins": true
+  },
+  "completed_horizons": [
+    1,
+    5,
+    10
+  ],
+  "scientific_result_sha256": "d17a9fddc25d4ff2c8d84363a21867c38a3161b639238c6931de418aaa44dd97",
+  "report_path": "results\\fusion\\fusion-evaluation-v3.json",
+  "registry_path": "models\\fusion\\staged-fusion-v3-registry.json"
+}

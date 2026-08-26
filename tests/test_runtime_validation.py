@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from pipeline.model_artifacts import CalibratedStockModel
-from pipeline.runtime_validation import validate_stock_artifact
+from pipeline.runtime_validation import sentiment_integrity, validate_stock_artifact
 
 
 class RuntimeValidationTests(unittest.TestCase):
@@ -45,6 +45,17 @@ class RuntimeValidationTests(unittest.TestCase):
         errors = validate_stock_artifact(artifact, self.entry(), horizon_days=5)
         self.assertIn("horizon_days does not match the registry", errors)
         self.assertIn("input_columns do not match the registry", errors)
+
+    def test_sentiment_integrity_follows_persisted_active_ensemble(self) -> None:
+        report = sentiment_integrity()
+        self.assertTrue(report["ok"], report)
+        self.assertEqual(
+            report["variant"],
+            "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1",
+        )
+        self.assertEqual(report["backend"], "weighted_finbert_ensemble")
+        self.assertAlmostEqual(float(report["weights"]["bursa"]), 0.7)
+        self.assertAlmostEqual(float(report["weights"]["phrasebank"]), 0.3)
 
 
 if __name__ == "__main__":

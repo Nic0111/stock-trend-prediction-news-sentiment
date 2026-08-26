@@ -28,6 +28,7 @@ from pipeline.fusion_model import (
     FusionModelArtifact,
     FusionRegistry,
 )
+from pipeline.fusion_v4_runtime import V4_FEATURES, V4FusionArtifactAdapter
 from pipeline.predict_stock_trend import PredictionResult
 
 
@@ -155,6 +156,73 @@ def _v5_registry_guard(payload: dict[str, Any], horizon_days: int) -> str | None
     return None
 
 
+def _v6_registry_guard(payload: dict[str, Any], horizon_days: int) -> str | None:
+    """Fail closed for the isolated Fusion v4 registry.
+
+    Fusion v4 uses a compact ``v4_*`` feature contract and a target-specific
+    event-impact model.  The current runtime frame is still the v3 contract,
+    so accepting a v4 registry here would silently feed the wrong columns to
+    the estimator.  Keep the guard explicit until a v4 runtime materializer
+    (including its point-in-time event-impact state) is registered.
+    """
+
+    if payload.get("schema_version") != "fusion-registry-v6":
+        return None
+    override = dict(payload.get("acceptance_override") or {})
+    override_active = bool(override.get("active")) and bool(
+        override.get("operator_authorized", True)
+    )
+    if not bool(payload.get("overall_all_horizon_accepted")) and not override_active:
+        return "fusion-evaluation-v4 did not pass the strict all-horizon acceptance policy"
+    status = str(payload.get("status") or "").casefold()
+    if status not in {"accepted", "override_accepted"}:
+        return "fusion-evaluation-v4 registry is not marked accepted"
+    entry = dict((payload.get("horizons") or {}).get(str(horizon_days)) or {})
+    if not bool(entry.get("accepted")) and not override_active:
+        return f"fusion-evaluation-v4 horizon {horizon_days} is not accepted"
+    provenance = dict(payload.get("provenance") or {})
+    if not bool(provenance.get("strict_identity_passed")):
+        return "fusion-evaluation-v4 artifact identity checks did not pass"
+    active_stock = _read_json(ACTIVE_STOCK_REGISTRY)
+    if str(active_stock.get("run_id") or "") != str(
+        provenance.get("active_stock_run_id") or ""
+    ):
+        return "active stock run no longer matches fusion-evaluation-v4"
+    if str(active_stock.get("dataset_sha256") or "") != str(
+        provenance.get("stock_dataset_sha256") or ""
+    ):
+        return "active stock dataset no longer matches fusion-evaluation-v4"
+    sentiment_hash = (
+        hashlib.sha256(SENTIMENT_RUNTIME_CONFIG.read_bytes()).hexdigest()
+        if SENTIMENT_RUNTIME_CONFIG.is_file()
+        else ""
+    )
+    if sentiment_hash != str(provenance.get("sentiment_config_sha256") or ""):
+        return "active sentiment configuration no longer matches fusion-evaluation-v4"
+    if not bool(payload.get("runtime_feature_contract_ready")):
+        return (
+            "fusion-evaluation-v4 passed research gates but its runtime feature "
+            "contract and event-impact state have not been materialised"
+        )
+    state_reference = str(payload.get("runtime_state_path") or "").strip()
+    if not state_reference:
+        return "fusion-evaluation-v4 has no runtime state path"
+    state_path = Path(state_reference)
+    if not state_path.is_absolute():
+        state_path = PROJECT_ROOT / state_path
+    if not state_path.is_file():
+        return "fusion-evaluation-v4 runtime state is missing"
+    state = _read_json(state_path)
+    if state.get("schema_version") != "fusion-runtime-state-v4":
+        return "fusion-evaluation-v4 runtime state has an invalid schema"
+    if str(state.get("dataset_sha256") or "") != str(payload.get("dataset_sha256") or ""):
+        return "fusion-evaluation-v4 runtime state dataset does not match the registry"
+    expected_state_hash = str(payload.get("runtime_state_sha256") or "").strip()
+    if expected_state_hash and hashlib.sha256(state_path.read_bytes()).hexdigest() != expected_state_hash:
+        return "fusion-evaluation-v4 runtime state failed its integrity check"
+    return None
+
+
 class _V3FusionArtifactAdapter:
     """Adapt a staged v3 joblib payload to the runtime artifact interface.
 
@@ -207,6 +275,40 @@ def _load_artifact_cached(
     if not registry_path.exists():
         return None, "accepted fusion registry is unavailable"
     raw_registry = _read_json(registry_path)
+    v6_reason = _v6_registry_guard(raw_registry, horizon_days)
+    if v6_reason is not None:
+        return None, v6_reason
+    if raw_registry.get("schema_version") == "fusion-registry-v6":
+        entry = dict((raw_registry.get("horizons") or {}).get(str(horizon_days)) or {})
+        reference = str(entry.get("artifact_path") or "").strip()
+        if not reference:
+            return None, "accepted Fusion v4 registry entry has no artifact path"
+        artifact_path = Path(reference)
+        if not artifact_path.is_absolute():
+            artifact_path = PROJECT_ROOT / artifact_path
+        if not artifact_path.is_file():
+            return None, f"accepted Fusion v4 artifact is missing: {artifact_path}"
+        expected_hash = str(entry.get("artifact_sha256") or "").strip()
+        if not expected_hash:
+            return None, "accepted Fusion v4 registry entry has no artifact integrity hash"
+        if hashlib.sha256(artifact_path.read_bytes()).hexdigest() != expected_hash:
+            return None, "accepted Fusion v4 artifact failed its integrity check"
+        try:
+            payload = joblib.load(artifact_path)
+        except (OSError, ValueError, TypeError) as exc:
+            return None, f"accepted Fusion v4 artifact could not be loaded: {exc}"
+        if not isinstance(payload, dict) or payload.get("schema_version") != "fusion-model-artifact-v4":
+            return None, "accepted Fusion v4 artifact has an invalid schema"
+        if int(payload.get("horizon_days", -1)) != int(horizon_days):
+            return None, "accepted Fusion v4 artifact horizon does not match the request"
+        if list(payload.get("feature_names") or []) != list(V4_FEATURES):
+            return None, "accepted Fusion v4 artifact has an invalid feature contract"
+        if payload.get("model") is None or payload.get("event_impact_model") is None:
+            return None, "accepted Fusion v4 artifact is missing its event-impact model"
+        try:
+            return V4FusionArtifactAdapter(payload), None
+        except (KeyError, TypeError, ValueError) as exc:
+            return None, f"accepted Fusion v4 artifact is incomplete: {exc}"
     v5_reason = _v5_registry_guard(raw_registry, horizon_days)
     if v5_reason is not None:
         return None, v5_reason
@@ -467,7 +569,16 @@ def build_aggregate_outlook(
     horizon_days: int,
     registry_path: Path = DEFAULT_FUSION_REGISTRY,
 ) -> CombinedOutlookResult:
-    """Use accepted numerical fusion or return the explicit stock-led fallback."""
+    """Use Fusion when both runtime signals are usable, else remain Stock-Led.
+
+    The registry and artifact identity checks still govern whether a Fusion
+    model may be loaded.  Once a matching artifact is available, an
+    experimental/limited stock result is allowed to participate as long as it
+    contains a valid probability and threshold.  This matches the product
+    contract: news availability controls whether the numerical correction can
+    be applied; it does not silently turn an invalid probability into a valid
+    one.
+    """
 
     registry_payload = _read_json(Path(registry_path))
     acceptance_override = dict(registry_payload.get("acceptance_override") or {})
@@ -489,29 +600,61 @@ def build_aggregate_outlook(
     if news is None:
         fallback.fallback_reason = "news signal unavailable"
         return fallback
-    if not (
-        stock.evidence_status == "accepted"
-        and stock.threshold_constraints_passed
-    ):
+
+    # A stock model can be labelled limited/experimental and still provide a
+    # numerically usable probability.  The caller explicitly requested that
+    # such a result be fused when the news and matching artifact are present.
+    try:
+        stock_probability = float(stock.probability_up)
+        stock_threshold = float(stock.decision_threshold)
+    except (TypeError, ValueError):
         fallback.fallback_reason = (
-            "stock horizon has not passed the frozen acceptance benchmark; "
+            "stock probability or decision threshold is unavailable; "
             "numerical fusion is disabled"
         )
         return fallback
+    if not (
+        math.isfinite(stock_probability)
+        and 0.0 <= stock_probability <= 1.0
+        and math.isfinite(stock_threshold)
+        and 0.0 <= stock_threshold <= 1.0
+    ):
+        fallback.fallback_reason = (
+            "stock probability or decision threshold is invalid; "
+            "numerical fusion is disabled"
+        )
+        return fallback
+
     context = _context(news, horizon_days)
+    try:
+        usable_article_count = int(context.get("usable_article_count", 0) or 0)
+    except (TypeError, ValueError):
+        usable_article_count = 0
+    score_raw = context.get("weighted_sentiment_score")
+    try:
+        sentiment_score = float(score_raw)
+    except (TypeError, ValueError):
+        sentiment_score = float("nan")
+    if usable_article_count <= 0 or not math.isfinite(sentiment_score):
+        fallback.fallback_reason = (
+            "usable news sentiment is unavailable; numerical fusion is disabled"
+        )
+        return fallback
+
     coverage = str(context.get("coverage_confidence") or "Unavailable")
     is_v3_registry = registry_payload.get("schema_version") == "fusion-registry-v5"
+    is_v4_registry = registry_payload.get("schema_version") == "fusion-registry-v6"
     allowed_coverage = (
         {"low", "medium", "high"}
-        if is_v3_registry
+        if is_v3_registry or is_v4_registry
         else NUMERICAL_FUSION_COVERAGE
     )
     if coverage.casefold() not in allowed_coverage:
         fallback.fallback_reason = (
             f"news coverage is {coverage}; numerical fusion requires "
             + (
-                "eligible Low, Medium or High evidence for v3"
-                if is_v3_registry
+                "eligible Low, Medium or High evidence for v3/v4"
+                if is_v3_registry or is_v4_registry
                 else "Medium or High coverage"
             )
         )
@@ -522,7 +665,7 @@ def build_aggregate_outlook(
         return fallback
 
     runtime_state = None
-    if is_v3_registry:
+    if is_v3_registry or is_v4_registry:
         state_reference = str(registry_payload.get("runtime_state_path") or "").strip()
         if state_reference:
             state_path = Path(state_reference)
@@ -537,12 +680,17 @@ def build_aggregate_outlook(
             )
             if isinstance(ticker_state, dict):
                 runtime_state = ticker_state
-    frame = build_runtime_fusion_frame(
-        stock, news, horizon_days, runtime_state=runtime_state
-    )
+    if is_v4_registry and isinstance(artifact, V4FusionArtifactAdapter):
+        frame = artifact.build_runtime_frame(
+            stock, news, horizon_days, runtime_state=runtime_state
+        )
+    else:
+        frame = build_runtime_fusion_frame(
+            stock, news, horizon_days, runtime_state=runtime_state
+        )
     probability = float(artifact.predict_proba(frame)[0, 1])
     direction = "Up" if probability >= float(artifact.threshold) else "Down"
-    score = float(context.get("weighted_sentiment_score"))
+    score = sentiment_score
     tone = _tone(score)
     relationship = _relationship(stock.prediction_label, tone)
     contributions = artifact.component_contributions(frame)

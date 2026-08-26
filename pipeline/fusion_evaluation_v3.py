@@ -351,13 +351,22 @@ def _fit_model(
     features: Sequence[str],
     candidate: Mapping[str, Any],
     cap: float,
+    *,
+    fit_intercept: bool | None = None,
 ) -> IncrementalNewsFusion:
+    # ``fit_intercept`` is an optional challenger dimension.  Reading it
+    # from the candidate keeps old v3/v4 callers byte-for-byte compatible,
+    # while allowing a horizon-specific anchored correction to suppress a
+    # development-detected global news shift when appropriate.
+    if fit_intercept is None:
+        fit_intercept = bool(candidate.get("fit_intercept", True))
     return IncrementalNewsFusion(
         features,
         penalty_strength=float(candidate["penalty_strength"]),
         l1_ratio=float(candidate["l1_ratio"]),
         adjustment_cap=float(cap),
         random_seed=42,
+        fit_intercept=bool(fit_intercept),
     ).fit(frame, frame["target_up"].astype(int))
 
 
@@ -492,52 +501,61 @@ def _select_configuration(
     development: pd.DataFrame,
     features: Sequence[str],
     policy: Mapping[str, Any],
+    *,
+    fit_intercept_candidates: Sequence[bool] = (True,),
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     splits = _purged_development_splits(development)
     trials: list[dict[str, Any]] = []
     for candidate in policy["anchored_candidates"]:
         for cap in policy["news_log_odds_caps"]:
-            baseline_losses: list[float] = []
-            challenger_losses: list[float] = []
-            fold_improvements: list[float] = []
-            news_rows = 0
-            for train_index, validation_index in splits:
-                train = development.iloc[train_index].reset_index(drop=True)
-                validation = development.iloc[validation_index].reset_index(drop=True)
-                if int(train["news_available"].sum()) < max(10, len(features) + 2):
-                    continue
-                model = _fit_model(train, features, candidate, float(cap))
-                prediction = model.predict(validation)
-                target = validation["target_up"].astype(int).to_numpy()
-                stock = validation["stock_probability_up"].to_numpy(dtype=float)
-                baseline_losses.extend(((target - stock) ** 2).tolist())
-                challenger_losses.extend(((target - prediction.probability_up) ** 2).tolist())
-                fold_improvements.append(
-                    float(
-                        np.mean((target - stock) ** 2)
-                        - np.mean((target - prediction.probability_up) ** 2)
+            for fit_intercept in fit_intercept_candidates:
+                baseline_losses: list[float] = []
+                challenger_losses: list[float] = []
+                fold_improvements: list[float] = []
+                news_rows = 0
+                for train_index, validation_index in splits:
+                    train = development.iloc[train_index].reset_index(drop=True)
+                    validation = development.iloc[validation_index].reset_index(drop=True)
+                    if int(train["news_available"].sum()) < max(10, len(features) + 2):
+                        continue
+                    model = _fit_model(
+                        train,
+                        features,
+                        {**candidate, "fit_intercept": bool(fit_intercept)},
+                        float(cap),
                     )
+                    prediction = model.predict(validation)
+                    target = validation["target_up"].astype(int).to_numpy()
+                    stock = validation["stock_probability_up"].to_numpy(dtype=float)
+                    baseline_losses.extend(((target - stock) ** 2).tolist())
+                    challenger_losses.extend(((target - prediction.probability_up) ** 2).tolist())
+                    fold_improvements.append(
+                        float(
+                            np.mean((target - stock) ** 2)
+                            - np.mean((target - prediction.probability_up) ** 2)
+                        )
+                    )
+                    news_rows += int(prediction.eligible_news.sum())
+                if not challenger_losses:
+                    continue
+                improvement = float(np.mean(baseline_losses) - np.mean(challenger_losses))
+                trials.append(
+                    {
+                        **dict(candidate),
+                        "fit_intercept": bool(fit_intercept),
+                        "adjustment_cap": float(cap),
+                        "development_brier_improvement": improvement,
+                        "development_brier": float(np.mean(challenger_losses)),
+                        "fold_brier_improvements": fold_improvements,
+                        "development_improvement_standard_error": (
+                            float(np.std(fold_improvements, ddof=1) / math.sqrt(len(fold_improvements)))
+                            if len(fold_improvements) > 1
+                            else 0.0
+                        ),
+                        "validation_rows": len(challenger_losses),
+                        "news_present_validation_rows": news_rows,
+                    }
                 )
-                news_rows += int(prediction.eligible_news.sum())
-            if not challenger_losses:
-                continue
-            improvement = float(np.mean(baseline_losses) - np.mean(challenger_losses))
-            trials.append(
-                {
-                    **dict(candidate),
-                    "adjustment_cap": float(cap),
-                    "development_brier_improvement": improvement,
-                    "development_brier": float(np.mean(challenger_losses)),
-                    "fold_brier_improvements": fold_improvements,
-                    "development_improvement_standard_error": (
-                        float(np.std(fold_improvements, ddof=1) / math.sqrt(len(fold_improvements)))
-                        if len(fold_improvements) > 1
-                        else 0.0
-                    ),
-                    "validation_rows": len(challenger_losses),
-                    "news_present_validation_rows": news_rows,
-                }
-            )
     if not trials:
         raise ValueError("No anchored candidate could be fitted in purged development folds")
     best = max(trials, key=lambda row: row["development_brier_improvement"])

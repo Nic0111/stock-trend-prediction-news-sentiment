@@ -1,0 +1,38 @@
+{
+  "schema_version": "fusion-v4-blind-audit-queue-v1",
+  "created_at": "2026-08-24T18:09:12+00:00",
+  "claim_scope": "Retrospective evidence, 2019-2025",
+  "dataset_path": "data\\fusion\\fusion-features-v4-expanded-v12-sealed.parquet",
+  "dataset_sha256": "c5ad48df441be6ea131308e06fb279efaa40d6960977ebbc3a7f8c9304144f5d",
+  "article_root": "data\\historical-news-fusion\\normalized-production-v3-official-prepared-expanded-v12\\normalized",
+  "output_path": "results\\fusion\\fusion-v4-blind-audit-queue.csv",
+  "queue_sha256": "303b742fcc85d2dc05dcdeb29a0ffc06ccc234b835e51af9b1922c373f7b7aeb",
+  "policy_sha256": "3ee06729bc4563c117a4b8dee2c85b6262362859a8929814045f4d6d8dc8e0f4",
+  "seed": 20260825,
+  "requested_rows": 200,
+  "exported_rows": 200,
+  "eligible_event_ids_in_features": 6016,
+  "eligible_article_events": 6014,
+  "companies": [
+    "1023.KL",
+    "1155.KL",
+    "1295.KL",
+    "3816.KL",
+    "4677.KL",
+    "5183.KL",
+    "5225.KL",
+    "5347.KL",
+    "6947.KL",
+    "8869.KL"
+  ],
+  "unreviewed_by_design": true,
+  "production_unchanged": true,
+  "review_fields": [
+    "audit_entity_relevant",
+    "audit_event_material",
+    "audit_reviewer_id",
+    "audit_reviewed_at",
+    "audit_notes"
+  ],
+  "note": "This queue is an input for independent review; it does not satisfy the blind-audit gate until reviewed and explicitly imported."
+}

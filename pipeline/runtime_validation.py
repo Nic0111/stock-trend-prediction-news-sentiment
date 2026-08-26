@@ -106,13 +106,80 @@ def stock_registry_integrity(
 
 
 def sentiment_integrity() -> dict[str, Any]:
+    """Validate the sentiment variant that the runtime will actually load.
+
+    The persisted ``active_variant`` is the runtime authority when no explicit
+    environment override is present.  Older versions of this check only
+    inspected the top-level PhraseBank artifact manifest, which could report a
+    healthy runtime while the active Bursa/PhraseBank ensemble was missing or
+    had been modified.
+    """
+
+    def _normalized_hashes(values: Any) -> dict[str, str]:
+        if not isinstance(values, Mapping):
+            return {}
+        return {
+            str(Path(str(path))).replace("\\", "/").casefold(): str(digest)
+            for path, digest in values.items()
+        }
+
+    def _component_errors(
+        component_name: str,
+        component: Any,
+    ) -> tuple[list[str], dict[str, str]]:
+        component_errors: list[str] = []
+        signatures: dict[str, str] = {}
+        if not isinstance(component, Mapping):
+            return [f"{component_name}-configuration"], signatures
+
+        seed_models = component.get("seed_models")
+        entries: list[tuple[str, Mapping[str, Any]]]
+        if seed_models is not None:
+            if not isinstance(seed_models, list) or len(seed_models) < 2:
+                return [f"{component_name}-seed-configuration"], signatures
+            entries = [
+                (f"{component_name}-seed-{index}", seed)
+                for index, seed in enumerate(seed_models)
+                if isinstance(seed, Mapping)
+            ]
+            if len(entries) != len(seed_models):
+                component_errors.append(f"{component_name}-seed-configuration")
+        else:
+            entries = [(component_name, component)]
+
+        for label, entry in entries:
+            directory_value = entry.get("model_directory")
+            expected = _normalized_hashes(entry.get("artifact_hashes"))
+            if not directory_value or not expected:
+                component_errors.append(f"{label}-configuration")
+                continue
+            directory = Path(str(directory_value))
+            if not directory.is_absolute():
+                directory = PROJECT_ROOT / directory
+            try:
+                actual = _normalized_hashes(
+                    sentiment_artifact_hashes_for_directory(directory)
+                )
+            except (OSError, ValueError, TypeError):
+                actual = {}
+            if set(expected) != set(actual):
+                component_errors.append(f"{label}-file-set")
+            elif any(actual[path] != digest for path, digest in expected.items()):
+                component_errors.append(f"{label}-provenance")
+            signatures.update({f"{label}:{path}": digest for path, digest in actual.items()})
+        return component_errors, signatures
+
     errors: list[str] = []
     try:
         runtime_config = json.loads(SENTIMENT_RUNTIME_CONFIG_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):
         return {"ok": False, "errors": ["finbert-runtime-config"]}
-    selected_variant = os.getenv("STOCKSENSE_SENTIMENT_VARIANT", "").strip()
-    if selected_variant and selected_variant != "finbert_phrasebank_v1":
+    selected_variant = (
+        os.getenv("STOCKSENSE_SENTIMENT_VARIANT", "").strip()
+        or str(runtime_config.get("active_variant", "")).strip()
+        or "finbert_phrasebank_v1"
+    )
+    if selected_variant != "finbert_phrasebank_v1":
         challenger = (runtime_config.get("challengers") or {}).get(selected_variant)
         if not isinstance(challenger, Mapping):
             return {
@@ -120,31 +187,44 @@ def sentiment_integrity() -> dict[str, Any]:
                 "errors": ["unknown-sentiment-challenger"],
                 "variant": selected_variant,
             }
+        backend = str(challenger.get("backend", "")).strip().casefold()
+        if backend != "weighted_finbert_ensemble":
+            errors.append("active-sentiment-backend")
+        weights = challenger.get("weights")
+        if not isinstance(weights, Mapping) or not weights:
+            errors.append("active-sentiment-weights")
+        else:
+            try:
+                numeric_weights = {str(name): float(value) for name, value in weights.items()}
+                if any(value < 0 for value in numeric_weights.values()) or not 0.999 <= sum(numeric_weights.values()) <= 1.001:
+                    errors.append("active-sentiment-weights")
+            except (TypeError, ValueError):
+                errors.append("active-sentiment-weights")
         challenger_errors: list[str] = []
-        for component_name, component in (challenger.get("components") or {}).items():
-            if not isinstance(component, Mapping) or not component.get("model_directory"):
-                challenger_errors.append(f"{component_name}-configuration")
-                continue
-            directory = Path(str(component["model_directory"]))
-            if not directory.is_absolute():
-                directory = PROJECT_ROOT / directory
-            expected_component = {
-                str(Path(path)): str(digest)
-                for path, digest in dict(component.get("artifact_hashes") or {}).items()
-            }
-            actual_component = {
-                str(Path(path)): digest
-                for path, digest in sentiment_artifact_hashes_for_directory(directory).items()
-            }
-            if not expected_component or set(expected_component) != set(actual_component):
-                challenger_errors.append(f"{component_name}-file-set")
-            elif any(actual_component[path] != digest for path, digest in expected_component.items()):
-                challenger_errors.append(f"{component_name}-provenance")
+        signatures: dict[str, str] = {}
+        components_config = challenger.get("components")
+        if not isinstance(components_config, Mapping) or not components_config:
+            challenger_errors.append("active-sentiment-components")
+            components_config = {}
+        if isinstance(weights, Mapping):
+            try:
+                if set(str(name) for name in weights) != set(str(name) for name in components_config):
+                    challenger_errors.append("active-sentiment-weights")
+            except TypeError:
+                challenger_errors.append("active-sentiment-weights")
+        for component_name, component in components_config.items():
+            component_errors, component_signatures = _component_errors(component_name, component)
+            challenger_errors.extend(component_errors)
+            signatures.update(component_signatures)
+        errors.extend(challenger_errors)
         return {
-            "ok": not challenger_errors,
-            "errors": sorted(set(challenger_errors)),
+            "ok": not errors,
+            "errors": sorted(set(errors)),
             "variant": selected_variant,
-            "components": list((challenger.get("components") or {}).keys()),
+            "backend": backend,
+            "weights": dict(weights) if isinstance(weights, Mapping) else {},
+            "components": list(components_config.keys()),
+            "signature": signatures,
         }
     expected = {
         str(Path(path)): str(digest)
@@ -183,4 +263,10 @@ def sentiment_integrity() -> dict[str, Any]:
             errors.append("finbert-max-length")
     except (OSError, ValueError, TypeError):
         errors.append("finbert-metadata-contract")
-    return {"ok": not errors, "errors": sorted(set(errors)), "signature": actual}
+    return {
+        "ok": not errors,
+        "errors": sorted(set(errors)),
+        "variant": selected_variant,
+        "backend": "finbert",
+        "signature": actual,
+    }

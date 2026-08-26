@@ -167,13 +167,15 @@ class NewsContextResult:
 
 def build_news_context_metadata() -> Dict[str, Any]:
     """Return the immutable retrieval/context contract attached to news results."""
-    variant = os.getenv(SENTIMENT_VARIANT_ENV_VAR, "").strip() or DEFAULT_SENTIMENT_VARIANT
+    variant = os.getenv(SENTIMENT_VARIANT_ENV_VAR, "").strip()
     weights: Dict[str, float] = {"phrasebank": 1.0}
     if SENTIMENT_RUNTIME_CONFIG_FILE.exists():
         try:
             runtime_config = json.loads(
                 SENTIMENT_RUNTIME_CONFIG_FILE.read_text(encoding="utf-8")
             )
+            if not variant:
+                variant = str(runtime_config.get("active_variant", "")).strip()
             challenger = (runtime_config.get("challengers") or {}).get(variant) or {}
             if isinstance(challenger.get("weights"), dict):
                 weights = {
@@ -184,6 +186,7 @@ def build_news_context_metadata() -> Dict[str, Any]:
             # Runtime loading performs the fail-closed validation. Metadata
             # generation remains safe for cached/provider error responses.
             pass
+    variant = variant or DEFAULT_SENTIMENT_VARIANT
     return {
         "news_context_config_version": NEWS_CONTEXT_CONFIG_VERSION,
         "retrieval_lookback_days": NEWS_RETRIEVAL_LOOKBACK_DAYS,
@@ -616,7 +619,14 @@ def load_sentiment_model() -> object:
             str(challenger.get("text_mode") or TEXT_MODE_DEFAULT),
         )
         return model
-    backend = str(runtime_config.get("backend", "finbert")).strip().casefold()
+    # The top-level backend describes the persisted active variant.  The
+    # explicit default variant remains available for isolated compatibility
+    # checks through ``default_backend`` and the legacy top-level artifact
+    # fields; it is not the production selection when an active challenger is
+    # configured.
+    backend = str(
+        runtime_config.get("default_backend", runtime_config.get("backend", "finbert"))
+    ).strip().casefold()
     if backend != "finbert":
         raise ValueError(
             "The runtime sentiment backend must be FinBERT. "

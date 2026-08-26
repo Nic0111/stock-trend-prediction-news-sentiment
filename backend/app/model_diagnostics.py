@@ -22,42 +22,151 @@ FUSION_EVALUATION_V2_ARTIFACT = (
 FUSION_EVALUATION_V3_ARTIFACT = (
     PROJECT_ROOT / "results" / "fusion" / "fusion-evaluation-v3.json"
 )
+FUSION_EVALUATION_V4_ARTIFACT = (
+    PROJECT_ROOT
+    / "results"
+    / "fusion"
+    / "fusion-evaluation-v4-expanded-v14-auto-corrected.json"
+)
+ACTIVE_FUSION_REGISTRY = PROJECT_ROOT / "models" / "fusion" / "fusion-registry.json"
+
+
+def _active_fusion_registry_for_run(run_id: str | None) -> dict[str, Any]:
+    """Return the active fusion registry only for the active stock run.
+
+    Model-performance diagnostics are presentation data, but they must not mix a
+    report from one stock run with a different selected run.  The runtime
+    registry is the canonical pointer for the currently promoted fusion report;
+    requiring its v6 schema, active stock identity and ready feature contract
+    keeps the diagnostics view aligned with runtime without changing prediction
+    behaviour.
+    """
+
+    registry = _read_json(ACTIVE_FUSION_REGISTRY)
+    if registry.get("schema_version") != "fusion-registry-v6":
+        return {}
+    provenance = registry.get("provenance")
+    if not isinstance(provenance, dict):
+        return {}
+    if not run_id or run_id != provenance.get("active_stock_run_id"):
+        return {}
+    if not registry.get("runtime_feature_contract_ready"):
+        return {}
+    if registry.get("runtime_action") not in {"enable_fusion", "enable_fusion_override"}:
+        return {}
+    return registry
+
+
+def _fusion_report_matches_active_stock(
+    payload: dict[str, Any],
+    run_id: str | None,
+    stock_registry: dict[str, Any],
+    expected_registry: dict[str, Any] | None = None,
+) -> bool:
+    """Check the report identity before exposing it to the performance UI."""
+
+    provenance = payload.get("provenance")
+    if not isinstance(provenance, dict):
+        return False
+    current_sentiment_hash = (
+        hashlib.sha256(SENTIMENT_RUNTIME_CONFIG.read_bytes()).hexdigest()
+        if SENTIMENT_RUNTIME_CONFIG.is_file()
+        else None
+    )
+    if not (
+        bool(provenance.get("strict_identity_passed"))
+        and run_id
+        and run_id == provenance.get("active_stock_run_id")
+        and run_id == stock_registry.get("run_id")
+        and provenance.get("stock_dataset_sha256") == stock_registry.get("dataset_sha256")
+        and provenance.get("sentiment_config_sha256") == current_sentiment_hash
+    ):
+        return False
+    if expected_registry:
+        if expected_registry.get("dataset_sha256") and payload.get("dataset_sha256") != expected_registry.get("dataset_sha256"):
+            return False
+        if expected_registry.get("policy_sha256") and payload.get("policy_sha256") != expected_registry.get("policy_sha256"):
+            return False
+    return str(payload.get("schema_version") or "").startswith(
+        ("stocksense-fusion-evaluation-v4", "stocksense-fusion-evaluation-v3")
+    )
 
 
 def _fusion_ablation_path(run_id: str | None) -> Path | None:
-    """Return only a provenance-matched, threshold-correct v3 report.
+    """Return the active provenance-matched fusion report for diagnostics.
 
-    V2 is intentionally not a display fallback: its no-news decision-threshold
-    defect can create a misleading directional gain even when probabilities
-    are copied from the stock model.
+    The active v6 registry is authoritative for the promoted runtime report.
+    Older v3 remains a compatibility fallback for an active stock run when no
+    v6/v4 registry is present; v2 is intentionally never exposed because its
+    no-news threshold defect can create a misleading directional gain.
     """
 
-    for evaluation_path in (FUSION_EVALUATION_V3_ARTIFACT,):
+    active_stock_registry = _read_json(STOCK_REGISTRY)
+    active_fusion_registry = _active_fusion_registry_for_run(run_id)
+    candidate_paths: list[tuple[Path, dict[str, Any] | None]] = []
+    if active_fusion_registry:
+        report_path = _safe_project_path(active_fusion_registry.get("report_path"))
+        if report_path and report_path.exists():
+            candidate_paths.append((report_path, active_fusion_registry))
+    candidate_paths.extend(
+        (path, None)
+        for path in (FUSION_EVALUATION_V4_ARTIFACT, FUSION_EVALUATION_V3_ARTIFACT)
+    )
+
+    for evaluation_path, expected_registry in candidate_paths:
         if not evaluation_path.exists():
             continue
         payload = _read_json(evaluation_path)
-        provenance = dict(payload.get("provenance") or {})
-        active_registry = _read_json(STOCK_REGISTRY)
-        current_sentiment_hash = (
-            hashlib.sha256(SENTIMENT_RUNTIME_CONFIG.read_bytes()).hexdigest()
-            if SENTIMENT_RUNTIME_CONFIG.is_file()
-            else None
-        )
-        identities_match = (
-            bool(provenance.get("strict_identity_passed"))
-            and run_id == provenance.get("active_stock_run_id")
-            and run_id == active_registry.get("run_id")
-            and provenance.get("stock_dataset_sha256")
-            == active_registry.get("dataset_sha256")
-            and provenance.get("sentiment_config_sha256")
-            == current_sentiment_hash
-        )
-        if run_id and identities_match:
+        if _fusion_report_matches_active_stock(
+            payload,
+            run_id,
+            active_stock_registry,
+            expected_registry,
+        ):
             return evaluation_path
     # Do not expose a report whose stock/sentiment identities do not match the
     # selected run.  Returning None keeps stale diagnostics out of the API even
     # when a newer canonical report exists for the active run.
     return None
+
+
+def _public_fusion_horizons(raw_horizons: Any) -> dict[str, Any]:
+    """Add safe company identity metadata to fusion diagnostics.
+
+    Fusion reports key their per-company diagnostics by ticker because that is
+    the stable identifier used by the evaluation pipeline.  The frontend also
+    needs the human-readable company name to make a company table usable for
+    beginners.  Enriching the read-only presentation payload here keeps that
+    mapping canonical without changing the underlying report or any model
+    calculation.
+    """
+
+    if not isinstance(raw_horizons, dict):
+        return {}
+
+    public_horizons: dict[str, Any] = {}
+    for horizon, raw_result in raw_horizons.items():
+        if not isinstance(raw_result, dict):
+            public_horizons[str(horizon)] = raw_result
+            continue
+
+        result = dict(raw_result)
+        raw_per_company = raw_result.get("per_company")
+        if isinstance(raw_per_company, dict):
+            per_company: dict[str, Any] = {}
+            for raw_ticker, raw_record in raw_per_company.items():
+                if not isinstance(raw_record, dict):
+                    continue
+                ticker = str(raw_ticker)
+                record = dict(raw_record)
+                record.setdefault("ticker", ticker)
+                record.setdefault("company_name", STOCKS.get(ticker, ticker))
+                per_company[ticker] = record
+            result["per_company"] = per_company
+
+        public_horizons[str(horizon)] = result
+
+    return public_horizons
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -85,6 +194,63 @@ def _safe_project_path(value: Any) -> Path | None:
     except ValueError:
         return None
     return candidate
+
+
+def _fusion_diagnostics_path(report_path: Path) -> Path:
+    """Return the sidecar containing row-level Fusion chart diagnostics."""
+
+    return report_path.with_name(f"{report_path.stem}-diagnostics.json")
+
+
+def _merge_fusion_diagnostics(
+    fusion_source: dict[str, Any], report_path: Path | None
+) -> dict[str, Any]:
+    """Attach only provenance-matched row diagnostics to a public report.
+
+    The aggregate evaluation remains authoritative for model metrics and
+    acceptance state.  A sidecar may contribute only the three explanatory
+    chart inputs, and only when its report, dataset and policy hashes match the
+    report currently selected by the active registry.  This prevents an old
+    chart artifact from being shown beside a newer model result.
+    """
+
+    if not fusion_source or report_path is None or not report_path.is_file():
+        return fusion_source
+    diagnostics_path = _fusion_diagnostics_path(report_path)
+    if not diagnostics_path.is_file():
+        return fusion_source
+    diagnostics = _read_json(diagnostics_path)
+    if diagnostics.get("schema_version") != "fusion-v4-row-diagnostics-v1":
+        return fusion_source
+    try:
+        report_hash = hashlib.sha256(report_path.read_bytes()).hexdigest()
+    except OSError:
+        return fusion_source
+    sidecar_report_path = _safe_project_path(diagnostics.get("source_report_path"))
+    if sidecar_report_path is None or sidecar_report_path.resolve() != report_path.resolve():
+        return fusion_source
+    if diagnostics.get("source_report_sha256") != report_hash:
+        return fusion_source
+    if diagnostics.get("dataset_sha256") != fusion_source.get("dataset_sha256"):
+        return fusion_source
+    if diagnostics.get("policy_sha256") != fusion_source.get("policy_sha256"):
+        return fusion_source
+    sidecar_horizons = diagnostics.get("horizons")
+    if not isinstance(sidecar_horizons, dict):
+        return fusion_source
+    merged_source = dict(fusion_source)
+    merged_horizons: dict[str, Any] = {}
+    for key, raw_horizon in (fusion_source.get("horizons") or {}).items():
+        merged = dict(raw_horizon) if isinstance(raw_horizon, dict) else raw_horizon
+        sidecar_horizon = sidecar_horizons.get(str(key))
+        if isinstance(merged, dict) and isinstance(sidecar_horizon, dict):
+            for field in ("subgroups", "confidence_accuracy"):
+                value = sidecar_horizon.get(field)
+                if isinstance(value, dict):
+                    merged[field] = value
+        merged_horizons[str(key)] = merged
+    merged_source["horizons"] = merged_horizons
+    return merged_source
 
 
 def _stock_diagnostics(registry_path: Path = STOCK_REGISTRY) -> dict[str, Any]:
@@ -418,14 +584,59 @@ def load_model_performance(run_id: str | None = None) -> dict[str, Any]:
     selected_run_id = str(_read_json(registry_path).get("run_id") or "").strip() or None
     fusion_path = _fusion_ablation_path(selected_run_id)
     fusion_source = _read_json(fusion_path) if fusion_path else {}
-    fusion_horizons = fusion_source.get("horizons") or {}
-    fusion_accepted_horizons = fusion_source.get("accepted_horizons") or []
-    all_horizon_accepted = fusion_source.get("overall_all_horizon_accepted")
+    fusion_source = _merge_fusion_diagnostics(fusion_source, fusion_path)
+    fusion_horizons = _public_fusion_horizons(fusion_source.get("horizons") or {})
+    active_fusion_registry = _active_fusion_registry_for_run(selected_run_id)
+    active_report_path = _safe_project_path(active_fusion_registry.get("report_path"))
+    runtime_fusion_enabled = bool(
+        active_fusion_registry
+        and fusion_path
+        and active_report_path
+        and active_report_path.resolve() == fusion_path.resolve()
+    )
+    scientific_accepted_horizons = [
+        int(value)
+        for value in (fusion_source.get("accepted_horizons") or [])
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+    ]
+    registry_accepted_horizons = [
+        int(value)
+        for value in (active_fusion_registry.get("accepted_horizons") or [])
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+    ]
+    fusion_accepted_horizons = (
+        registry_accepted_horizons
+        if runtime_fusion_enabled
+        else scientific_accepted_horizons
+    )
+    all_horizon_accepted = (
+        bool(active_fusion_registry.get("overall_all_horizon_accepted"))
+        if runtime_fusion_enabled
+        else fusion_source.get("overall_all_horizon_accepted")
+    )
     if all_horizon_accepted is None:
         all_horizon_accepted = bool(fusion_horizons) and (
             len(fusion_accepted_horizons) == len(fusion_horizons)
         )
-    runtime_action = fusion_source.get("runtime_action")
+    if runtime_fusion_enabled:
+        # The public diagnostics contract deliberately uses the same concise
+        # runtime wording as the rest of the UI.  The registry still preserves
+        # the operator override and scientific gate state for audit purposes.
+        for horizon_key, raw_result in list(fusion_horizons.items()):
+            if not isinstance(raw_result, dict):
+                continue
+            result = dict(raw_result)
+            horizon_number = int(horizon_key) if str(horizon_key).isdigit() else None
+            result["scientific_accepted"] = bool(result.get("accepted"))
+            result["accepted"] = horizon_number in registry_accepted_horizons
+            result["runtime_enabled"] = horizon_number in registry_accepted_horizons
+            result["runtime_label"] = (
+                "Fusion-supported"
+                if horizon_number in registry_accepted_horizons
+                else "Stock-led fallback"
+            )
+            fusion_horizons[horizon_key] = result
+    runtime_action = "enable_fusion" if runtime_fusion_enabled else fusion_source.get("runtime_action")
     if not runtime_action:
         runtime_action = (
             "enable_fusion" if all_horizon_accepted else "stock_led_fallback"
@@ -444,6 +655,9 @@ def load_model_performance(run_id: str | None = None) -> dict[str, Any]:
         "accepted_horizons": fusion_accepted_horizons,
         "overall_status": fusion_source.get("overall_status"),
         "runtime_action": runtime_action,
+        "runtime_enabled": runtime_fusion_enabled,
+        "scientific_accepted_horizons": scientific_accepted_horizons,
+        "scientific_overall_status": fusion_source.get("overall_status"),
     } if fusion_source else {}
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),

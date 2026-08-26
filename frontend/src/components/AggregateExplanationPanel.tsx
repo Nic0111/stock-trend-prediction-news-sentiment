@@ -6,13 +6,10 @@ import { TutorAnswer, tutorMessageFromResponse } from "./TutorAnswer";
 import { useAppState } from "../state/AppState";
 import type { ChatMessage, DashboardAnalysis } from "../types";
 
-const AGGREGATE_EXPLANATION_PROMPT = [
-  "Explain the current Aggregate Result to a beginner.",
-  "State the displayed trend and probability, explain what the stock trend model contributes,",
-  "explain what the news sentiment contributes, say whether numerical fusion was applied,",
-  "use explicit connected paragraphs beginning with Stock perspective and News perspective,",
-  "then explain how they combine and finish with one important caution about interpreting this result.",
-].join(" ");
+// Keep the user-facing request short. The detailed response contract belongs
+// in the API system instruction; putting it here encourages weaker models to
+// echo the prompt into the explanation panel.
+const AGGREGATE_EXPLANATION_PROMPT = "Explain this StockSense result in plain language using only the displayed stock and news evidence.";
 
 const STARTER_QUESTIONS = [
   "What does this probability mean in plain language?",
@@ -169,7 +166,9 @@ export function AggregateExplanationPanel({ analysis }: { analysis: DashboardAna
           <div>
             <span className="panel-kicker">Evidence walkthrough</span>
             <h3 id="aggregate-explanation-title">Why this result?</h3>
-            <p>Two perspectives—stock trend and news sentiment—explained without changing the calculated result.</p>
+            <p>{aggregateLabel === "Fusion"
+              ? "The stock trend and news sentiment are combined into the displayed probability."
+              : "News is shown alongside the stock trend, even when it is not eligible to change the displayed probability."}</p>
           </div>
         </div>
         <span className="aggregate-explanation-status">LLM explanation · {aggregateLabel}</span>
@@ -194,13 +193,13 @@ export function AggregateExplanationPanel({ analysis }: { analysis: DashboardAna
         {initialMessage && (
           <article className="aggregate-message assistant">
             <div className="aggregate-message-mark"><Sparkles size={15} /><span>StockSense explanation</span></div>
-            <TutorAnswer message={initialMessage} onFollowUp={askFollowUp} />
+            <TutorAnswer message={initialMessage} onFollowUp={askFollowUp} paragraphOnly />
           </article>
         )}
         {visibleMessages.map((message, index) => (
           <article className={`aggregate-message ${message.role}`} key={message.id || `${message.role}-${index}`}>
             <div className="aggregate-message-mark">{message.role === "user" ? "You" : <><Sparkles size={15} /><span>StockSense explanation</span></>}</div>
-            {message.role === "assistant" ? <TutorAnswer message={message} onFollowUp={askFollowUp} /> : <p>{message.content}</p>}
+            {message.role === "assistant" ? <TutorAnswer message={message} onFollowUp={askFollowUp} paragraphOnly /> : <p>{message.content}</p>}
           </article>
         ))}
         {followUpMutation.isPending && <div className="aggregate-thinking"><span className="spinner" /> Checking the same analysis evidence…</div>}

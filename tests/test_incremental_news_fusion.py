@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import joblib
 
 from pipeline.fusion_evaluation_v3 import _metrics
 from pipeline.incremental_news_fusion import IncrementalNewsFusion
@@ -67,6 +68,26 @@ def test_news_present_intercept_is_recorded_without_changing_no_news_rows() -> N
         prediction.probability_up[unavailable],
         frame.loc[unavailable, "stock_probability_up"].to_numpy(),
     )
+
+
+def test_fitted_state_survives_joblib_round_trip(tmp_path) -> None:
+    frame, target = _training_frame()
+    model = IncrementalNewsFusion(
+        ["news_positive_impact", "news_negative_impact"],
+        adjustment_cap=0.25,
+        fit_intercept=False,
+    ).fit(frame, target)
+    expected = model.predict(frame)
+    path = tmp_path / "fusion.joblib"
+    joblib.dump(model, path)
+
+    loaded = joblib.load(path)
+    actual = loaded.predict(frame)
+    np.testing.assert_allclose(actual.probability_up, expected.probability_up)
+    np.testing.assert_allclose(
+        actual.news_adjustment_log_odds, expected.news_adjustment_log_odds
+    )
+    assert loaded.provenance() == model.provenance()
 
 
 def test_metrics_share_one_prediction_and_confusion_matrix() -> None:

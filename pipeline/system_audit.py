@@ -242,8 +242,15 @@ def run_system_audit(level: str = "full", live_providers: bool = False) -> dict[
     runtime_config_path = PROJECT_ROOT / "models" / "sentiment-runtime-config.json"
     try:
         runtime_config = json.loads(runtime_config_path.read_text(encoding="utf-8"))
-        configured_hashes = runtime_config.get("artifact_hashes", {})
-        runtime_hashes_ok = sentiment_integrity()["ok"]
+        runtime_report = sentiment_integrity()
+        runtime_hashes_ok = bool(runtime_report.get("ok"))
+        configured_hashes = {
+            "variant": runtime_report.get("variant"),
+            "backend": runtime_report.get("backend"),
+            "weights": runtime_report.get("weights", {}),
+            "signature": runtime_report.get("signature", {}),
+            "errors": runtime_report.get("errors", []),
+        }
     except (OSError, ValueError, TypeError):
         runtime_hashes_ok = False
         configured_hashes = {}

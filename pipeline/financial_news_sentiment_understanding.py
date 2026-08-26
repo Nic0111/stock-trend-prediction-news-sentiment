@@ -20,6 +20,9 @@ PREPROCESSED_SENTIMENT_DATASET_FILE = (
 
 SUMMARY_DIR = PROJECT_ROOT / "summary"
 DATA_UNDERSTANDING_SUMMARY_DIR = SUMMARY_DIR / "data-understanding"
+EDA_CHARTS_DIR = DATA_UNDERSTANDING_SUMMARY_DIR / "financial-news-sentiment-eda-charts"
+
+SENTIMENT_ORDER = ["negative", "neutral", "positive"]
 
 SENTIMENT_MEANINGS = {
     "Sentiment": "Target sentiment label assigned to the financial news sentence.",
@@ -35,6 +38,7 @@ SENTIMENT_MEANINGS = {
 # ============================================================
 def ensure_summary_structure() -> None:
     DATA_UNDERSTANDING_SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
+    EDA_CHARTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def format_number(value: Any) -> str:
@@ -78,6 +82,18 @@ def write_markdown(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def get_matplotlib_pyplot():
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError as exc:
+        raise RuntimeError(
+            "matplotlib is required to generate financial-news EDA charts."
+        ) from exc
+    return plt
+
+
 def load_preprocessed_sentiment_dataset() -> pd.DataFrame:
     if not PREPROCESSED_SENTIMENT_DATASET_FILE.exists():
         raise FileNotFoundError(
@@ -110,7 +126,7 @@ def describe_numeric_series(series: pd.Series) -> List[List[Any]]:
 
 
 # ============================================================
-# 3.4.4.1 Variables
+# 4.4.4.1 Variables
 # ============================================================
 def write_variables_summary(df: pd.DataFrame) -> None:
     rows: List[List[Any]] = []
@@ -133,7 +149,7 @@ def write_variables_summary(df: pd.DataFrame) -> None:
             max_value,
         ])
 
-    content = f"""# 3.4.4.1 Financial News Sentiment Variables Summary
+    content = f"""# 4.4.4.1 Financial PhraseBank Variables Summary
 
 ## Purpose
 This section documents the variables available in the preprocessed financial news sentiment dataset.
@@ -159,7 +175,7 @@ This section documents the variables available in the preprocessed financial new
 
 
 # ============================================================
-# 3.4.4.2 Observations
+# 4.4.4.2 Observations
 # ============================================================
 def write_observations_summary(df: pd.DataFrame) -> None:
     rows = [
@@ -170,7 +186,7 @@ def write_observations_summary(df: pd.DataFrame) -> None:
         ["Missing values", int(df.isna().sum().sum())],
     ]
 
-    content = f"""# 3.4.4.2 Financial News Sentiment Observations Summary
+    content = f"""# 4.4.4.2 Financial PhraseBank Observations Summary
 
 ## Purpose
 This section documents the observation coverage and basic record quality of the preprocessed financial news sentiment dataset.
@@ -185,7 +201,7 @@ This section documents the observation coverage and basic record quality of the 
 
 
 # ============================================================
-# 3.4.4.3 Sentiment Class Distribution
+# 4.4.4.3 Sentiment Class Distribution
 # ============================================================
 def write_class_distribution_summary(df: pd.DataFrame) -> None:
     distribution = df["Sentiment"].value_counts().reindex(["neutral", "positive", "negative"], fill_value=0)
@@ -195,7 +211,7 @@ def write_class_distribution_summary(df: pd.DataFrame) -> None:
         for label, count in distribution.items()
     ]
 
-    content = f"""# 3.4.4.3 Financial News Sentiment Class Distribution Summary
+    content = f"""# 4.4.4.3 Financial PhraseBank Sentiment-Class Distribution Summary
 
 ## Purpose
 This section describes the distribution of sentiment labels in the preprocessed financial news sentiment dataset.
@@ -213,13 +229,13 @@ The class distribution helps identify whether the dataset is balanced. A large n
 
 
 # ============================================================
-# 3.4.4.4 Sentence Length Distribution
+# 4.4.4.4 Sentence Length Distribution
 # ============================================================
 def write_sentence_length_summary(df: pd.DataFrame) -> None:
     character_rows = describe_numeric_series(df["Character_Count"])
     word_rows = describe_numeric_series(df["Word_Count"])
 
-    content = f"""# 3.4.4.4 Financial News Sentiment Sentence Length Summary
+    content = f"""# 4.4.4.4 Financial PhraseBank Sentence-Length Summary
 
 ## Purpose
 This section describes the sentence length distribution of the financial news sentiment dataset.
@@ -240,7 +256,7 @@ Sentence length helps determine whether the text records are suitable for common
 
 
 # ============================================================
-# 3.4.4.5 Overall Sentiment Dataset Insights
+# 4.4.4.5 Overall Sentiment Dataset Insights
 # ============================================================
 def write_dataset_insights_summary(df: pd.DataFrame) -> None:
     total_rows = len(df)
@@ -250,7 +266,7 @@ def write_dataset_insights_summary(df: pd.DataFrame) -> None:
     minority_label = str(class_distribution.idxmin()) if not class_distribution.empty else "N/A"
     median_words = float(df["Word_Count"].median()) if not df.empty else 0.0
 
-    content = f"""# 3.4.4.5 Financial News Sentiment Dataset Insights Summary
+    content = f"""# 4.4.4.5 Financial PhraseBank Dataset Insights Summary
 
 ## Purpose
 This section summarizes the quality and modelling implications of the preprocessed financial news sentiment dataset.
@@ -277,6 +293,153 @@ This section summarizes the quality and modelling implications of the preprocess
     )
 
 
+# ============================================================
+# 4.4.4.6 Financial PhraseBank Exploratory Data Analysis
+# ============================================================
+def save_sentiment_class_distribution_chart(df: pd.DataFrame) -> Path:
+    plt = get_matplotlib_pyplot()
+    chart_path = EDA_CHARTS_DIR / "sentiment-class-distribution.png"
+    distribution = (
+        df["Sentiment"]
+        .fillna("missing")
+        .value_counts()
+        .reindex(SENTIMENT_ORDER + ["missing"], fill_value=0)
+    )
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+    colors = ["#b45f5f", "#7f8c8d", "#376c5a", "#d9a441"]
+    bars = ax.bar(distribution.index, distribution.values, color=colors)
+    ax.set_title("Financial PhraseBank Sentiment-Class Distribution")
+    ax.set_xlabel("Sentiment Class")
+    ax.set_ylabel("Number Of Records")
+    ax.grid(True, axis="y", alpha=0.3)
+    for bar, value in zip(bars, distribution.values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height(),
+            f"{int(value):,}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+    fig.tight_layout()
+    fig.savefig(chart_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+    return chart_path
+
+
+def save_sentence_length_distribution_chart(df: pd.DataFrame) -> Path:
+    plt = get_matplotlib_pyplot()
+    chart_path = EDA_CHARTS_DIR / "sentence-word-count-distribution.png"
+    word_counts = pd.to_numeric(df["Word_Count"], errors="coerce").dropna()
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.hist(word_counts, bins=30, color="#2f6f9f", edgecolor="white", alpha=0.85)
+    ax.axvline(word_counts.median(), color="#b45f5f", linewidth=1.5, linestyle="--")
+    ax.set_title("Financial PhraseBank Sentence-Length Distribution")
+    ax.set_xlabel("Word Count")
+    ax.set_ylabel("Number Of Records")
+    ax.grid(True, axis="y", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(chart_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+    return chart_path
+
+
+def save_sentence_length_by_sentiment_chart(df: pd.DataFrame) -> Path:
+    plt = get_matplotlib_pyplot()
+    chart_path = EDA_CHARTS_DIR / "sentence-word-count-by-sentiment.png"
+    grouped_values = []
+    labels = []
+    for label in SENTIMENT_ORDER:
+        values = pd.to_numeric(
+            df.loc[df["Sentiment"] == label, "Word_Count"],
+            errors="coerce",
+        ).dropna()
+        if not values.empty:
+            labels.append(label)
+            grouped_values.append(values)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.boxplot(grouped_values, tick_labels=labels, patch_artist=True)
+    ax.set_title("Sentence-Length Distribution By Sentiment Class")
+    ax.set_xlabel("Sentiment Class")
+    ax.set_ylabel("Word Count")
+    ax.grid(True, axis="y", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(chart_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+    return chart_path
+
+
+def write_financial_news_eda_summary(df: pd.DataFrame) -> None:
+    charts = [
+        (
+            "Financial PhraseBank Sentiment-Class Distribution",
+            save_sentiment_class_distribution_chart(df),
+            "Shows the number and relative balance of positive, neutral, and negative records.",
+        ),
+        (
+            "Financial PhraseBank Sentence-Length Distribution",
+            save_sentence_length_distribution_chart(df),
+            "Shows the distribution of sentence word counts and the central text length of the dataset.",
+        ),
+        (
+            "Sentence-Length Distribution By Sentiment Class",
+            save_sentence_length_by_sentiment_chart(df),
+            "Compares sentence length across the three sentiment classes.",
+        ),
+    ]
+
+    chart_sections = []
+    for title, chart_path, description in charts:
+        relative_path = chart_path.relative_to(DATA_UNDERSTANDING_SUMMARY_DIR).as_posix()
+        chart_sections.append(
+            f"### {title}\n![{title}]({relative_path})\n\n{description}"
+        )
+
+    distribution = (
+        df["Sentiment"]
+        .fillna("missing")
+        .value_counts()
+        .reindex(SENTIMENT_ORDER + ["missing"], fill_value=0)
+    )
+    distribution_rows = [
+        [label, int(count), (int(count) / len(df) * 100) if len(df) else 0.0]
+        for label, count in distribution.items()
+    ]
+
+    word_counts = pd.to_numeric(df["Word_Count"], errors="coerce").dropna()
+    length_rows = [
+        ["Mean Word Count", word_counts.mean() if not word_counts.empty else "N/A"],
+        ["Median Word Count", word_counts.median() if not word_counts.empty else "N/A"],
+        ["Minimum Word Count", word_counts.min() if not word_counts.empty else "N/A"],
+        ["Maximum Word Count", word_counts.max() if not word_counts.empty else "N/A"],
+    ]
+
+    content = f"""# 4.4.4.6 Financial PhraseBank Exploratory Data Analysis Summary
+
+## Purpose
+This section describes the sentiment composition and text-length characteristics of the preprocessed Financial PhraseBank dataset.
+
+## Sentiment-Class Distribution
+{markdown_table(["Sentiment", "Count", "Percentage"], distribution_rows)}
+
+## Sentence-Length Summary
+{markdown_table(["Metric", "Value"], length_rows)}
+
+## Exploratory Data Analysis Charts
+{chr(10).join(chart_sections)}
+
+## Interpretation
+The sentiment-class distribution shows the relative representation of positive, neutral, and negative financial-news sentences. The sentence-length analysis describes the amount of textual information available to the sentiment classifier and indicates whether records contain extremely short or unusually long sentences. These characteristics are relevant when selecting text-vectorisation and classification procedures.
+"""
+    write_markdown(
+        DATA_UNDERSTANDING_SUMMARY_DIR / "financial-news-sentiment-eda-summary.md",
+        content,
+    )
+
+
 def run_financial_news_sentiment_understanding_pipeline() -> None:
     ensure_summary_structure()
     df = load_preprocessed_sentiment_dataset()
@@ -286,6 +449,7 @@ def run_financial_news_sentiment_understanding_pipeline() -> None:
     write_class_distribution_summary(df)
     write_sentence_length_summary(df)
     write_dataset_insights_summary(df)
+    write_financial_news_eda_summary(df)
 
     print("[Financial news sentiment understanding finished]")
     print(f"Rows analyzed: {len(df):,}")

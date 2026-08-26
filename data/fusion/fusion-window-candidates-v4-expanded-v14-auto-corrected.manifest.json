@@ -1,0 +1,35 @@
+{
+  "schema_version": "fusion-v4-targeted-extension-v1",
+  "base_dataset": "data\\fusion\\fusion-window-candidates-v4-expanded-v13-auto-rescored.parquet",
+  "target_extension": "data\\fusion\\fusion-window-candidates-v4-expanded-v14-auto-corrected-1295-only.parquet",
+  "output_path": "data\\fusion\\fusion-window-candidates-v4-expanded-v14-auto-corrected.parquet",
+  "rows": 357699,
+  "horizons": [
+    1,
+    5,
+    10
+  ],
+  "target_ticker": "1295.KL",
+  "target_rows": 35730,
+  "base_rows_preserved_for_other_tickers": true,
+  "manual_labels_used": false,
+  "article_corpus_root": "data/historical-news-fusion/normalized-production-v3-official-prepared-expanded-v14-auto-corrected",
+  "shards": [
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v4-expanded-v14-auto-corrected-1d.parquet",
+      "rows": 119553,
+      "sha256": "91678be8061a690f2c4b2dffa15c9d3f8f38693ea48f5d9b280c2262a25a080a"
+    },
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v4-expanded-v14-auto-corrected-5d.parquet",
+      "rows": 102234,
+      "sha256": "69551dec26c6052be3a443ec6344a48208049ffcd9af9ee56f723cfb1b9d484e"
+    },
+    {
+      "path": "data\\fusion\\fusion-window-candidates-v4-expanded-v14-auto-corrected-10d.parquet",
+      "rows": 135912,
+      "sha256": "eb1af452f1c79ef7c233151916aa71f85bf29488a40106ce3ab386a46e83298a"
+    }
+  ],
+  "sha256": "4bf9763d21edaea437f580601c2bfd3829bc3aab36c8a02b13665bcde849cd7c"
+}

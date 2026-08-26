@@ -15,10 +15,16 @@ DATA_DIR = PROJECT_ROOT / "data"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed-stock-dataset"
 MODEL_INPUT_DATA_DIR = DATA_DIR / "model-input-stock-dataset"
 MODEL_INPUT_SUMMARY_FILE = DATA_DIR / "model-input-summary.csv"
+MARKET_CONTEXT_DATA_FILE = (
+    DATA_DIR
+    / "raw-market-context-dataset"
+    / "ftse-bursa-malaysia-klci-raw.csv"
+)
 
 SUMMARY_DIR = PROJECT_ROOT / "summary"
 DATA_UNDERSTANDING_SUMMARY_DIR = SUMMARY_DIR / "data-understanding"
 EDA_CHARTS_DIR = DATA_UNDERSTANDING_SUMMARY_DIR / "eda-charts"
+MARKET_CONTEXT_EDA_CHARTS_DIR = EDA_CHARTS_DIR / "klci"
 
 COLUMN_MEANINGS = {
     "Date": "Trading date for the daily stock record.",
@@ -44,6 +50,17 @@ NUMERIC_COLUMNS = [
     "Stock Splits",
 ]
 
+MARKET_CONTEXT_NUMERIC_COLUMNS = [
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Adj Close",
+    "Volume",
+    "Dividends",
+    "Stock Splits",
+]
+
 
 # ============================================================
 # Helpers
@@ -51,6 +68,7 @@ NUMERIC_COLUMNS = [
 def ensure_summary_structure() -> None:
     DATA_UNDERSTANDING_SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
     EDA_CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    MARKET_CONTEXT_EDA_CHARTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_preprocessed_csv_files() -> List[Path]:
@@ -138,7 +156,7 @@ def load_stock_files(files: List[Path]) -> pd.DataFrame:
 
 
 # ============================================================
-# 3.4.2.1 Variables
+# 4.4.2.1 Variables
 # ============================================================
 def write_variables_summary(df: pd.DataFrame) -> None:
     rows: List[List[Any]] = []
@@ -166,7 +184,7 @@ def write_variables_summary(df: pd.DataFrame) -> None:
             max_value,
         ])
 
-    content = f"""# 3.4.2.1 Variables Summary
+    content = f"""# 4.4.2.1 Historical Stock-Market Variables Summary
 
 ## Purpose
 This section documents the variables available in the preprocessed stock dataset and describes their basic data characteristics.
@@ -189,7 +207,7 @@ This section documents the variables available in the preprocessed stock dataset
 
 
 # ============================================================
-# 3.4.2.2 Observations
+# 4.4.2.2 Observations
 # ============================================================
 def write_observations_summary(df: pd.DataFrame) -> None:
     rows: List[List[Any]] = []
@@ -222,7 +240,7 @@ def write_observations_summary(df: pd.DataFrame) -> None:
             coverage_rate,
         ])
 
-    content = f"""# 3.4.2.2 Observations Summary
+    content = f"""# 4.4.2.2 Historical Stock-Market Observations Summary
 
 ## Purpose
 This section documents the observation coverage of the preprocessed dataset by stock ticker.
@@ -248,7 +266,7 @@ Trading-day coverage is compared against weekday business days only. Public holi
 
 
 # ============================================================
-# 3.4.2.3 Exploratory Data Analysis
+# 4.4.2.3 Exploratory Data Analysis
 # ============================================================
 def build_descriptive_rows(df: pd.DataFrame) -> List[List[Any]]:
     rows: List[List[Any]] = []
@@ -579,7 +597,7 @@ def save_daily_return_boxplot_by_ticker_chart(df: pd.DataFrame) -> Path:
     fig, ax = plt.subplots(figsize=(12, 7))
     ax.boxplot(
         grouped_returns,
-        labels=tickers,
+        tick_labels=tickers,
         patch_artist=True,
         boxprops={"facecolor": "#6f8fb7", "alpha": 0.75},
         medianprops={"color": "#222222", "linewidth": 1.2},
@@ -738,7 +756,7 @@ def write_eda_summary(df: pd.DataFrame) -> None:
             count = int(valid_dates.between(pd.Timestamp(start), pd.Timestamp(end)).sum())
             split_rows.append([label, start, end, count, purpose])
 
-    content = f"""# 3.4.2.3 Exploratory Data Analysis (EDA) Summary
+    content = f"""# 4.4.2.3 Historical Stock-Market Exploratory Data Analysis Summary
 
 ## Purpose
 This section summarizes the numerical behavior of the preprocessed stock dataset.
@@ -804,7 +822,7 @@ The following charts are generated from the preprocessed dataset and saved under
 
 
 # ============================================================
-# 3.4.2.4 Dataset Insights
+# 4.4.2.4 Dataset Insights
 # ============================================================
 def write_dataset_insights_summary(df: pd.DataFrame) -> None:
     row_count = len(df)
@@ -818,7 +836,7 @@ def write_dataset_insights_summary(df: pd.DataFrame) -> None:
         model_input_rows = int(model_input_summary_df["final_rows"].sum())
         model_input_files = int(model_input_summary_df["file_name"].nunique())
         model_input_note = (
-            f"The model input-ready dataset currently contains {model_input_rows:,} "
+            f"The model input-ready dataset contains {model_input_rows:,} "
             f"rows across {model_input_files} files according to "
             "`data/model-input-summary.csv`."
         )
@@ -851,7 +869,7 @@ def write_dataset_insights_summary(df: pd.DataFrame) -> None:
             "in the preprocessed dataset."
         )
 
-    content = f"""# 3.4.2.4 Dataset Insights Summary
+    content = f"""# 4.4.2.4 Historical Stock-Market Dataset Insights Summary
 
 ## Purpose
 This section interprets the preprocessed dataset quality and explains the modeling implications of the observed data.
@@ -878,6 +896,221 @@ This section interprets the preprocessed dataset quality and explains the modeli
 
 
 # ============================================================
+# 4.4.3 FTSE Bursa Malaysia KLCI Data Understanding
+# ============================================================
+def load_market_context_file() -> pd.DataFrame:
+    if not MARKET_CONTEXT_DATA_FILE.exists():
+        raise FileNotFoundError(
+            f"Market-context dataset was not found: {MARKET_CONTEXT_DATA_FILE}"
+        )
+
+    df = pd.read_csv(MARKET_CONTEXT_DATA_FILE)
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    for column in MARKET_CONTEXT_NUMERIC_COLUMNS:
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+
+    df = (
+        df.dropna(subset=["Date", "Adj Close"])
+        .sort_values("Date")
+        .drop_duplicates(subset=["Date"], keep="last")
+        .reset_index(drop=True)
+    )
+    return df
+
+
+def build_market_context_descriptive_rows(df: pd.DataFrame) -> List[List[Any]]:
+    rows: List[List[Any]] = []
+    for column in MARKET_CONTEXT_NUMERIC_COLUMNS:
+        if column not in df.columns:
+            continue
+        series = pd.to_numeric(df[column], errors="coerce")
+        rows.append([
+            column,
+            int(series.count()),
+            series.mean(),
+            series.std(),
+            series.min(),
+            series.quantile(0.25),
+            series.median(),
+            series.quantile(0.75),
+            series.max(),
+        ])
+    return rows
+
+
+def prepare_market_context_eda_data(df: pd.DataFrame) -> pd.DataFrame:
+    eda_df = df.sort_values("Date").copy()
+    eda_df["Daily_Return"] = eda_df["Adj Close"].pct_change()
+    eda_df["Rolling_Volatility_20D"] = eda_df["Daily_Return"].rolling(20).std()
+    eda_df["Year"] = eda_df["Date"].dt.year
+    return eda_df
+
+
+def save_klci_adjusted_close_trend_chart(df: pd.DataFrame) -> Path:
+    plt, _ = get_matplotlib_pyplot()
+    chart_path = MARKET_CONTEXT_EDA_CHARTS_DIR / "klci-adjusted-close-trend.png"
+
+    fig, ax = plt.subplots(figsize=(13, 7))
+    ax.plot(df["Date"], df["Adj Close"], color="#2f6f9f", linewidth=1.4)
+    ax.set_title("FTSE Bursa Malaysia KLCI Adjusted Closing Price Trend")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Adjusted Close Value")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(chart_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+    return chart_path
+
+
+def save_klci_daily_return_distribution_chart(df: pd.DataFrame) -> Path:
+    plt, FuncFormatter = get_matplotlib_pyplot()
+    chart_path = MARKET_CONTEXT_EDA_CHARTS_DIR / "klci-daily-return-distribution.png"
+    returns = df["Daily_Return"].dropna()
+
+    fig, ax = plt.subplots(figsize=(11, 7))
+    ax.hist(returns, bins=70, color="#376c5a", edgecolor="white", alpha=0.85)
+    ax.set_title("FTSE Bursa Malaysia KLCI Daily Return Distribution")
+    ax.set_xlabel("Daily Return")
+    ax.set_ylabel("Frequency")
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value * 100:.0f}%"))
+    ax.grid(True, axis="y", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(chart_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+    return chart_path
+
+
+def save_klci_rolling_volatility_chart(df: pd.DataFrame) -> Path:
+    plt, FuncFormatter = get_matplotlib_pyplot()
+    chart_path = MARKET_CONTEXT_EDA_CHARTS_DIR / "klci-rolling-volatility-20d.png"
+
+    fig, ax = plt.subplots(figsize=(13, 7))
+    ax.plot(
+        df["Date"],
+        df["Rolling_Volatility_20D"],
+        color="#b45f5f",
+        linewidth=1.3,
+    )
+    ax.set_title("FTSE Bursa Malaysia KLCI 20-Day Rolling Volatility")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("20-Day Rolling Volatility")
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value * 100:.0f}%"))
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(chart_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+    return chart_path
+
+
+def save_klci_monthly_volume_chart(df: pd.DataFrame) -> Path:
+    plt, FuncFormatter = get_matplotlib_pyplot()
+    chart_path = MARKET_CONTEXT_EDA_CHARTS_DIR / "klci-monthly-volume-trend.png"
+    monthly_volume = df.set_index("Date")["Volume"].resample("ME").mean()
+
+    fig, ax = plt.subplots(figsize=(13, 7))
+    ax.plot(monthly_volume.index, monthly_volume.values, color="#805ad5", linewidth=1.4)
+    ax.set_title("FTSE Bursa Malaysia KLCI Monthly Average Trading Volume")
+    ax.set_xlabel("Month")
+    ax.set_ylabel("Average Volume")
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value / 1_000_000:.0f}M"))
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(chart_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+    return chart_path
+
+
+def generate_market_context_eda_charts(df: pd.DataFrame) -> List[Dict[str, str]]:
+    chart_df = prepare_market_context_eda_data(df)
+    chart_specs = [
+        {
+            "title": "FTSE Bursa Malaysia KLCI Adjusted Closing Price Trend",
+            "path": save_klci_adjusted_close_trend_chart(chart_df),
+            "description": "Shows the long-term movement of the KLCI adjusted closing value across the observed period.",
+        },
+        {
+            "title": "FTSE Bursa Malaysia KLCI Daily Return Distribution",
+            "path": save_klci_daily_return_distribution_chart(chart_df),
+            "description": "Shows the distribution of daily KLCI returns after the adjusted closing price was converted into percentage changes.",
+        },
+        {
+            "title": "FTSE Bursa Malaysia KLCI 20-Day Rolling Volatility",
+            "path": save_klci_rolling_volatility_chart(chart_df),
+            "description": "Shows how short-term KLCI return volatility changed through the observation period.",
+        },
+        {
+            "title": "FTSE Bursa Malaysia KLCI Monthly Average Trading Volume",
+            "path": save_klci_monthly_volume_chart(chart_df),
+            "description": "Shows monthly average KLCI trading volume while reducing daily-volume variation.",
+        },
+    ]
+
+    return [
+        {
+            "title": chart["title"],
+            "relative_path": chart["path"].relative_to(DATA_UNDERSTANDING_SUMMARY_DIR).as_posix(),
+            "description": chart["description"],
+        }
+        for chart in chart_specs
+    ]
+
+
+def write_market_context_eda_summary(df: pd.DataFrame) -> None:
+    eda_df = prepare_market_context_eda_data(df)
+    valid_dates = eda_df["Date"].dropna()
+    returns = eda_df["Daily_Return"].dropna()
+    charts = generate_market_context_eda_charts(eda_df)
+
+    observation_rows = [
+        ["Total observations", len(eda_df)],
+        ["First date", valid_dates.min().date() if not valid_dates.empty else "N/A"],
+        ["Last date", valid_dates.max().date() if not valid_dates.empty else "N/A"],
+        ["Duplicate dates", int(eda_df.duplicated(subset=["Date"]).sum())],
+        ["Warm-up values introduced by derived series", int(eda_df.isna().sum().sum())],
+    ]
+    return_rows = [
+        ["Return observations", int(returns.count())],
+        ["Mean daily return", returns.mean() if not returns.empty else "N/A"],
+        ["Daily return standard deviation", returns.std() if not returns.empty else "N/A"],
+        ["Minimum daily return", returns.min() if not returns.empty else "N/A"],
+        ["Maximum daily return", returns.max() if not returns.empty else "N/A"],
+    ]
+
+    content = f"""# 4.4.3 FTSE Bursa Malaysia KLCI Data Understanding
+
+## Purpose
+This section describes the structure, observation coverage, numerical characteristics, and exploratory patterns of the FTSE Bursa Malaysia KLCI market-context dataset.
+
+## Observation Summary
+{markdown_table(["Metric", "Value"], observation_rows)}
+
+    The KLCI dataset contains daily market-context observations from the same 2015–2025 period used for the individual stock datasets. The adjusted closing value was used to derive daily returns and twenty-day rolling volatility for exploratory analysis. The initial missing values in these derived series represent the warm-up period required before the corresponding return and rolling-volatility calculations become available.
+
+## Daily Return Summary
+{markdown_table(["Metric", "Value"], return_rows)}
+
+## Exploratory Data Analysis Charts
+The following charts were generated from the KLCI market-context dataset.
+
+{build_chart_markdown(charts)}
+
+## Descriptive Statistics
+{markdown_table(
+        ["Column", "Count", "Mean", "Std", "Min", "Q1", "Median", "Q3", "Max"],
+        build_market_context_descriptive_rows(eda_df),
+    )}
+
+## Interpretation
+The KLCI market-context dataset provides a reference for distinguishing stock-specific movement from broader Malaysian market movement. Its daily-return and rolling-volatility patterns are used to describe market conditions and support the interpretation of market-context, excess-return, and regime-related features.
+"""
+    write_markdown(
+        DATA_UNDERSTANDING_SUMMARY_DIR / "klci-eda-summary.md",
+        content,
+    )
+
+
+# ============================================================
 # Main pipeline
 # ============================================================
 def run_data_understanding_pipeline() -> None:
@@ -891,11 +1124,13 @@ def run_data_understanding_pipeline() -> None:
     print("[Starting data understanding summary pipeline]\n")
 
     df = load_stock_files(preprocessed_files)
+    market_context_df = load_market_context_file()
 
     write_variables_summary(df)
     write_observations_summary(df)
     write_eda_summary(df)
     write_dataset_insights_summary(df)
+    write_market_context_eda_summary(market_context_df)
 
     print(f"Data understanding summaries saved to: {DATA_UNDERSTANDING_SUMMARY_DIR}")
     print("\n[Data understanding summary pipeline finished]")

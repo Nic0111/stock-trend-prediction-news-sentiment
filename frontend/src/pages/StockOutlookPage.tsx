@@ -63,9 +63,12 @@ export function StockOutlookPage() {
     </section>
     {analysisMutation.isError && <ErrorState message={analysisMutation.error.message} />}
     {matchingAnalysis && <section className="synthesis-branch">
-      <CombinedOutlookCard analysis={matchingAnalysis}>
-        <AggregateExplanationPanel analysis={matchingAnalysis} />
-      </CombinedOutlookCard>
+      <div className="synthesis-parent">
+        <div className="synthesis-parent-label">Fusion</div>
+        <CombinedOutlookCard analysis={matchingAnalysis}>
+          <AggregateExplanationPanel analysis={matchingAnalysis} />
+        </CombinedOutlookCard>
+      </div>
       <div className="synthesis-connectors" aria-hidden="true">
         <span className="connector-stem" />
         <span className="connector-junction" />

@@ -1,0 +1,786 @@
+{
+  "schema_version": "fusion-v4-readiness-preflight-v1",
+  "created_at": "2026-08-25T05:53:35+00:00",
+  "claim_scope": "Retrospective evidence, 2019-2025",
+  "policy_sha256": "ba58ca37089a3f8728b66a63c185d29b26f033b77f377c9c0c94b88571bead91",
+  "dataset_sha256": "7d5369435653b2c89260a4a9fc5d69db5f1f6b8cff0a05e9c1bf69b1573af3bd",
+  "provenance": {
+    "dataset_sha256": "7d5369435653b2c89260a4a9fc5d69db5f1f6b8cff0a05e9c1bf69b1573af3bd",
+    "policy_sha256": "ba58ca37089a3f8728b66a63c185d29b26f033b77f377c9c0c94b88571bead91",
+    "active_stock_run_id": "20260813T221736188487",
+    "stock_dataset_sha256": "838558e8092340a152c135965d0d149a6e20ad8cb056c182598fdd9dda56901f",
+    "scientific_stock_oof_run_ids": [
+      "scientific-oof-25d0e43cc50f-838558e80923"
+    ],
+    "stock_feature_schema_sha256": [
+      "b2f8ed2354d6da3cd08f0e2ed580ec007301ba8e20bf77b7799bedc686fdc782",
+      "efb9746ca4ba6e1c5346718dc67b8a8d6d39eced322348089fb61af66dddbaf1"
+    ],
+    "sentiment_variant": "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1",
+    "sentiment_config_sha256": "717c465cea2da1158cde3b5c8cf2a6e660285bec09f86b87f5b45f502acfd913",
+    "checks": {
+      "feature_schema_v4": true,
+      "scientific_nested_oof": true,
+      "stock_run_recorded": true,
+      "stock_feature_schema_recorded": true,
+      "stock_dataset_matches_active": true,
+      "sentiment_variant_matches_active": true,
+      "sentiment_config_matches_active": true,
+      "article_level_sentiment_identity_verified": true,
+      "article_corpus_hash_recorded": true,
+      "aggregation_policy_hash_recorded": true
+    },
+    "strict_identity_passed": true
+  },
+  "event_impact_provenance": {
+    "1:(0, 0.25)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 4377,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "1:(1, 0.25)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 4313,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "1:(1, 0.5)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 4313,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "1:(3, 0.75)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 5324,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "1:(3, 1.5)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 5324,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "1:(5, 1.25)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 5956,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "1:(5, 2.5)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 5956,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "5:(3, 0.75)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 5309,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "5:(3, 1.5)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 5309,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "5:(7, 1.75)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 6452,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "5:(7, 3.5)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 6452,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "5:(14, 3.5)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 7575,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "5:(14, 7.0)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 7575,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "10:(7, 1.75)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 6431,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "10:(7, 3.5)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 6431,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "10:(14, 3.5)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 7547,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "10:(14, 7.0)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 7547,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "10:(21, 5.25)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 8280,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "10:(21, 10.5)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 8280,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "10:(30, 7.5)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 8956,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    },
+    "10:(30, 15.0)": {
+      "module": "TargetSpecificEventImpact",
+      "feature_names": [
+        "v4_positive_impact",
+        "v4_negative_impact",
+        "v4_sentiment_surprise",
+        "v4_log_event_count",
+        "v4_attention_surprise",
+        "v4_event_reliability",
+        "v4_official_share",
+        "v4_source_diversity"
+      ],
+      "C": 0.5,
+      "training_rows": 8956,
+      "ready": true,
+      "target": "subsequent target_up within the selected horizon",
+      "fit_scope": "earlier target-complete development rows only"
+    }
+  },
+  "horizons": {
+    "1": {
+      "selected_window_days": 5.0,
+      "selected_half_life_days": 1.25,
+      "selected_configuration": {
+        "family": "ridge",
+        "penalty_strength": 10.0,
+        "l1_ratio": 0.0,
+        "adjustment_cap": 0.1,
+        "development_brier_improvement": -4.109076948766166e-05,
+        "development_brier": 0.24579155647798726,
+        "fold_brier_improvements": [
+          7.54565024937981e-05,
+          -0.0003042735265500751,
+          -1.9753914562048447e-05,
+          2.4425019003460058e-06,
+          4.084385674621438e-05
+        ],
+        "development_improvement_standard_error": 6.779089708911595e-05,
+        "validation_rows": 10134,
+        "news_present_validation_rows": 4922,
+        "selection_rule": "purged-development-one-standard-error-ridge-preference",
+        "best_development_brier_improvement": -4.0112174854112226e-05
+      },
+      "development_rows": 12172,
+      "calibration_rows": 2457,
+      "benchmark_rows": 2430,
+      "window_trial_count": 7,
+      "readiness": {
+        "checks": {
+          "minimum_news_present_benchmark_rows": true,
+          "minimum_news_present_per_company_horizon": true,
+          "minimum_unique_material_events_per_company": false,
+          "development_power": true,
+          "minimum_event_impact_training_rows": true,
+          "minimum_blind_audit_rows": true,
+          "minimum_automated_audit_rows": true,
+          "strict_artifact_identity": true
+        },
+        "passed": false,
+        "news_present_benchmark_rows": 1478,
+        "news_present_by_company": {
+          "1023.KL": 103,
+          "1155.KL": 243,
+          "1295.KL": 32,
+          "3816.KL": 240,
+          "4677.KL": 69,
+          "5183.KL": 94,
+          "5225.KL": 243,
+          "5347.KL": 63,
+          "6947.KL": 166,
+          "8869.KL": 225
+        },
+        "unique_material_events_by_company": {
+          "1023.KL": 180,
+          "1155.KL": 2345,
+          "1295.KL": 51,
+          "3816.KL": 947,
+          "4677.KL": 109,
+          "5183.KL": 179,
+          "5225.KL": 870,
+          "5347.KL": 106,
+          "6947.KL": 719,
+          "8869.KL": 541
+        },
+        "requirements": {
+          "news_present_benchmark_rows": 300,
+          "news_present_per_company_horizon": 20,
+          "unique_material_events_per_company": 100,
+          "minimum_power": 0.8,
+          "event_impact_training_rows": 100,
+          "blind_audit_rows": 0,
+          "automated_audit_rows": 200,
+          "strict_artifact_identity": true
+        },
+        "evidence_gaps": {
+          "news_present_benchmark_rows": 0,
+          "news_present_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 0,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          },
+          "unique_material_events_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 49,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          },
+          "event_impact_training_rows": 0,
+          "blind_audit_rows": 0,
+          "automated_audit_rows": 0,
+          "strict_artifact_identity": 0
+        },
+        "power_analysis": {
+          "power": 1.0,
+          "rows": 4922,
+          "minimum_effect": 0.0025,
+          "standard_error": 9.180609503746953e-05,
+          "estimated_rows_for_80_percent_power": 53
+        },
+        "event_impact_training_rows": 5956,
+        "blind_audit_rows": 0,
+        "blind_audit_column": null,
+        "automated_audit_rows": 8822,
+        "automated_audit_column": "v4_automated_audit_passed",
+        "audit_mode": "automated_structured_provenance",
+        "manual_review_required": false,
+        "strict_artifact_identity": true
+      }
+    },
+    "5": {
+      "selected_window_days": 7.0,
+      "selected_half_life_days": 3.5,
+      "selected_configuration": {
+        "family": "ridge",
+        "penalty_strength": 10.0,
+        "l1_ratio": 0.0,
+        "adjustment_cap": 0.1,
+        "development_brier_improvement": -0.00011114459049141323,
+        "development_brier": 0.24981980544327972,
+        "fold_brier_improvements": [
+          0.0016977461073162947,
+          0.0002664396622011067,
+          -0.0011742122501122998,
+          -0.0003883732320209554,
+          -0.0009523931381160144
+        ],
+        "development_improvement_standard_error": 0.0005162033635502905,
+        "validation_rows": 10104,
+        "news_present_validation_rows": 5336,
+        "selection_rule": "purged-development-one-standard-error-ridge-preference",
+        "best_development_brier_improvement": -5.705557862531463e-05
+      },
+      "development_rows": 12132,
+      "calibration_rows": 2417,
+      "benchmark_rows": 2390,
+      "window_trial_count": 6,
+      "readiness": {
+        "checks": {
+          "minimum_news_present_benchmark_rows": true,
+          "minimum_news_present_per_company_horizon": true,
+          "minimum_unique_material_events_per_company": false,
+          "development_power": true,
+          "minimum_event_impact_training_rows": true,
+          "minimum_blind_audit_rows": true,
+          "minimum_automated_audit_rows": true,
+          "strict_artifact_identity": true
+        },
+        "passed": false,
+        "news_present_benchmark_rows": 1568,
+        "news_present_by_company": {
+          "1023.KL": 119,
+          "1155.KL": 239,
+          "1295.KL": 38,
+          "3816.KL": 238,
+          "4677.KL": 91,
+          "5183.KL": 117,
+          "5225.KL": 239,
+          "5347.KL": 76,
+          "6947.KL": 181,
+          "8869.KL": 230
+        },
+        "unique_material_events_by_company": {
+          "1023.KL": 180,
+          "1155.KL": 2336,
+          "1295.KL": 51,
+          "3816.KL": 944,
+          "4677.KL": 109,
+          "5183.KL": 179,
+          "5225.KL": 866,
+          "5347.KL": 106,
+          "6947.KL": 717,
+          "8869.KL": 541
+        },
+        "requirements": {
+          "news_present_benchmark_rows": 300,
+          "news_present_per_company_horizon": 20,
+          "unique_material_events_per_company": 100,
+          "minimum_power": 0.8,
+          "event_impact_training_rows": 100,
+          "blind_audit_rows": 0,
+          "automated_audit_rows": 200,
+          "strict_artifact_identity": true
+        },
+        "evidence_gaps": {
+          "news_present_benchmark_rows": 0,
+          "news_present_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 0,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          },
+          "unique_material_events_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 49,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          },
+          "event_impact_training_rows": 0,
+          "blind_audit_rows": 0,
+          "automated_audit_rows": 0,
+          "strict_artifact_identity": 0
+        },
+        "power_analysis": {
+          "power": 0.99999999458011,
+          "rows": 5336,
+          "minimum_effect": 0.0025,
+          "standard_error": 0.0003256480163285719,
+          "estimated_rows_for_80_percent_power": 711
+        },
+        "event_impact_training_rows": 6452,
+        "blind_audit_rows": 0,
+        "blind_audit_column": null,
+        "automated_audit_rows": 9553,
+        "automated_audit_column": "v4_automated_audit_passed",
+        "audit_mode": "automated_structured_provenance",
+        "manual_review_required": false,
+        "strict_artifact_identity": true
+      }
+    },
+    "10": {
+      "selected_window_days": 30.0,
+      "selected_half_life_days": 7.5,
+      "selected_configuration": {
+        "family": "ridge",
+        "penalty_strength": 10.0,
+        "l1_ratio": 0.0,
+        "adjustment_cap": 0.1,
+        "development_brier_improvement": 1.3854270115687406e-05,
+        "development_brier": 0.2513732205040942,
+        "fold_brier_improvements": [
+          0.0034219070109887673,
+          -0.0006643201580265878,
+          -0.001940364268994632,
+          0.0011689697488209416,
+          -0.0019078508358609803
+        ],
+        "development_improvement_standard_error": 0.0010227643904666263,
+        "validation_rows": 10064,
+        "news_present_validation_rows": 7386,
+        "selection_rule": "purged-development-one-standard-error-ridge-preference",
+        "best_development_brier_improvement": 2.1301964233499948e-05
+      },
+      "development_rows": 12082,
+      "calibration_rows": 2367,
+      "benchmark_rows": 2340,
+      "window_trial_count": 8,
+      "readiness": {
+        "checks": {
+          "minimum_news_present_benchmark_rows": true,
+          "minimum_news_present_per_company_horizon": true,
+          "minimum_unique_material_events_per_company": false,
+          "development_power": true,
+          "minimum_event_impact_training_rows": true,
+          "minimum_blind_audit_rows": true,
+          "minimum_automated_audit_rows": true,
+          "strict_artifact_identity": true
+        },
+        "passed": false,
+        "news_present_benchmark_rows": 2025,
+        "news_present_by_company": {
+          "1023.KL": 190,
+          "1155.KL": 234,
+          "1295.KL": 76,
+          "3816.KL": 234,
+          "4677.KL": 216,
+          "5183.KL": 208,
+          "5225.KL": 234,
+          "5347.KL": 167,
+          "6947.KL": 232,
+          "8869.KL": 234
+        },
+        "unique_material_events_by_company": {
+          "1023.KL": 186,
+          "1155.KL": 2330,
+          "1295.KL": 51,
+          "3816.KL": 943,
+          "4677.KL": 109,
+          "5183.KL": 179,
+          "5225.KL": 866,
+          "5347.KL": 106,
+          "6947.KL": 715,
+          "8869.KL": 539
+        },
+        "requirements": {
+          "news_present_benchmark_rows": 300,
+          "news_present_per_company_horizon": 20,
+          "unique_material_events_per_company": 100,
+          "minimum_power": 0.8,
+          "event_impact_training_rows": 100,
+          "blind_audit_rows": 0,
+          "automated_audit_rows": 200,
+          "strict_artifact_identity": true
+        },
+        "evidence_gaps": {
+          "news_present_benchmark_rows": 0,
+          "news_present_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 0,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          },
+          "unique_material_events_by_company": {
+            "1023.KL": 0,
+            "1155.KL": 0,
+            "1295.KL": 49,
+            "3816.KL": 0,
+            "4677.KL": 0,
+            "5183.KL": 0,
+            "5225.KL": 0,
+            "5347.KL": 0,
+            "6947.KL": 0,
+            "8869.KL": 0
+          },
+          "event_impact_training_rows": 0,
+          "blind_audit_rows": 0,
+          "automated_audit_rows": 0,
+          "strict_artifact_identity": 0
+        },
+        "power_analysis": {
+          "power": 0.9999999999827028,
+          "rows": 7386,
+          "minimum_effect": 0.0025,
+          "standard_error": 0.0002911879378878023,
+          "estimated_rows_for_80_percent_power": 787
+        },
+        "event_impact_training_rows": 8956,
+        "blind_audit_rows": 0,
+        "blind_audit_column": null,
+        "automated_audit_rows": 12958,
+        "automated_audit_column": "v4_automated_audit_passed",
+        "audit_mode": "automated_structured_provenance",
+        "manual_review_required": false,
+        "strict_artifact_identity": true
+      }
+    }
+  },
+  "production_unchanged": true,
+  "overall_ready": false,
+  "ready_horizons": []
+}

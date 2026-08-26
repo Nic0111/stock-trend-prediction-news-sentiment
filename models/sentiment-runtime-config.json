@@ -1,6 +1,14 @@
 {
-  "backend": "finbert",
+  "backend": "weighted_finbert_ensemble",
+  "default_backend": "finbert",
   "active_variant": "bursa_phrasebank_defensible_soft_vote_sentiment-remediation-20260809-v1",
+  "active_backend": "weighted_finbert_ensemble",
+  "active_weights": {
+    "bursa": 0.7,
+    "phrasebank": 0.3
+  },
+  "active_ensemble_temperature": 0.76,
+  "default_variant": "finbert_phrasebank_v1",
   "model_directory": "models/experimental/finbert-sentiment",
   "base_model": "yiyanghkust/finbert-pretrain",
   "class_order": [
