@@ -665,4 +665,14 @@ must be installed before running `docker compose up --build`.
 After Node.js and pnpm are installed, double-click `Start-StockSense.cmd` in
 the project root. It starts FastAPI and Vite in hidden windows, waits for the
 frontend, and opens `http://localhost:5173`. Use `Stop-StockSense.cmd` to stop
-the processes started by that shortcut.
+the processes started by that shortcut. If startup fails, the hidden launcher
+shows an error and keeps diagnostic logs under `.cache/launcher-logs`.
+
+Run the local connection audit after startup with:
+
+```powershell
+.\Test-StockSense.cmd
+```
+
+Add `-IncludeExternalCalls` to also make one NewsAPI/FinBERT request and one
+OpenRouter tutor request. This optional mode can consume provider quota.

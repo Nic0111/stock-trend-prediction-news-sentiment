@@ -111,6 +111,44 @@ function Get-StockSenseBackendProcesses {
     })
 }
 
+function Get-StockSenseFrontendProcesses {
+    $rootPattern = [regex]::Escape($root)
+    @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.CommandLine -and
+        $_.Name -eq "node.exe" -and
+        $_.CommandLine -match "vite(?:\.js)?" -and
+        $_.CommandLine -match $rootPattern
+    })
+}
+
+function Get-PortOwnerProcessIds([int]$port) {
+    @(
+        Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty OwningProcess -Unique
+    )
+}
+
+function Test-StockSenseFrontendResponse {
+    try {
+        $response = Invoke-WebRequest -Uri "http://127.0.0.1:5173" -UseBasicParsing -TimeoutSec 3
+        return (
+            $response.StatusCode -eq 200 -and
+            $response.Content -match "<title>StockSense</title>"
+        )
+    } catch {
+        return $false
+    }
+}
+
+function Test-StockSenseBackendResponse {
+    try {
+        $response = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/v1/health/ready" -TimeoutSec 3
+        return $response.status -eq "ready"
+    } catch {
+        return $false
+    }
+}
+
 $started = @()
 $api = $null
 $frontend = $null
@@ -120,18 +158,59 @@ foreach ($logPath in @($apiStdout, $apiStderr, $frontendStdout, $frontendStderr)
 }
 
 $existingApi = @(Get-StockSenseBackendProcesses)
-foreach ($process in $existingApi) {
-    Stop-ProcessTree ([int]$process.ProcessId)
-}
-if (Test-PortListening 8000) {
-    throw "Port 8000 is already occupied by a process that is not a StockSense backend. Stop that process or choose another API port."
-}
-$api = Start-LoggedProcess -Executable $python -Arguments @(
-    "-m", "uvicorn", "backend.app.main:app", "--host", "127.0.0.1", "--port", "8000"
-) -WorkingDirectory $root -StdoutPath $apiStdout -StderrPath $apiStderr
-$started += [pscustomobject]@{ Name = "api"; Pid = $api.Id }
+$reuseApi = (
+    $existingApi.Count -gt 0 -and
+    (Test-PortListening 8000) -and
+    (Test-StockSenseBackendResponse)
+)
 
-if (-not (Test-PortListening 5173)) {
+if ($reuseApi) {
+    # A second launcher invocation should not interrupt an already healthy API.
+    # Record only the root wrapper processes; Stop-StockSense can later stop
+    # their complete Python child trees.
+    $existingIds = @($existingApi | ForEach-Object { [int]$_.ProcessId })
+    $apiRoots = @($existingApi | Where-Object { [int]$_.ParentProcessId -notin $existingIds })
+    foreach ($process in $apiRoots) {
+        $started += [pscustomobject]@{ Name = "api"; Pid = [int]$process.ProcessId }
+    }
+} else {
+    foreach ($process in $existingApi) {
+        Stop-ProcessTree ([int]$process.ProcessId)
+    }
+    if (Test-PortListening 8000) {
+        throw "Port 8000 is already occupied by a process that is not a healthy StockSense backend. Stop that process or choose another API port."
+    }
+    $api = Start-LoggedProcess -Executable $python -Arguments @(
+        "-m", "uvicorn", "backend.app.main:app", "--host", "127.0.0.1", "--port", "8000"
+    ) -WorkingDirectory $root -StdoutPath $apiStdout -StderrPath $apiStderr
+    $started += [pscustomobject]@{ Name = "api"; Pid = $api.Id }
+}
+
+$frontendOwners = @(Get-PortOwnerProcessIds 5173)
+$existingFrontends = @(Get-StockSenseFrontendProcesses)
+
+# Vite can remain alive after its listener has stopped. Remove only stale
+# processes whose command line points at this exact workspace; unrelated Node
+# processes are never touched.
+foreach ($process in $existingFrontends) {
+    if ([int]$process.ProcessId -notin $frontendOwners) {
+        Stop-ProcessTree ([int]$process.ProcessId)
+    }
+}
+
+if ($frontendOwners.Count -gt 0) {
+    if (-not (Test-StockSenseFrontendResponse)) {
+        throw "Port 5173 is occupied, but it is not serving this StockSense frontend. Stop the process using port 5173 and run the launcher again."
+    }
+
+    # Preserve ownership in the state file when an earlier StockSense Vite
+    # process is reused. Stop-StockSense.cmd can then still stop it later.
+    foreach ($ownerPid in $frontendOwners) {
+        if ($existingFrontends.ProcessId -contains $ownerPid) {
+            $started += [pscustomobject]@{ Name = "frontend"; Pid = [int]$ownerPid }
+        }
+    }
+} else {
     # Vite's CLI installs an interactive stdin handler when it detects a TTY.
     # The hidden launcher intentionally has no console/stdin, and Node 24 can
     # surface that mismatch as an unhandled EPIPE.  CI mode disables the
@@ -170,20 +249,19 @@ try {
             }
         }
 
-    if ($frontend) {
-        Wait-HttpReady `
-            -Name "StockSense frontend" `
-            -Uri "http://127.0.0.1:5173" `
-            -Process $frontend `
-            -TimeoutSeconds 20 `
-            -LogPaths @($frontendStdout, $frontendStderr) `
-            -ValidateResponse {
-                param($response)
-                return $response.StatusCode -ge 200 -and $response.StatusCode -lt 500
-            }
-    } elseif (-not (Test-PortListening 5173)) {
-        throw "The frontend was not started and port 5173 is not listening."
-    }
+    Wait-HttpReady `
+        -Name "StockSense frontend" `
+        -Uri "http://127.0.0.1:5173" `
+        -Process $frontend `
+        -TimeoutSeconds 20 `
+        -LogPaths @($frontendStdout, $frontendStderr) `
+        -ValidateResponse {
+            param($response)
+            return (
+                $response.StatusCode -eq 200 -and
+                $response.Content -match "<title>StockSense</title>"
+            )
+        }
 
     Start-Process "http://localhost:5173"
     Write-Host "StockSense is available at http://localhost:5173"

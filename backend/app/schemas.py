@@ -146,7 +146,7 @@ class CombinedOutlookResponse(BaseModel):
     source_count: int = 0
     component_contributions: Dict[str, float] = Field(default_factory=dict)
     fusion_model_version: Optional[str] = None
-    fusion_method: Optional[Literal["transparent_log_odds", "late_fusion_logistic", "anchored_incremental_news"]] = None
+    fusion_method: Optional[Literal["transparent_log_odds", "late_fusion_logistic", "anchored_incremental_news", "v4_anchored_incremental_news"]] = None
     fallback_reason: Optional[str] = None
     acceptance_override_active: bool = False
     acceptance_override_reason: Optional[str] = None

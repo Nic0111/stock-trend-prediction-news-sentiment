@@ -53,6 +53,14 @@ const COLORS = {
   violet: "#7257d7",
 };
 
+// Keep the candidate-family legend in the same horizon order as the bars.
+// Recharts otherwise sorts legend labels alphabetically (10-day before 5-day).
+const CANDIDATE_HORIZON_LEGEND = [
+  { value: "1-day balanced accuracy", type: "square", color: COLORS.blue },
+  { value: "5-day balanced accuracy", type: "square", color: COLORS.green },
+  { value: "10-day balanced accuracy", type: "square", color: COLORS.violet },
+] as const;
+
 // Keep sentiment classes visually consistent everywhere in the diagnostics:
 // positive is constructive (green), neutral is watchful (amber), and
 // negative is adverse (red). The explicit order also avoids relying on the
@@ -392,6 +400,30 @@ function subgroupBalancedAccuracy(
     if (typeof score === "number" && Number.isFinite(score)) return score;
   }
   return null;
+}
+
+const EVIDENCE_BUCKET_ORDER = ["high", "medium", "low", "unavailable"] as const;
+
+function orderedEvidenceBuckets<T>(entries: Array<[string, T]>) {
+  const rank = new Map<string, number>(
+    EVIDENCE_BUCKET_ORDER.map((bucket, index) => [bucket, index]),
+  );
+
+  return [...entries]
+    .sort(([left], [right]) => {
+      const leftRank = rank.get(left.trim().toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+      const rightRank = rank.get(right.trim().toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+      return leftRank - rightRank || left.localeCompare(right);
+    })
+    .map(([bucket, value]) => {
+      const normalized = bucket.trim().toLowerCase();
+      const label = EVIDENCE_BUCKET_ORDER.includes(
+        normalized as (typeof EVIDENCE_BUCKET_ORDER)[number],
+      )
+        ? normalized.charAt(0).toUpperCase() + normalized.slice(1)
+        : plain(bucket);
+      return [label, value] as [string, T];
+    });
 }
 
 function MetricScoreboard({ horizon }: { horizon: StockPerformanceHorizon }) {
@@ -1029,7 +1061,14 @@ function CandidatesPanel({
                 label={yAxisLabel("Model family")}
               />
               <Tooltip content={<EvaluationTooltip />} />
-              <Legend />
+              <Legend
+                itemSorter={(entry) => {
+                  const index = CANDIDATE_HORIZON_LEGEND.findIndex(
+                    (item) => item.value === entry.value,
+                  );
+                  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+                }}
+              />
               <Bar
                 dataKey="day1"
                 name="1-day balanced accuracy"
@@ -1220,7 +1259,9 @@ function FusionAblationPanel({ performance, horizon }: { performance: ModelPerfo
     name: plain(name),
     value,
   }));
-  const coverageData = Object.entries(result.subgroups?.news_coverage || result.subgroups?.coverage || {}).map(([coverage, value]) => ({
+  const coverageData = orderedEvidenceBuckets(
+    Object.entries(result.subgroups?.news_coverage || result.subgroups?.coverage || {}),
+  ).map(([coverage, value]) => ({
     coverage,
     stock: subgroupBalancedAccuracy(value, "stock"),
     fusion: subgroupBalancedAccuracy(value, "fusion"),
@@ -1241,7 +1282,9 @@ function FusionAblationPanel({ performance, horizon }: { performance: ModelPerfo
     fusion: fusionConfidence[index]?.accuracy,
     rows: value.rows,
   }));
-  const reliabilityData = Object.entries(result.subgroups?.news_reliability || {}).map(([reliability, value]) => ({
+  const reliabilityData = orderedEvidenceBuckets(
+    Object.entries(result.subgroups?.news_reliability || {}),
+  ).map(([reliability, value]) => ({
     reliability,
     stock: subgroupBalancedAccuracy(value, "stock"),
     fusion: subgroupBalancedAccuracy(value, "fusion"),

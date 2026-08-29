@@ -521,7 +521,7 @@ export interface CombinedOutlook {
   source_count: number;
   component_contributions: Record<string, number>;
   fusion_model_version: string | null;
-  fusion_method: "transparent_log_odds" | "late_fusion_logistic" | "anchored_incremental_news" | null;
+  fusion_method: "transparent_log_odds" | "late_fusion_logistic" | "anchored_incremental_news" | "v4_anchored_incremental_news" | null;
   fallback_reason: string | null;
   acceptance_override_active?: boolean;
   acceptance_override_reason?: string | null;

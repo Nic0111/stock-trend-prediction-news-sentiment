@@ -83,7 +83,7 @@ export function CombinedOutlookCard({ analysis, children }: { analysis: Dashboar
     ? "Transparent log-odds fusion"
       : outlook.fusion_method === "late_fusion_logistic"
         ? "Validated late-fusion model"
-        : outlook.fusion_method === "anchored_incremental_news"
+        : outlook.fusion_method === "anchored_incremental_news" || outlook.fusion_method === "v4_anchored_incremental_news"
           ? "Anchored news adjustment"
       : null;
 
