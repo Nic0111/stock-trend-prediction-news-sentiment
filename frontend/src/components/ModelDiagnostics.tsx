@@ -152,17 +152,17 @@ export function SentimentModelEvidence({ compact = false }: { compact?: boolean 
   const failed = sentiment.acceptance.failed_checks.length;
   return <section className={`evaluation-ledger sentiment-ledger ${compact ? "compact" : ""}`}>
     <EvidenceHeader eyebrow="FinBERT evidence" title="Recorded sentiment-model performance" description="The active Bursa + PhraseBank ensemble is evaluated independently from today's retrieved articles." icon={<FlaskConical size={20} />} />
-    <div className="evaluation-ledger-strip">
+    <div className={`evaluation-ledger-strip ${compact ? "sentiment-summary-strip" : ""}`}>
       <div><span>Evaluation</span><strong>{sentiment.evaluation_year} retrospective holdout</strong></div>
       <div><span>Active mixture</span><strong>{percentage(sentiment.weights.bursa, 0)} Bursa · {percentage(sentiment.weights.phrasebank, 0)} PhraseBank</strong></div>
       <div><span>Rows evaluated</span><strong>{sentiment.evaluation_rows ?? "Unavailable"}</strong></div>
-      <div><span>Governance</span><strong className={sentiment.acceptance.eligible_for_promotion ? "status-pass" : "status-caution"}>{sentiment.acceptance.eligible_for_promotion ? <CheckCircle2 size={14} /> : <CircleAlert size={14} />}{sentiment.manual_override_active ? "Manual production override" : metricLabel(sentiment.promotion_status)}</strong></div>
+      {!compact && <div><span>Governance</span><strong className={sentiment.acceptance.eligible_for_promotion ? "status-pass" : "status-caution"}>{sentiment.acceptance.eligible_for_promotion ? <CheckCircle2 size={14} /> : <CircleAlert size={14} />}{sentiment.manual_override_active ? "Manual production override" : metricLabel(sentiment.promotion_status)}</strong></div>}
     </div>
     <div className="evaluation-chart-grid"><SentimentComparison models={sentiment.models} /><SentimentClassChart model={ensemble} /></div>
-    <div className="evaluation-reading-row">
+    <div className={`evaluation-reading-row ${compact ? "sentiment-reading-row" : ""}`}>
       <div><Gauge size={17} /><span><strong>{percentage(ensemble?.balanced_accuracy)}</strong> ensemble balanced accuracy</span></div>
       <div><ShieldCheck size={17} /><span><strong>{percentage(ensemble?.ece)}</strong> calibration error (lower is better)</span></div>
-      <div className={failed ? "has-caution" : ""}>{failed ? <CircleAlert size={17} /> : <CheckCircle2 size={17} />}<span><strong>{failed}</strong> promotion gate{failed === 1 ? "" : "s"} not passed</span></div>
+      {!compact && <div className={failed ? "has-caution" : ""}>{failed ? <CircleAlert size={17} /> : <CheckCircle2 size={17} />}<span><strong>{failed}</strong> promotion gate{failed === 1 ? "" : "s"} not passed</span></div>}
     </div>
     {!compact && <EvaluationProtocol />}
   </section>;

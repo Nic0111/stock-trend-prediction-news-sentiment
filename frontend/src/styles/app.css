@@ -2030,6 +2030,7 @@ input[type="radio"] { accent-color: var(--blue); }
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border-block: 1px solid rgba(66, 91, 121, 0.18);
 }
+.sentiment-summary-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .evaluation-ledger-strip > div {
   display: flex;
   min-width: 0;
@@ -2102,6 +2103,7 @@ input[type="radio"] { accent-color: var(--blue); }
   border-radius: 13px;
   background: rgba(66, 91, 121, 0.14);
 }
+.sentiment-reading-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .evaluation-reading-row > div {
   display: flex;
   min-width: 0;

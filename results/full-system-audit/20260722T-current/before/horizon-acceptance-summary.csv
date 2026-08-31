@@ -1,4 +1,0 @@
-horizon_days,model_name,status,policy_version,strongest_baseline,balanced_accuracy_gain,bootstrap_gain_lower,bootstrap_gain_upper,brier_skill,failed_checks
-1,elastic-net-logistic,limited,horizon-acceptance-v2,majority-class,0.023006708442047552,0.004119626565574786,0.042913460645686435,0.004980922590691161,directional_recall
-5,xgboost,limited,horizon-acceptance-v2,majority-class,0.024650434958186862,0.004863330127656029,0.044477752678713595,0.0016693313293242307,directional_recall
-10,random-forest,accepted,horizon-acceptance-v2,majority-class,0.048214285714285765,0.009172751528386227,0.0887006750444608,0.001398329299032497,
