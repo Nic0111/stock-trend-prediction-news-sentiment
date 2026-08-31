@@ -157,7 +157,7 @@ Retrieve recent news context without an interactive prompt:
 python main.py download_financial_news --ticker 1155.KL
 ```
 
-News is retrieved across 30 calendar dates and summarized into 7-, 14-, and 30-day contexts for the 1-, 5-, and 10-day stock horizons. The NewsAPI request stays inside its rolling free-plan boundary when the stock observation is one day behind today. Recency half-lives are 3.5, 7, and 15 days, so an article at each context boundary receives 25% of the same-day recency weight before FinBERT confidence is applied. Article sentiment below 0.55 model probability is excluded from aggregation. Runtime sentiment uses the evaluated FinBERT model; the TF-IDF classifier remains available only to the offline training and benchmark pipelines.
+News is requested across up to 30 calendar dates and summarized into 7-, 14-, and 30-day contexts for the 1-, 5-, and 10-day stock horizons. The evidence cutoff remains anchored to the completed stock observation, while the oldest NewsAPI request date is dynamically clamped to 28 days before the actual request date. This prevents weekends and holidays from pushing the request outside the provider's rolling boundary without admitting post-observation news. Recency half-lives are 3.5, 7, and 15 days, so an article at each context boundary receives 25% of the same-day recency weight before FinBERT confidence is applied. Article sentiment below 0.55 model probability is excluded from aggregation. Runtime sentiment uses the evaluated FinBERT model; the TF-IDF classifier remains available only to the offline training and benchmark pipelines.
 
 ### Conditional Marketaux coverage
 

@@ -53,6 +53,7 @@ DEFAULT_SENTIMENT_VARIANT = "finbert_phrasebank_v1"
 
 NEWSAPI_ENDPOINT = "https://newsapi.org/v2/everything"
 NEWSAPI_KEY_ENV_VAR = "NEWSAPI_KEY"
+NEWSAPI_PROVIDER_SAFETY_DAYS = 28
 SEARCH_IN = "title,description"
 LANGUAGE = "en"
 SORT_BY = "publishedAt"
@@ -63,7 +64,7 @@ NEWS_RETRIEVAL_LOOKBACK_DAYS = 30
 # Increment when the serialized context shape changes. The contribution trail
 # is required for the evidence visualisations and must not be read from an
 # older cache that cannot reproduce the displayed score.
-NEWS_CONTEXT_CONFIG_VERSION = 12
+NEWS_CONTEXT_CONFIG_VERSION = 13
 NEWS_HISTORICAL_CONTEXT_START_DAYS = NEWS_RETRIEVAL_LOOKBACK_DAYS + 1
 NEWS_HISTORICAL_CONTEXT_END_DAYS = 90
 SENTIMENT_PROBABILITY_THRESHOLD = 0.55
@@ -190,6 +191,7 @@ def build_news_context_metadata() -> Dict[str, Any]:
     return {
         "news_context_config_version": NEWS_CONTEXT_CONFIG_VERSION,
         "retrieval_lookback_days": NEWS_RETRIEVAL_LOOKBACK_DAYS,
+        "newsapi_provider_safety_days": NEWSAPI_PROVIDER_SAFETY_DAYS,
         "historical_context_start_days": NEWS_HISTORICAL_CONTEXT_START_DAYS,
         "historical_context_end_days": NEWS_HISTORICAL_CONTEXT_END_DAYS,
         "context_windows": {str(horizon): window for horizon, window in CONTEXT_WINDOWS.items()},
@@ -312,15 +314,25 @@ def build_newsapi_query(query_variants: Sequence[str]) -> str:
 def get_news_date_range(
     lookback_days: int = NEWS_RETRIEVAL_LOOKBACK_DAYS,
     as_of_date: date | None = None,
+    request_date: date | None = None,
 ) -> Tuple[str, str]:
     end_date = as_of_date or date.today()
     if lookback_days < 1:
         raise ValueError("lookback_days must be at least one day")
-    # NewsAPI's free rolling window is timestamp-based.  Subtracting 30 days
-    # from the date creates a 31-date inclusive range and can be rejected when
-    # the observation date is one day behind today.  Return exactly 30 calendar
-    # dates, keeping the request safely inside the provider boundary.
-    start_date = end_date - timedelta(days=lookback_days - 1)
+    retrieval_date = request_date or date.today()
+    desired_start = end_date - timedelta(days=lookback_days - 1)
+    # NewsAPI applies its plan boundary against the request timestamp, while
+    # the evidence cutoff remains anchored to the completed stock observation.
+    # Clamp only the oldest requested date and retain a one-day safety margin
+    # so weekends, holidays and time-of-day differences cannot invalidate the
+    # whole provider request.
+    safe_provider_start = retrieval_date - timedelta(days=NEWSAPI_PROVIDER_SAFETY_DAYS)
+    start_date = max(desired_start, safe_provider_start)
+    if start_date > end_date:
+        raise ValueError(
+            "NewsAPI request window is unavailable because the stock observation "
+            "predates the provider's safe rolling boundary."
+        )
     return start_date.isoformat(), end_date.isoformat()
 
 
@@ -328,8 +340,9 @@ def build_request_url(
     query_text: str,
     lookback_days: int = NEWS_RETRIEVAL_LOOKBACK_DAYS,
     as_of_date: date | None = None,
+    request_date: date | None = None,
 ) -> str:
-    from_date, to_date = get_news_date_range(lookback_days, as_of_date)
+    from_date, to_date = get_news_date_range(lookback_days, as_of_date, request_date)
     params = {
         "q": query_text,
         "searchIn": SEARCH_IN,
@@ -348,9 +361,10 @@ def fetch_newsapi_response(
     query_text: str,
     lookback_days: int = NEWS_RETRIEVAL_LOOKBACK_DAYS,
     as_of_date: date | None = None,
+    request_date: date | None = None,
 ) -> Dict[str, Any]:
     request = Request(
-        build_request_url(query_text, lookback_days, as_of_date),
+        build_request_url(query_text, lookback_days, as_of_date, request_date),
         headers={"X-Api-Key": api_key, "User-Agent": "stock-investment-analytics/2.0"},
     )
     try:
@@ -1037,9 +1051,34 @@ def retrieve_financial_news(
     # Preflight the shared sentiment engine before spending a provider request.
     # NewsAPI and Marketaux cannot recover from the same FinBERT runtime failure.
     model = load_sentiment_model()
-    data = response_data if response_data is not None else fetch_newsapi_response(
-        api_key or get_newsapi_key(), query_text, NEWS_RETRIEVAL_LOOKBACK_DAYS, effective_date
-    )
+    request_window_metadata: Dict[str, Any] = {}
+    if response_data is not None:
+        data = response_data
+    else:
+        retrieval_date = date.today()
+        request_from, request_to = get_news_date_range(
+            NEWS_RETRIEVAL_LOOKBACK_DAYS,
+            effective_date,
+            retrieval_date,
+        )
+        desired_from = effective_date - timedelta(days=NEWS_RETRIEVAL_LOOKBACK_DAYS - 1)
+        data = fetch_newsapi_response(
+            api_key or get_newsapi_key(),
+            query_text,
+            NEWS_RETRIEVAL_LOOKBACK_DAYS,
+            effective_date,
+            retrieval_date,
+        )
+        request_window_metadata = {
+            "newsapi_request_from": request_from,
+            "newsapi_request_to": request_to,
+            "newsapi_request_date": retrieval_date.isoformat(),
+            "effective_retrieval_calendar_days": (
+                date.fromisoformat(request_to) - date.fromisoformat(request_from)
+            ).days
+            + 1,
+            "provider_boundary_clamped": date.fromisoformat(request_from) > desired_from,
+        }
     filter_diagnostics: Dict[str, int] = {}
     review_rows: List[Dict[str, Any]] = []
     rows = filter_articles(
@@ -1085,6 +1124,7 @@ def retrieve_financial_news(
         provider_status={"newsapi": "ok"},
         provider_metadata={
             **build_news_context_metadata(),
+            **request_window_metadata,
             "prediction_cutoff_at": cutoff_at.isoformat(),
             "excluded_non_news_count": sum(filter_diagnostics.values()),
             "excluded_non_news_reasons": filter_diagnostics,

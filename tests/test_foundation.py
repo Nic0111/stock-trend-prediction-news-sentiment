@@ -19,6 +19,7 @@ from pipeline.download_financial_news_data import (
     calculate_recency_weight,
     filter_articles,
     is_relevant_article,
+    retrieve_financial_news,
 )
 from pipeline.news_relevance import classify_non_news_source, normalize_source_domain
 from pipeline.news_relevance import classify_entity_relevance
@@ -221,10 +222,69 @@ class NewsContextTests(unittest.TestCase):
         self.assertEqual(result.status, "included")
         self.assertGreaterEqual(result.score, 0.70)
 
-    def test_newsapi_request_uses_30_day_retrieval_boundary(self) -> None:
-        url = build_request_url('"Maybank"', as_of_date=date(2026, 7, 10))
-        self.assertIn("from=2026-06-11", url)
+    def test_newsapi_request_retains_safety_margin_on_same_day(self) -> None:
+        url = build_request_url(
+            '"Maybank"',
+            as_of_date=date(2026, 7, 10),
+            request_date=date(2026, 7, 10),
+        )
+        self.assertIn("from=2026-06-12", url)
         self.assertIn("to=2026-07-10", url)
+
+    def test_newsapi_request_clamps_from_date_on_weekend(self) -> None:
+        url = build_request_url(
+            '"Maybank"',
+            as_of_date=date(2026, 7, 31),
+            request_date=date(2026, 8, 2),
+        )
+        self.assertIn("from=2026-07-05", url)
+        self.assertIn("to=2026-07-31", url)
+
+    def test_newsapi_request_clamps_from_date_after_long_market_gap(self) -> None:
+        url = build_request_url(
+            '"Maybank"',
+            as_of_date=date(2026, 8, 27),
+            request_date=date(2026, 8, 30),
+        )
+        self.assertIn("from=2026-08-02", url)
+        self.assertIn("to=2026-08-27", url)
+
+    def test_newsapi_request_rejects_observation_older_than_safe_boundary(self) -> None:
+        with self.assertRaisesRegex(ValueError, "safe rolling boundary"):
+            build_request_url(
+                '"Maybank"',
+                as_of_date=date(2026, 7, 1),
+                request_date=date(2026, 8, 1),
+            )
+
+    def test_live_news_result_records_effective_clamped_request_window(self) -> None:
+        class FixedDate(date):
+            @classmethod
+            def today(cls) -> date:
+                return cls(2026, 8, 30)
+
+        with (
+            patch("pipeline.download_financial_news_data.date", FixedDate),
+            patch("pipeline.download_financial_news_data.load_sentiment_model", return_value=object()),
+            patch(
+                "pipeline.download_financial_news_data.fetch_newsapi_response",
+                return_value={"status": "ok", "totalResults": 0, "articles": []},
+            ) as fetch,
+        ):
+            result = retrieve_financial_news(
+                "1155.KL",
+                as_of_date="2026-08-27",
+                api_key="test-key",
+                persist_outputs=False,
+            )
+
+        fetch.assert_called_once()
+        self.assertEqual(fetch.call_args.args[4], date(2026, 8, 30))
+        self.assertEqual(result.provider_metadata["newsapi_request_from"], "2026-08-02")
+        self.assertEqual(result.provider_metadata["newsapi_request_to"], "2026-08-27")
+        self.assertEqual(result.provider_metadata["effective_retrieval_calendar_days"], 26)
+        self.assertEqual(result.provider_metadata["newsapi_provider_safety_days"], 28)
+        self.assertTrue(result.provider_metadata["provider_boundary_clamped"])
 
     def test_short_mb_alias_is_not_generated_or_matched(self) -> None:
         variants = build_company_query_variants("1155.KL", "Malayan Banking Berhad")
