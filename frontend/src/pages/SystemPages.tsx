@@ -56,13 +56,7 @@ export function SettingsPage() {
                 Profile: {status.data.stock_registry_profile || "unknown"} ·
                 publication: {status.data.stock_registry_publication_status || "unknown"}
               </p>
-              {status.data.stock_registry_manual_override_active ? (
-                <p className="notice warning">
-                  Manual override is active. The registry is available for
-                  research use, but it is not described as independently
-                  validated. {status.data.stock_registry_manual_override_reason || ""}
-                </p>
-              ) : (
+              {!status.data.stock_registry_manual_override_active && (
                 <p>
                   {status.data.stock_registry_officially_validated
                     ? "The active registry passed the official promotion workflow."

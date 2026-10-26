@@ -235,8 +235,8 @@ class StockSenseApiTests(unittest.TestCase):
         self.assertNotIn("[MODEL-1]", response.json()["content"])
         system_prompt = complete_chat.call_args.args[0][0]["content"]
         self.assertIn("Explain only the displayed Stock Outlook result", system_prompt)
-        self.assertIn("what the probability means", system_prompt)
-        self.assertIn("investment-learning terms", system_prompt)
+        self.assertIn("60-100 words", system_prompt)
+        self.assertIn("Lead with the aggregate direction", system_prompt)
 
 
 if __name__ == "__main__":
